@@ -59,18 +59,14 @@ export async function fetchLibrarySnapshot(
   });
 }
 
-export function pinnedSnapshot(
-  entry: ModelLibraryEntry,
-  options?: HfClientOptions,
-): Promise<ModelLibrarySnapshot> {
-  return fetchLibrarySnapshot(entry.repoId, entry.revision, options);
-}
-
 export async function baselineSnapshot(
   entry: ModelLibraryEntry,
   options?: HfClientOptions,
 ): Promise<ModelLibrarySnapshot> {
-  return entry.snapshot ?? pinnedSnapshot(entry, options);
+  return (
+    entry.snapshot ??
+    fetchLibrarySnapshot(entry.repoId, entry.revision, options)
+  );
 }
 
 function compareLibrarySnapshots(

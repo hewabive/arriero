@@ -1,4 +1,7 @@
-import { ModelLibraryActionSchema } from "@arriero/core";
+import {
+  ModelLibraryActionSchema,
+  ModelLibrarySnapshotQuerySchema,
+} from "@arriero/core";
 import {
   startHfIntegrityJob,
   getHfIntegrityJob,
@@ -8,7 +11,7 @@ import {
   actOnLibraryEntry,
   createLibraryEntry,
 } from "../hf/library-actions.js";
-import { pinnedSnapshot } from "../hf/library-checks.js";
+import { fetchLibrarySnapshot } from "../hf/library-checks.js";
 import {
   ModelImportRequestSchema,
   ModelImportCommitSchema,
@@ -63,7 +66,6 @@ import {
 } from "../hf/downloads.js";
 import {
   deleteModelLibraryEntry,
-  getLibraryEntry,
   listModelLibraryEntryStatuses,
   removeModelLibraryEntryForDeletedDownload,
 } from "../hf/model-library.js";
@@ -189,6 +191,23 @@ export function registerHfRoutes(app: Hono) {
     }
   });
 
+  app.get("/api/hf/snapshot", async (c) => {
+    const parsed = ModelLibrarySnapshotQuerySchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.flatten() }, 400);
+    }
+    try {
+      return c.json({
+        data: await fetchLibrarySnapshot(
+          parsed.data.repo,
+          parsed.data.revision,
+        ),
+      });
+    } catch (error) {
+      return hfErrorResponse(c, error);
+    }
+  });
+
   app.get("/api/hf/dest-check", async (c) => {
     const dir = c.req.query("dir");
     if (dir) {
@@ -234,15 +253,6 @@ export function registerHfRoutes(app: Hono) {
     }
   });
 
-  app.get("/api/hf/library/:id/snapshot", async (c) => {
-    try {
-      return c.json({
-        data: await pinnedSnapshot(getLibraryEntry(c.req.param("id"))),
-      });
-    } catch (error) {
-      return hfErrorResponse(c, error);
-    }
-  });
   app.post("/api/hf/library/:id/actions", async (c) => {
     const body = await parseJsonBody(c, ModelLibraryActionSchema);
     try {

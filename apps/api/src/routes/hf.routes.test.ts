@@ -103,6 +103,90 @@ test("browse rejects unparsable repo input", async () => {
   }
 });
 
+test("library snapshot rejects an invalid query", async () => {
+  const app = appWithRoutes();
+  for (const query of [
+    "",
+    "repo=owner%2Frepo",
+    "revision=main",
+    "repo=not%20a%20repo&revision=main",
+    "repo=owner%2Frepo&revision=",
+  ]) {
+    const response = await app.request(`/api/hf/snapshot?${query}`);
+    assert.equal(response.status, 400, query);
+  }
+});
+
+function hubTree(requests: string[], status = 200): typeof fetch {
+  return (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    requests.push(url.pathname);
+    if (status !== 200)
+      return new Response(JSON.stringify({ error: "missing" }), { status });
+    if (url.pathname.includes("/revision/"))
+      return Response.json({ sha: "c".repeat(40) });
+    return Response.json([
+      { type: "directory", path: "quants", oid: "d".repeat(40) },
+      {
+        type: "file",
+        path: "quants/model-Q4_K_M.gguf",
+        size: 120,
+        oid: "e".repeat(40),
+        lfs: { oid: "f".repeat(64), size: 4096 },
+      },
+      { type: "file", path: "README.md", size: 12, oid: "a".repeat(40) },
+    ]);
+  }) as typeof fetch;
+}
+
+test("library snapshot lists a commit tree without resolving the revision", async (t) => {
+  const requests: string[] = [];
+  t.mock.method(globalThis, "fetch", hubTree(requests));
+  const sha = "b".repeat(40);
+  const response = await appWithRoutes().request(
+    `/api/hf/snapshot?repo=owner%2Frepo&revision=${sha}`,
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    data: {
+      revision: sha,
+      files: [
+        {
+          path: "quants/model-Q4_K_M.gguf",
+          size: 4096,
+          oid: "e".repeat(40),
+          lfsOid: "f".repeat(64),
+        },
+        { path: "README.md", size: 12, oid: "a".repeat(40), lfsOid: null },
+      ],
+    },
+  });
+  assert.deepEqual(requests, [`/api/models/owner/repo/tree/${sha}`]);
+});
+
+test("library snapshot pins a branch to its current commit", async (t) => {
+  const requests: string[] = [];
+  t.mock.method(globalThis, "fetch", hubTree(requests));
+  const response = await appWithRoutes().request(
+    "/api/hf/snapshot?repo=owner%2Frepo&revision=main",
+  );
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as { data: { revision: string } };
+  assert.equal(payload.data.revision, "c".repeat(40));
+  assert.deepEqual(requests, [
+    "/api/models/owner/repo/revision/main",
+    `/api/models/owner/repo/tree/${"c".repeat(40)}`,
+  ]);
+});
+
+test("library snapshot maps Hub errors to their HTTP status", async (t) => {
+  t.mock.method(globalThis, "fetch", hubTree([], 404));
+  const response = await appWithRoutes().request(
+    `/api/hf/snapshot?repo=owner%2Frepo&revision=${"b".repeat(40)}`,
+  );
+  assert.equal(response.status, 404);
+});
+
 test("download delete rejects unknown dirs and bad bodies", async () => {
   const app = appWithRoutes();
   const bad = await app.request("/api/hf/downloads/delete", {

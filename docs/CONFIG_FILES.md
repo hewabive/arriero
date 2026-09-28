@@ -69,8 +69,9 @@ fields. Floating legacy revisions must be explicitly pinned by saving a selectio
 downloads. Automatic download/import capture adds files only at the existing pinned revision;
 a different revision leaves the saved pin and selection intact and logs the conflict.
 
-`GET`/`POST /api/hf/library`, `DELETE /api/hf/library/:id`,
-`GET /api/hf/library/:id/snapshot` and `POST /api/hf/library/:id/actions` expose the library.
+`GET`/`POST /api/hf/library`, `DELETE /api/hf/library/:id` and
+`POST /api/hf/library/:id/actions` expose the library; `GET /api/hf/snapshot?repo=&revision=` lists
+the remote tree a repository dialog compares against.
 Downloading a subset does not change the shared selection. Deleting installed files preserves
 library entries unless `removeLibraryEntry` is explicitly requested. See `docs/HF_DOWNLOADS.md`
 for selection, restoration and update semantics.

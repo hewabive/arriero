@@ -207,10 +207,12 @@ The page searches repositories and filters by saved, on-disk, missing-file or up
 status. It adds watch-only entries from a repo ID/URL and branch, checks repositories, and
 downloads missing selected files individually or across the library.
 `ModelLibraryDialog` is the only repository management window, used for saved entries and local
-repositories without a saved entry. `ModelLibraryTree` displays full filenames in their actual
-folders, with compact size, local-state and changes-since-review columns. It joins pinned and latest
-checked paths with saved paths, local manifests, queue files and orphan download parts. Deleted
-remote files remain at their original paths. An unavailable remote tree is unknown, not empty.
+repositories without a saved entry. Both load the pinned tree from `GET /api/hf/snapshot` with the
+repo id and the saved or manifest revision — the same bounded `fetchLibrarySnapshot` the checks use
+(tree-only for a commit sha; an incomplete listing is an error, never a snapshot).
+`ModelLibraryTree` displays full filenames in their actual folders, with compact size, local-state
+and changes-since-review columns. It joins pinned and latest checked paths with saved paths, local
+manifests, queue files and orphan download parts. Deleted remote files remain at their original paths. An unavailable remote tree is unknown, not empty.
 `ModelLibraryFileDetails` shows hashes, per-version metadata and integrity details on demand.
 
 Checkboxes are a temporary action selection, independent of the saved installation (marked with a
@@ -438,6 +440,7 @@ cross-origin CDN redirect.
 | --- | --- |
 | `GET /api/hf/token`, `PUT /api/hf/token` | write-only token surface |
 | `GET /api/hf/browse?repo=&revision=` | repo info + tree + GGUF variants |
+| `GET /api/hf/snapshot?repo=&revision=` | library snapshot (commit sha + per-file oids) of a repo id at a revision |
 | `GET /api/hf/dest-check?dir=` / `?repo=` | free space + inside-scan-roots for a destination |
 | `POST /api/hf/downloads` | enqueue a download job (201; 409 only for insufficient space) |
 | `GET /api/hf/downloads` | downloaded repos from manifest discovery (+ `partialBytes`, `orphanParts`) |

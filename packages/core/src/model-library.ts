@@ -14,8 +14,15 @@ export const ModelLibrarySnapshotSchema = z.object({
   revision: z.string().regex(HF_COMMIT_SHA_PATTERN),
   files: z.array(ModelLibraryFileSchema).max(10000),
 });
+export const ModelLibrarySnapshotQuerySchema = z.object({
+  repo: HfRepoIdSchema,
+  revision: z.string().min(1),
+});
 export type ModelLibraryFile = z.infer<typeof ModelLibraryFileSchema>;
 export type ModelLibrarySnapshot = z.infer<typeof ModelLibrarySnapshotSchema>;
+export type ModelLibrarySnapshotQuery = z.infer<
+  typeof ModelLibrarySnapshotQuerySchema
+>;
 export const ModelLibraryCheckSchema = z.object({
   status: z.enum(["unchecked", "current", "changed", "error"]),
   checkedAt: z.string().nullable(),

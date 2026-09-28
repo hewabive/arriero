@@ -25,10 +25,9 @@ import { MoreHorizontal, RefreshCw } from "lucide-react";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
   actOnModelLibraryEntry,
-  browseHfRepo,
   createModelLibraryEntry,
   getHfDestCheck,
-  getModelLibrarySnapshot,
+  getHfLibrarySnapshot,
 } from "../../api/hf";
 import { libraryFiles } from "../utils/model-library-files";
 import { notifyError } from "../utils/notify";
@@ -77,22 +76,9 @@ export function ModelLibraryDialog({
   const integrity = verification.result;
   const queue = useHfQueue();
   const pinned = useQuery({
-    queryKey: ["hf-library-snapshot", entry?.id ?? repo?.dir, revision],
-    queryFn: async () => {
-      if (entry) return (await getModelLibrarySnapshot(entry.id)).data;
-      const result = (await browseHfRepo(repoId, revision)).data;
-      if (result.truncated)
-        throw new Error("The repository file listing is incomplete.");
-      return {
-        revision: result.commitSha,
-        files: result.files.map((file) => ({
-          path: file.path,
-          size: file.size,
-          oid: file.oid,
-          lfsOid: file.lfs?.oid ?? null,
-        })),
-      };
-    },
+    queryKey: ["hf-library-snapshot", repoId, revision],
+    queryFn: async () =>
+      (await getHfLibrarySnapshot({ repo: repoId, revision })).data,
     retry: false,
     ...(isHfCommitSha(revision) ? { staleTime: Infinity } : {}),
   });

@@ -1,4 +1,8 @@
-import type { ModelLibraryAction, ModelLibrarySnapshot } from "@arriero/core";
+import type {
+  ModelLibraryAction,
+  ModelLibrarySnapshot,
+  ModelLibrarySnapshotQuery,
+} from "@arriero/core";
 import type { ModelImportSelection } from "@arriero/core";
 import type { ModelImportRequest, ModelImportState } from "@arriero/core";
 import type {
@@ -200,8 +204,8 @@ export function actOnModelLibraryEntry(id: string, action: ModelLibraryAction) {
     body: JSON.stringify(action),
   });
 }
-export function getModelLibrarySnapshot(id: string) {
+export function getHfLibrarySnapshot(query: ModelLibrarySnapshotQuery) {
   return request<{ data: ModelLibrarySnapshot }>(
-    `/api/hf/library/${id}/snapshot`,
+    `/api/hf/snapshot${buildQuery(query)}`,
   );
 }
