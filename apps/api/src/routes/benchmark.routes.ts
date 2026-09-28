@@ -32,6 +32,7 @@ import {
 import { checkReplayDatasetFit } from "../benchmark/replay-dataset.js";
 import { getBenchmarkRunProgress } from "../benchmark/run-support.js";
 import {
+  assertNoActiveBenchmarkRun,
   cancelBenchmarkRun,
   startBenchmarkRun,
   waitForBenchmarkRun,
@@ -137,6 +138,7 @@ export function registerBenchmarkRoutes(app: Hono) {
       return c.json({ error: parsed.error.flatten() }, 400);
     }
     try {
+      assertNoActiveBenchmarkRun();
       return c.json({
         data: await checkReplayDatasetFit({
           datasetId: parsed.data.dataset,

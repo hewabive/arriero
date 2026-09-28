@@ -332,16 +332,20 @@ async function executeSyntheticRun(context: ExecutionContext): Promise<void> {
   }
 }
 
-export function startBenchmarkRun(
-  scenario: BenchmarkScenario,
-  options: BenchmarkRunnerOptions = {},
-): BenchmarkRun {
+export function assertNoActiveBenchmarkRun(): void {
   const active = getActiveJob(BENCHMARK_JOB_DOMAIN);
   if (active) {
     throw new BenchmarkConflictError(
       `a benchmark run is already active: ${active.jobId}`,
     );
   }
+}
+
+export function startBenchmarkRun(
+  scenario: BenchmarkScenario,
+  options: BenchmarkRunnerOptions = {},
+): BenchmarkRun {
+  assertNoActiveBenchmarkRun();
   const execution =
     scenario.mode === "replay"
       ? {

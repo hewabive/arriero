@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { BENCHMARK_JOB_DOMAIN } from "../benchmark/runner.js";
+import { registerActiveJob } from "../jobs/registry.js";
 import { registerBenchmarkRoutes } from "./benchmark.routes.js";
 
 const app = new Hono();
@@ -209,6 +211,25 @@ test("replay endpoints validate datasets and instances", async () => {
       )
     ).status,
     404,
+  );
+
+  let finishActiveRun = () => {};
+  registerActiveJob({
+    domain: BENCHMARK_JOB_DOMAIN,
+    jobId: "measuring-run",
+    cancel: () => {},
+    completion: new Promise<void>((resolveRun) => {
+      finishActiveRun = resolveRun;
+    }),
+  });
+  const duringRun = await app.request(
+    `/api/benchmark/context-fit?dataset=${dataset}&instance=missing`,
+  );
+  finishActiveRun();
+  assert.equal(duringRun.status, 409);
+  assert.match(
+    ((await duringRun.json()) as { error: string }).error,
+    /measuring-run/,
   );
 
   assert.equal(

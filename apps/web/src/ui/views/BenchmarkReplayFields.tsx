@@ -217,8 +217,9 @@ export function BenchmarkReplayFields(props: {
   onChange: (patch: Partial<ReplayFormState>) => void;
   instanceName: string | null;
   detail: WorkloadDatasetDetail | null;
+  runActive: boolean;
 }) {
-  const { state, onChange, instanceName, detail } = props;
+  const { state, onChange, instanceName, detail, runActive } = props;
   const datasetsQuery = useQuery({
     ...workloadDatasetsQuery,
     staleTime: 30_000,
@@ -448,7 +449,9 @@ export function BenchmarkReplayFields(props: {
           variant="light"
           size="xs"
           leftSection={<Ruler size={14} />}
-          disabled={state.datasetId === null || instanceName === null}
+          disabled={
+            state.datasetId === null || instanceName === null || runActive
+          }
           loading={fitMutation.isPending}
           onClick={() => {
             if (state.datasetId === null || instanceName === null) return;

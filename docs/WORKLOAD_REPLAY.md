@@ -401,10 +401,11 @@ A segment whose session starts inside the window needs no priming: its cold star
 
 **D20. Pacing.**
 
-- _Arrival plan._ `recorded`: segments start at their recorded offsets from the window start.
-  `composed`: segments, possibly from different periods, start as if together — N at once or at a
-  given interval. `composed` produces load that never occurred; the same segments run at concurrency
-  1, 2, 4 and 8 give the curve of MTP gain against load.
+- _Arrival plan._ `recorded`: segments start at their recorded offsets from the window start. A
+  composed plan — `together` (all at once) or `interval` (one every given interval), either capped
+  by `concurrencyCap` — starts segments, possibly from different periods, as if together. It
+  produces load that never occurred; the same segments run at concurrency 1, 2, 4 and 8 give the
+  curve of MTP gain against load.
 - _Think time._ Inside a segment the next request is sent the recorded pause after the replayed answer
   ends, not at a recorded instant. The pause is client time and does not depend on the engine, while
   the end of the answer does: a faster configuration receives the next request sooner, as it would in
@@ -416,13 +417,13 @@ A segment whose session starts inside the window needs no priming: its cold star
   Time-based engine behavior breaks the assumption; an instance with llama.cpp
   `--sleep-idle-seconds` gets a warning.
 - _Lossy compression, only when chosen explicitly._ Scaled, capped or zero think time; zero think time
-  with a `composed` plan of N at once is the stress mode. Each option changes the workload in a known
+  with a `together` plan is the stress mode. Each option changes the workload in a known
   direction and is part of the scenario.
 
 The default is the `recorded` plan with recorded think time and idle skipping. A run then lasts as
 long as the window was busy, and the estimate is shown before the start.
 
-Caveats of `composed`: there is no recorded baseline, so the fidelity report does not apply; a
+Caveats of a composed plan: there is no recorded baseline, so the fidelity report does not apply; a
 session must not appear twice, because copies share the whole prefix and fake cache hits; sessions
 from different periods may come from different client versions, with different system prompts and
 tools, so they share fewer prefixes than truly concurrent sessions would.

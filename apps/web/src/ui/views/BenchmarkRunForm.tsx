@@ -86,8 +86,8 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
     .filter((row) => row.promptId !== null)
     .map((row) => ({ promptId: row.promptId as string, count: row.count }));
   const clients = benchmarkClientCount(composition);
-  const idle =
-    !fm.startPending && !fm.runs.some((run) => run.status === "running");
+  const running = fm.runs.some((run) => run.status === "running");
+  const idle = !fm.startPending && !running;
   const canStart =
     instanceName !== null &&
     idle &&
@@ -218,6 +218,7 @@ export function BenchmarkRunForm({ fm }: { fm: BenchmarkViewController }) {
             }
             instanceName={instanceName}
             detail={replayDetail}
+            runActive={running}
           />
         ) : (
           <Stack gap={6}>
