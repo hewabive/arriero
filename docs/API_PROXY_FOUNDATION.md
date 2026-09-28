@@ -182,8 +182,9 @@ SGLang omits `usage.prompt_tokens_details` when no prompt tokens were cached,
 even with `--enable-cache-report`. For managed SGLang chat/completions (including
 translated Anthropic messages), trace metering interprets an absent cache-read
 count as zero only when prompt usage was received and the open process run's
-launch snapshot contains that flag. Editing instance arguments without restarting
-does not change this interpretation. Explicit cache counts are preserved;
+launch snapshot contains that flag (the engine descriptor's
+`proxy.cacheReportArg`, `docs/ENGINE_ADAPTERS.md`). Editing instance arguments
+without restarting does not change this interpretation. Explicit cache counts are preserved;
 external endpoints, missing launch snapshots, and responses without prompt usage
 remain unknown. Request History can then display `0 / N` for a cold prompt using
 its existing fresh-token calculation. This normalization affects newly recorded

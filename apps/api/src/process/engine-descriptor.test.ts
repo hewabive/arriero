@@ -30,6 +30,7 @@ test("llama-server descriptor enables the full llama feature set", () => {
     true,
     "llama-server",
     "llama",
+    null,
   ]);
 });
 
@@ -55,6 +56,7 @@ test("rpc-worker descriptor opts out of inference-server features", () => {
     false,
     "llama-server",
     "none",
+    null,
   ]);
 });
 
@@ -80,6 +82,7 @@ test("vllm descriptor uses the OpenAI-compatible start/stop-only contract", () =
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "vllm",
+    cacheReportArg: null,
   });
 });
 
@@ -120,7 +123,17 @@ test("sglang descriptor declares the upstream SGLang lifecycle contract", () => 
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "sglang",
+    cacheReportArg: "--enable-cache-report",
   });
+});
+
+test("only sglang declares a cache-report launch flag", () => {
+  for (const kind of INSTANCE_KINDS) {
+    assert.equal(
+      engineDescriptor(kind).proxy.cacheReportArg,
+      kind === "sglang" ? "--enable-cache-report" : null,
+    );
+  }
 });
 
 test("only ktransformers uses strict memory admission", () => {
@@ -164,5 +177,6 @@ test("ktransformers descriptor declares the SGLang-KT lifecycle contract", () =>
     reasoningControl: false,
     translationDialect: "openai-compatible",
     tokenCount: "none",
+    cacheReportArg: null,
   });
 });

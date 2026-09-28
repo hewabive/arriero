@@ -80,6 +80,7 @@ export type EngineProxyCapabilities = {
   reasoningControl: boolean;
   translationDialect: EngineTranslationDialectId;
   tokenCount: EngineTokenCountId;
+  cacheReportArg: "--enable-cache-report" | null;
 };
 
 export type EngineDescriptor = {
@@ -141,6 +142,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       reasoningControl: true,
       translationDialect: "llama-server",
       tokenCount: "llama",
+      cacheReportArg: null,
     },
     probe: { id: "llama-http", httpHealth: true },
     nativeApi: "llama",
@@ -187,6 +189,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       reasoningControl: false,
       translationDialect: "llama-server",
       tokenCount: "none",
+      cacheReportArg: null,
     },
     probe: { id: "tcp-accept", httpHealth: false },
     nativeApi: "none",
@@ -229,6 +232,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "vllm",
+      cacheReportArg: null,
     },
     probe: { id: "openai-http", httpHealth: true },
     nativeApi: "none",
@@ -275,6 +279,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "sglang",
+      cacheReportArg: "--enable-cache-report",
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",
@@ -322,6 +327,7 @@ const ENGINE_DESCRIPTORS: Record<InstanceKind, EngineDescriptor> = {
       reasoningControl: false,
       translationDialect: "openai-compatible",
       tokenCount: "none",
+      cacheReportArg: null,
     },
     probe: { id: "openai-http", httpHealth: true, httpTimeoutMs: 15_000 },
     nativeApi: "none",

@@ -95,7 +95,11 @@ const cacheReportByInstance = new Map<
 >();
 
 function instanceOmitsZeroCacheRead(instance: Instance | null): boolean {
-  if (instance?.kind !== "sglang") {
+  if (!instance) {
+    return false;
+  }
+  const cacheReportArg = engineDescriptor(instance.kind).proxy.cacheReportArg;
+  if (!cacheReportArg) {
     return false;
   }
   const run = openProcessRunForInstance(instance.name);
@@ -108,7 +112,7 @@ function instanceOmitsZeroCacheRead(instance: Instance | null): boolean {
   }
   const enabled =
     parseLaunchSnapshot(run.launchSnapshot)?.cliArgs.includes(
-      "--enable-cache-report",
+      cacheReportArg,
     ) === true;
   cacheReportByInstance.set(instance.name, { runId: run.id, enabled });
   return enabled;
