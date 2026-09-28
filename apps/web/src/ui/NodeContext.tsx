@@ -1,15 +1,22 @@
 import type { FleetNodeView } from "@arriero/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type Query } from "@tanstack/react-query";
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
 
 import { SELF_NODE_ID, getActiveNodeId, setActiveNodeId } from "../api/base.js";
 import { listNodes } from "../api/nodes.js";
+
+declare module "@tanstack/react-query" {
+  interface Register {
+    queryMeta: { scope?: "self" };
+  }
+}
 
 type NodeContextValue = {
   activeNodeId: string;
@@ -31,6 +38,7 @@ export function useActiveFleetNode(): FleetNodeView | null {
     queryKey: ["nodes"],
     queryFn: listNodes,
     staleTime: 10_000,
+    meta: { scope: "self" },
     enabled: activeNodeId !== SELF_NODE_ID,
   });
   if (activeNodeId === SELF_NODE_ID) {
@@ -48,6 +56,10 @@ export function useActiveNodeHost(): string | null {
   return node ? new URL(node.baseUrl).hostname : null;
 }
 
+function followsActiveNode(query: Query): boolean {
+  return query.meta?.scope !== "self";
+}
+
 export function NodeProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [activeNodeId, setActiveNodeIdState] = useState<string>(() =>
@@ -56,12 +68,27 @@ export function NodeProvider({ children }: { children: ReactNode }) {
 
   const setActiveNode = useCallback(
     (id: string) => {
+      const previousNodeId = getActiveNodeId();
       setActiveNodeId(id);
+      if (getActiveNodeId() === previousNodeId) {
+        return;
+      }
+      for (const query of queryClient
+        .getQueryCache()
+        .findAll({ predicate: followsActiveNode })) {
+        query.reset();
+      }
       setActiveNodeIdState(getActiveNodeId());
-      void queryClient.invalidateQueries();
     },
     [queryClient],
   );
+
+  useEffect(() => {
+    void queryClient.refetchQueries(
+      { predicate: followsActiveNode, type: "active" },
+      { cancelRefetch: false },
+    );
+  }, [activeNodeId, queryClient]);
 
   return (
     <NodeContext.Provider value={{ activeNodeId, setActiveNode }}>

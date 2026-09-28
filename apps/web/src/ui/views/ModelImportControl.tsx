@@ -10,7 +10,6 @@ import { useQuery } from "@tanstack/react-query";
 import { FolderCheck, FolderInput } from "lucide-react";
 import { useState } from "react";
 import { listHfDownloads } from "../../api/hf";
-import { useActiveNode } from "../NodeContext.js";
 import { ModelImportDialog } from "./ModelImportDialog";
 
 type PresentFileRepos = ReadonlyMap<string, ReadonlySet<string>>;
@@ -74,7 +73,6 @@ export function ModelImportControl({
   model: GgufModel | SafetensorsModel;
 }) {
   const [opened, setOpened] = useState(false);
-  const { activeNodeId } = useActiveNode();
   const downloads = useQuery({
     queryKey: ["hf-downloads"],
     queryFn: listHfDownloads,
@@ -106,7 +104,7 @@ export function ModelImportControl({
       </Tooltip>
       {opened && (
         <ModelImportDialog
-          key={`${activeNodeId}:${model.path}`}
+          key={model.path}
           model={model}
           onClose={() => setOpened(false)}
         />

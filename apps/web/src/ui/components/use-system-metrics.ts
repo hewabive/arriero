@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { getSystemMetrics, systemMetricsStreamUrl } from "../../api/client";
+import { useActiveNode } from "../NodeContext.js";
 
 function mergeSamples(
   history: SystemMetricsSample[],
@@ -39,10 +40,12 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
     refetchOnWindowFocus: window !== "live",
   });
   const [live, setLive] = useState<SystemMetricsSample[]>([]);
+  const { activeNodeId } = useActiveNode();
+  const streamUrl = systemMetricsStreamUrl(activeNodeId);
 
   useEffect(() => {
+    setLive([]);
     if (window !== "live") {
-      setLive([]);
       return;
     }
 
@@ -69,7 +72,7 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
       if (source) {
         return;
       }
-      source = new EventSource(systemMetricsStreamUrl());
+      source = new EventSource(streamUrl);
       source.addEventListener("open", refetchHistory);
       source.addEventListener("sample", handler as EventListener);
     };
@@ -96,7 +99,7 @@ export function useSystemMetrics(window: SystemMetricsWindow) {
       document.removeEventListener("visibilitychange", syncVisibility);
       close();
     };
-  }, [window, query.refetch]);
+  }, [window, streamUrl, query.refetch]);
 
   const capacity = query.data?.data.capacity ?? tier.capacity;
   const intervalMs = query.data?.data.intervalMs ?? tier.intervalMs;

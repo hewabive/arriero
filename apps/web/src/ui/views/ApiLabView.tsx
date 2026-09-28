@@ -104,10 +104,6 @@ export function ApiLabView(props: {
   );
 
   useEffect(() => {
-    setEndpointId(null);
-  }, [activeNodeId]);
-
-  useEffect(() => {
     if (endpointId || groups.length === 0) {
       return;
     }

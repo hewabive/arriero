@@ -51,6 +51,7 @@ export function AttentionSignalsCard() {
   const versionQuery = useQuery({
     queryKey: ["app-version"],
     queryFn: getSelfVersion,
+    meta: { scope: "self" },
     staleTime: 60_000,
     refetchInterval: 300_000,
   });

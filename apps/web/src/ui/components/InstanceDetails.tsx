@@ -75,7 +75,7 @@ import {
 } from "./InstanceDetailsPanels";
 import { InstanceReasoningPanel } from "./InstanceReasoningPanel";
 import { LlamaCapabilitiesPanel } from "./LlamaCapabilitiesPanel";
-import { useActiveNodeHost } from "../NodeContext.js";
+import { useActiveNode, useActiveNodeHost } from "../NodeContext.js";
 
 export function InstanceDetails(props: {
   instance: Instance | null;
@@ -89,7 +89,9 @@ export function InstanceDetails(props: {
   const [openDetails, setOpenDetails] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const nodeHost = useActiveNodeHost();
+  const { activeNodeId } = useActiveNode();
   const id = props.instance?.name;
+  const eventsUrl = id ? instanceEventsUrl(activeNodeId, id) : null;
   const engine = props.instance ? engineDescriptor(props.instance.kind) : null;
   const hasLlamaApi = engine?.nativeApi === "llama";
 
@@ -158,11 +160,11 @@ export function InstanceDetails(props: {
 
   useEffect(() => {
     setEvents([]);
-    if (!id) {
+    if (!eventsUrl) {
       return undefined;
     }
 
-    const eventSource = new EventSource(instanceEventsUrl(id));
+    const eventSource = new EventSource(eventsUrl);
     const append = (event: MessageEvent<string>) => {
       try {
         const parsed = JSON.parse(event.data) as ProcessEvent;
@@ -179,7 +181,7 @@ export function InstanceDetails(props: {
     return () => {
       eventSource.close();
     };
-  }, [id]);
+  }, [eventsUrl]);
 
   const health = props.health ?? healthQuery.data?.data;
   const runtime = health?.runtime ?? runtimeQuery.data?.data;

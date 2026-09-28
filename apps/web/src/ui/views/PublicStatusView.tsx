@@ -67,6 +67,7 @@ export function PublicStatusView() {
   const statusQuery = useQuery({
     queryKey: ["public-status"],
     queryFn: getPublicStatus,
+    meta: { scope: "self" },
     refetchInterval: 5_000,
   });
   const status = statusQuery.data?.data;

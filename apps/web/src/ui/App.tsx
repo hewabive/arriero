@@ -17,7 +17,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LogOut, Moon, RefreshCw, Search, ServerOff, Sun } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import {
   getApiProxyStats,
@@ -26,6 +26,7 @@ import {
   listInstances,
   logoutAdmin,
 } from "../api/client";
+import { useActiveNode } from "./NodeContext.js";
 import { AppLogo } from "./components/AppLogo";
 import { AppNav, type NavSectionBadge } from "./components/AppNav";
 import { CommandPalette } from "./components/CommandPalette";
@@ -87,10 +88,17 @@ export function App() {
   } | null>(null);
   const [initialModel, setInitialModel] =
     useState<InstanceFormInitialModel | null>(null);
+  const { activeNodeId } = useActiveNode();
+  const [selectionNodeId, setSelectionNodeId] = useState(activeNodeId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [launchMonitor, setLaunchMonitor] = useState<LaunchMonitor | null>(
     null,
   );
+  if (selectionNodeId !== activeNodeId) {
+    setSelectionNodeId(activeNodeId);
+    setSelectedId(null);
+    setLaunchMonitor(null);
+  }
   const [monitorNowMs, setMonitorNowMs] = useState(Date.now());
   const [apiLabVisited, setApiLabVisited] = useState(false);
   const [paletteOpened, setPaletteOpened] = useState(false);
@@ -100,6 +108,7 @@ export function App() {
   const authQuery = useQuery({
     queryKey: ["auth-state"],
     queryFn: getAuthState,
+    meta: { scope: "self" },
     retry: 1,
     refetchInterval: (query) =>
       query.state.status === "error" || query.state.fetchFailureCount > 0
@@ -420,105 +429,109 @@ export function App() {
             </>
           )}
 
-          {canUseAdmin && route === "dashboard" && (
-            <DashboardView
-              instances={instances}
-              healthByInstanceId={healthByInstanceId}
-              onOpenDiagnostics={(instance) => {
-                setSelectedId(instance.name);
-                setRoute("diagnostics");
-              }}
-            />
-          )}
-
-          {canUseAdmin && route === "instances" && (
-            <InstancesView
-              instances={instances}
-              selectedInstance={selectedInstance}
-              healthByInstanceId={healthByInstanceId}
-              onSelect={(instance) => setSelectedId(instance.name)}
-              onCreate={() => setCreateOpened(true)}
-              onEdit={(instance) => setFormSeed({ mode: "edit", instance })}
-              onDuplicate={(instance) =>
-                setFormSeed({ mode: "duplicate", instance })
-              }
-              onOpenDiagnostics={(instance) => {
-                setSelectedId(instance.name);
-                setRoute("diagnostics");
-              }}
-              onLaunchStarted={startLaunchMonitor}
-              onLaunchStopped={clearLaunchMonitor}
-            />
-          )}
-
           {canUseAdmin && route === "nodes" && <NodesView />}
 
-          {canUseAdmin && route === "config-git" && <ConfigGitView />}
+          <Fragment key={activeNodeId}>
+            {canUseAdmin && route === "dashboard" && (
+              <DashboardView
+                instances={instances}
+                healthByInstanceId={healthByInstanceId}
+                onOpenDiagnostics={(instance) => {
+                  setSelectedId(instance.name);
+                  setRoute("diagnostics");
+                }}
+              />
+            )}
 
-          {canUseAdmin && route === "maintenance" && <MaintenanceView />}
+            {canUseAdmin && route === "instances" && (
+              <InstancesView
+                instances={instances}
+                selectedInstance={selectedInstance}
+                healthByInstanceId={healthByInstanceId}
+                onSelect={(instance) => setSelectedId(instance.name)}
+                onCreate={() => setCreateOpened(true)}
+                onEdit={(instance) => setFormSeed({ mode: "edit", instance })}
+                onDuplicate={(instance) =>
+                  setFormSeed({ mode: "duplicate", instance })
+                }
+                onOpenDiagnostics={(instance) => {
+                  setSelectedId(instance.name);
+                  setRoute("diagnostics");
+                }}
+                onLaunchStarted={startLaunchMonitor}
+                onLaunchStopped={clearLaunchMonitor}
+              />
+            )}
 
-          {canUseAdmin && route === "build" && <BuildView />}
+            {canUseAdmin && route === "config-git" && <ConfigGitView />}
 
-          {canUseAdmin && route === "environments" && <EnvironmentsView />}
+            {canUseAdmin && route === "maintenance" && <MaintenanceView />}
 
-          {canUseAdmin && route === "diagnostics" && (
-            <DiagnosticsView
-              instances={instances}
-              selectedInstance={selectedInstance}
-              selectedHealth={selectedHealth}
-              launchMonitor={selectedLaunchMonitor}
-              monitorNowMs={monitorNowMs}
-              onSelect={setSelectedId}
-              onLaunchStopped={clearLaunchMonitor}
-            />
-          )}
+            {canUseAdmin && route === "build" && <BuildView />}
 
-          {canUseAdmin && route === "args" && <ArgumentsView />}
+            {canUseAdmin && route === "environments" && <EnvironmentsView />}
 
-          {canUseAdmin && route === "benchmark" && <BenchmarkView />}
-
-          {canUseAdmin && route === "paths" && <PathCatalogView />}
-
-          {canUseAdmin && route === "proxy" && <ProxySection />}
-
-          {canUseAdmin && apiLabVisited && (
-            <div style={{ display: route === "api-lab" ? "contents" : "none" }}>
-              <ApiLabView
+            {canUseAdmin && route === "diagnostics" && (
+              <DiagnosticsView
                 instances={instances}
                 selectedInstance={selectedInstance}
                 selectedHealth={selectedHealth}
+                launchMonitor={selectedLaunchMonitor}
+                monitorNowMs={monitorNowMs}
                 onSelect={setSelectedId}
+                onLaunchStopped={clearLaunchMonitor}
               />
-            </div>
-          )}
+            )}
 
-          {canUseAdmin && route === "models" && (
-            <ModelsView
-              onUseModel={(model) => {
-                setInitialModel({ path: model.path, format: "gguf" });
-                setCreateOpened(true);
-              }}
-              onUseSafetensorsModel={(model) => {
-                setInitialModel({ path: model.path, format: "safetensors" });
-                setCreateOpened(true);
-              }}
-            />
-          )}
+            {canUseAdmin && route === "args" && <ArgumentsView />}
 
-          {canUseAdmin && route === "model-library" && <ModelLibraryView />}
-          {canUseAdmin && route === "downloads" && <HfDownloadsView />}
+            {canUseAdmin && route === "benchmark" && <BenchmarkView />}
 
-          {canUseAdmin && route === "presets" && <PresetsView />}
+            {canUseAdmin && route === "paths" && <PathCatalogView />}
 
-          {canUseAdmin && route === "source-sync" && <SourceSyncView />}
+            {canUseAdmin && route === "proxy" && <ProxySection />}
 
-          {canUseAdmin && route === "processes" && <ProcessesView />}
+            {canUseAdmin && apiLabVisited && (
+              <div
+                style={{ display: route === "api-lab" ? "contents" : "none" }}
+              >
+                <ApiLabView
+                  instances={instances}
+                  selectedInstance={selectedInstance}
+                  selectedHealth={selectedHealth}
+                  onSelect={setSelectedId}
+                />
+              </div>
+            )}
 
-          {canUseAdmin && route === "webapps" && <WebappsSection />}
+            {canUseAdmin && route === "models" && (
+              <ModelsView
+                onUseModel={(model) => {
+                  setInitialModel({ path: model.path, format: "gguf" });
+                  setCreateOpened(true);
+                }}
+                onUseSafetensorsModel={(model) => {
+                  setInitialModel({ path: model.path, format: "safetensors" });
+                  setCreateOpened(true);
+                }}
+              />
+            )}
 
-          {canUseAdmin && route === "system" && <SystemResourcesView />}
+            {canUseAdmin && route === "model-library" && <ModelLibraryView />}
+            {canUseAdmin && route === "downloads" && <HfDownloadsView />}
 
-          {canUseAdmin && route === "prerequisites" && <PrerequisitesView />}
+            {canUseAdmin && route === "presets" && <PresetsView />}
+
+            {canUseAdmin && route === "source-sync" && <SourceSyncView />}
+
+            {canUseAdmin && route === "processes" && <ProcessesView />}
+
+            {canUseAdmin && route === "webapps" && <WebappsSection />}
+
+            {canUseAdmin && route === "system" && <SystemResourcesView />}
+
+            {canUseAdmin && route === "prerequisites" && <PrerequisitesView />}
+          </Fragment>
         </Stack>
       </AppShell.Main>
 

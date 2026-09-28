@@ -190,10 +190,12 @@ export function NodesView() {
     queryKey: ["nodes"],
     queryFn: listNodes,
     staleTime: 10_000,
+    meta: { scope: "self" },
   });
   const fleetQuery = useQuery({
     queryKey: ["update-fleet"],
     queryFn: getUpdateFleet,
+    meta: { scope: "self" },
     retry: 1,
     refetchInterval: () => (anyJobRunning ? 2500 : 15_000),
   });
@@ -602,6 +604,7 @@ function NodeCard({
   const jobQuery = useQuery({
     queryKey: ["update-job", nodeId, jobId],
     queryFn: () => getNodeUpdateJob(nodeId, jobId!),
+    meta: { scope: "self" },
     enabled: Boolean(jobId),
     retry: 1,
     refetchInterval: (query) =>
@@ -652,6 +655,7 @@ function NodeCard({
   const logsQuery = useQuery({
     queryKey: ["update-logs", nodeId, jobId],
     queryFn: () => getNodeUpdateJobLogs(nodeId, jobId!),
+    meta: { scope: "self" },
     enabled: Boolean(jobId) && logsOpen,
     retry: 1,
     refetchInterval: () =>
@@ -676,6 +680,7 @@ function NodeCard({
   const restartPoll = useQuery({
     queryKey: ["node-restart-poll", nodeId],
     queryFn: () => getNodeVersion(nodeId),
+    meta: { scope: "self" },
     enabled: restarting,
     retry: false,
     refetchInterval: RESTART_POLL_MS,

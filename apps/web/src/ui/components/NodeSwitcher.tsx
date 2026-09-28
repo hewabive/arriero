@@ -13,6 +13,7 @@ export function NodeSwitcher() {
     queryKey: ["nodes"],
     queryFn: listNodes,
     staleTime: 10_000,
+    meta: { scope: "self" },
   });
 
   const nodes = nodesQuery.data?.data ?? [];

@@ -9,7 +9,8 @@ scoping, streams, version guard — is `docs/WEB.md`; read it before structural 
   `@arriero/core` — never redeclare them here.
 - Every network call goes through the `src/api` helpers on `apiBase` (`request` / `nodeRequest` /
   `absoluteUrl`): a hardcoded root-absolute `/api` breaks the subpath deploy, and a raw `fetch`
-  skips the active-node scope.
+  skips the active-node scope. A query over plain `request` is tagged `meta: { scope: "self" }`, or a
+  node switch resets it (`docs/WEB.md` § Node scoping).
 - **A new page is a leaf in an existing `navSections` section (`src/ui/routing.ts`), never a new
   sidebar row.** The route entry owns the page title and one-line description — a view never repeats
   them — and the leaf's `keywords` feed the Ctrl+K palette.

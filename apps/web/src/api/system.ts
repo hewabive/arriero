@@ -11,7 +11,7 @@ import type {
   SystemResources,
 } from "@arriero/core";
 
-import { activeNodeScopedPath, apiBase } from "./base.js";
+import { apiBase, nodeScopedPath } from "./base.js";
 import { buildQuery, nodeRequest as request } from "./http.js";
 
 export async function listNetworkInterfaces() {
@@ -32,8 +32,8 @@ export async function getEventLoopReport() {
   return request<{ data: EventLoopReport }>("/api/system/event-loop");
 }
 
-export function systemMetricsStreamUrl() {
-  return `${apiBase}${activeNodeScopedPath("/api/system/metrics/stream")}`;
+export function systemMetricsStreamUrl(nodeId: string) {
+  return `${apiBase}${nodeScopedPath(nodeId, "/api/system/metrics/stream")}`;
 }
 
 export async function listFilesystemDirectory(path?: string) {

@@ -95,12 +95,14 @@ export function ResourcesView() {
   const fleetQuery = useQuery({
     queryKey: ["fleet-resources"],
     queryFn: getFleetResources,
+    meta: { scope: "self" },
     staleTime: 10_000,
     refetchInterval: 15_000,
   });
   const instancesQuery = useQuery({
     queryKey: ["instances", "self"],
     queryFn: listSelfInstances,
+    meta: { scope: "self" },
     staleTime: 10_000,
   });
 

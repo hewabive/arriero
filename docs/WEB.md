@@ -80,11 +80,25 @@ shown to the user.
 whether it follows the node switcher: domain data does; auth, the public status, the nodes registry
 and the self version always target the local manager via plain `request`.
 
-`NodeProvider` mirrors the id into React state, and a switch calls `queryClient.invalidateQueries()`
-wholesale. Query keys therefore do not embed the node id — a new node-scoped query behaves correctly
-on switch with no extra work, at the cost that two nodes' data never coexist in the cache. The
-exception is `NodesView.tsx`, whose update-job and restart polling addresses an explicitly chosen
-peer regardless of the active node and keys by that `nodeId`.
+`NodeProvider` mirrors the id into React state. A switch resets every query not tagged
+`meta: { scope: "self" }` — data dropped, in-flight fetches cancelled — before React renders the new
+node, and refetches the active ones once that render commits. Dropping rather than invalidating
+matters: kept until the refetch lands, the old node's data would stay on screen indefinitely when
+the new node is unreachable (the node proxy answers 502) while actions already go to the new node.
+The refetch waits for the commit because `resetQueries` would refetch the outgoing view's queries
+with their old parameters — the previous node's selected instance — against the new node. Query keys
+therefore do not embed the node id — a new node-scoped query behaves correctly on switch with no
+extra work, at the cost that two nodes' data never coexist in the cache. A query whose fetch uses
+plain `request` carries the `self` tag (typed by the `Register` augmentation in `NodeContext.tsx`):
+an untagged `auth-state` would lose its data on every switch, flip `canUseAdmin` and unmount the
+admin UI. `NodesView.tsx`'s update-job and restart polling addresses an explicitly chosen peer
+regardless of the active node, keys by that `nodeId` and is tagged the same way.
+
+View state is reset too: `App.tsx` renders the node-scoped views inside a fragment keyed by the
+active node id, so a switch remounts them and drops their drafts, selections, stream buffers and the
+API lab's composed probe, and it resets the selected instance and the launch monitor. `NodesView`
+renders outside that key, so an update run survives a switch; the instance form modals do too, as
+their overlay covers the switcher.
 
 ## Server state
 
@@ -94,9 +108,10 @@ Polling via `refetchInterval` is the default liveness mechanism (instances 2.5 s
 
 Three streams bypass polling. Instance runtime events (`InstanceDetails.tsx`) and the system-metrics
 live stream (`use-system-metrics.ts`) use `EventSource` with URLs built through `apiBase` +
-`activeNodeScopedPath`, so they follow both the subpath and the node scope. The api-lab probe stream
-is a POST, which `EventSource` cannot express: `api/sse.ts:readApiProbeStream` parses SSE blocks off
-a fetch body instead.
+`nodeScopedPath` from the context's active node, so they follow both the subpath and the node scope;
+the URL is the effect's dependency, so a switch reconnects the stream even where no key remounts it.
+The api-lab probe stream is a POST, which `EventSource` cannot express:
+`api/sse.ts:readApiProbeStream` parses SSE blocks off a fetch body instead.
 
 ## UI version guard
 
