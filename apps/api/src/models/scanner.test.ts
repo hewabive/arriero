@@ -280,6 +280,55 @@ test("scanModelsFromCache returns cached models scoped by roots and depth", asyn
   }
 });
 
+test("models under a directory whose name starts with two dots stay visible", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-dot-dot-model-scan-"));
+
+  try {
+    const repoDir = join(dir, "..archive");
+    const quantDir = join(repoDir, "Q4_K_M");
+    mkdirSync(quantDir, { recursive: true });
+    const modelPath = join(quantDir, "model.gguf");
+    const mmprojPath = join(repoDir, "mmproj-F16.gguf");
+    writeFileSync(modelPath, "a");
+    writeFileSync(mmprojPath, "bb");
+    const safetensorsDir = join(repoDir, "tiny");
+    mkdirSync(safetensorsDir);
+    writeFileSync(
+      join(safetensorsDir, "model.safetensors"),
+      safetensorsFixture([["a", "BF16", [4, 2]]]),
+    );
+    writeHfManifest(repoDir, {
+      version: 1,
+      repoId: "owner/archive-GGUF",
+      revision: "a".repeat(40),
+      downloadedAt: new Date().toISOString(),
+      files: [],
+    });
+
+    const scanned = await scanModels({ roots: [root(dir)], refresh: true });
+    assert.deepEqual(
+      scanned.models.find((entry) => entry.path === modelPath)?.mmprojPaths,
+      [mmprojPath],
+    );
+
+    const cached = scanModelsFromCache({ roots: [root(dir)] });
+    assert.deepEqual(
+      cached.models.map((entry) => entry.path).sort(),
+      [mmprojPath, modelPath].sort(),
+    );
+    assert.deepEqual(
+      cached.models.find((entry) => entry.path === modelPath)?.mmprojPaths,
+      [mmprojPath],
+    );
+    assert.deepEqual(
+      cached.safetensors.map((entry) => entry.path),
+      [safetensorsDir],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function safetensorsFixture(tensors: Array<[string, string, number[]]>) {
   const header: Record<string, unknown> = {};
   for (const [name, dtype, shape] of tensors) {

@@ -11,6 +11,7 @@ import { basename, dirname, relative, resolve, sep } from "node:path";
 
 import { readHfManifest } from "../hf/manifest.js";
 import { logger } from "../logger.js";
+import { isPathWithin } from "../path-utils.js";
 
 import {
   getCachedModelEntry,
@@ -622,7 +623,7 @@ export async function scanModels(input: {
 
 function withinRoot(target: string, root: string, maxDepth: number) {
   const rel = relative(root, target);
-  if (rel.startsWith("..") || resolve(root, rel) !== target) {
+  if (!isPathWithin(root, target) || resolve(root, rel) !== target) {
     return false;
   }
   const depth = rel === "" ? 0 : rel.split(sep).length;
