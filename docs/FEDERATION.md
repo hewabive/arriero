@@ -120,9 +120,9 @@ one proxy per client.
 
 Every node still owns its proxy config (targets, pipelines, models, endpoints,
 sources), and the Proxy section follows the node switcher like any Node page
-(`apps/web/src/api/proxy.ts` goes through `nodeRequest`): with a peer active it
-shows and edits that peer's proxy — config, stats and traces. This keeps an
-instance and the proxy records naming it on one node: a rename rewrites the proxy
+(`apps/web/src/api/proxy.ts` uses the default, node-scoped `request`): with a
+peer active it shows and edits that peer's proxy — config, stats and traces. This
+keeps an instance and the proxy records naming it on one node: a rename rewrites the proxy
 refs on the instance's own node (`instances/rename.ts:cascadeInstanceRename`), and
 the instance delete dialog offers to remove the dependent targets, models and
 pipelines it reads from the active node's proxy config — the node the instance is

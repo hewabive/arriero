@@ -6,51 +6,48 @@ import type {
   UpdateLogTail,
 } from "@arriero/core";
 
-import { nodeScopedPath } from "./base.js";
-import { request } from "./http.js";
+import { requestOn, selfRequest } from "./http.js";
 
 export async function getSelfVersion() {
-  return request<{ data: AppVersion }>("/api/version");
+  return selfRequest<{ data: AppVersion }>("/api/version");
 }
 
 export async function getUpdateFleet() {
-  return request<{ data: UpdateFleet }>("/api/update/fleet");
+  return selfRequest<{ data: UpdateFleet }>("/api/update/fleet");
 }
 
 export async function checkForUpdate() {
-  return request<{ data: AppVersion; fetchError: string | null }>(
+  return selfRequest<{ data: AppVersion; fetchError: string | null }>(
     "/api/update/check",
     { method: "POST" },
   );
 }
 
 export async function getNodeVersion(nodeId: string) {
-  return request<{ data: AppVersion }>(nodeScopedPath(nodeId, "/api/version"));
+  return requestOn<{ data: AppVersion }>(nodeId, "/api/version");
 }
 
 export async function restartNode(nodeId: string) {
-  return request<{ data: AppRestartResult }>(
-    nodeScopedPath(nodeId, "/api/update/restart"),
-    { method: "POST" },
-  );
+  return requestOn<{ data: AppRestartResult }>(nodeId, "/api/update/restart", {
+    method: "POST",
+  });
 }
 
 export async function startNodeUpdate(nodeId: string, restart: boolean) {
-  return request<{ data: UpdateJob }>(nodeScopedPath(nodeId, "/api/update"), {
+  return requestOn<{ data: UpdateJob }>(nodeId, "/api/update", {
     method: "POST",
     body: JSON.stringify({ restart }),
   });
 }
 
 export async function getNodeUpdateJob(nodeId: string, id: string) {
-  return request<{ data: UpdateJob }>(
-    nodeScopedPath(nodeId, `/api/update/jobs/${id}`),
-  );
+  return requestOn<{ data: UpdateJob }>(nodeId, `/api/update/jobs/${id}`);
 }
 
 export async function cancelNodeUpdateJob(nodeId: string, id: string) {
-  return request<{ data: UpdateJob }>(
-    nodeScopedPath(nodeId, `/api/update/jobs/${id}/cancel`),
+  return requestOn<{ data: UpdateJob }>(
+    nodeId,
+    `/api/update/jobs/${id}/cancel`,
     { method: "POST" },
   );
 }
@@ -60,7 +57,8 @@ export async function getNodeUpdateJobLogs(
   id: string,
   lines = 300,
 ) {
-  return request<{ data: UpdateLogTail }>(
-    nodeScopedPath(nodeId, `/api/update/jobs/${id}/logs?lines=${lines}`),
+  return requestOn<{ data: UpdateLogTail }>(
+    nodeId,
+    `/api/update/jobs/${id}/logs?lines=${lines}`,
   );
 }

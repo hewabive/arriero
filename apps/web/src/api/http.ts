@@ -1,4 +1,4 @@
-import { activeNodeScopedPath, apiBase } from "./base.js";
+import { SELF_NODE_ID, nodeUrl, nodeUrlOn } from "./base.js";
 
 export function buildQuery(params: Record<string, string | undefined>): string {
   const parts = Object.entries(params)
@@ -59,15 +59,27 @@ export class ApiError extends Error {
   }
 }
 
-export async function nodeRequest<T>(
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return fetchJson<T>(nodeUrl(path), init);
+}
+
+export async function requestOn<T>(
+  nodeId: string,
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  return request<T>(activeNodeScopedPath(path), init);
+  return fetchJson<T>(nodeUrlOn(nodeId, path), init);
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`, {
+export async function selfRequest<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  return requestOn<T>(SELF_NODE_ID, path, init);
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
     credentials: "include",
     ...init,
     headers: {

@@ -8,8 +8,7 @@ import type {
   SystemResources,
 } from "@arriero/core";
 
-import { nodeScopedPath } from "./base.js";
-import { nodeRequest, request } from "./http.js";
+import { request, requestOn } from "./http.js";
 
 export type ResourcesSnapshot = {
   pools: MemoryPoolView[];
@@ -19,16 +18,17 @@ export type ResourcesSnapshot = {
 };
 
 export async function getResources() {
-  return nodeRequest<{ data: ResourcesSnapshot }>("/api/resources");
+  return request<{ data: ResourcesSnapshot }>("/api/resources");
 }
 
 export async function updateMemoryPool(
   id: string,
   input: MemoryPoolUpdate,
-  nodeId?: string,
+  nodeId: string,
 ) {
-  return request<{ data: MemoryPoolDeclaration }>(
-    nodeScopedPath(nodeId, `/api/resources/pools/${id}`),
+  return requestOn<{ data: MemoryPoolDeclaration }>(
+    nodeId,
+    `/api/resources/pools/${id}`,
     {
       method: "PUT",
       body: JSON.stringify(input),
@@ -36,9 +36,10 @@ export async function updateMemoryPool(
   );
 }
 
-export async function declareGpuPool(deviceRef: string, nodeId?: string) {
-  return request<{ data: MemoryPoolDeclaration }>(
-    nodeScopedPath(nodeId, "/api/resources/pools"),
+export async function declareGpuPool(deviceRef: string, nodeId: string) {
+  return requestOn<{ data: MemoryPoolDeclaration }>(
+    nodeId,
+    "/api/resources/pools",
     {
       method: "POST",
       body: JSON.stringify({ deviceRef }),
@@ -46,15 +47,16 @@ export async function declareGpuPool(deviceRef: string, nodeId?: string) {
   );
 }
 
-export async function deleteMemoryPool(id: string, nodeId?: string) {
-  return request<{ data: { deleted: string } }>(
-    nodeScopedPath(nodeId, `/api/resources/pools/${id}`),
+export async function deleteMemoryPool(id: string, nodeId: string) {
+  return requestOn<{ data: { deleted: string } }>(
+    nodeId,
+    `/api/resources/pools/${id}`,
     { method: "DELETE" },
   );
 }
 
 export async function estimateInstanceMemory(input: MemoryEstimateRequest) {
-  return nodeRequest<{
+  return request<{
     data: {
       modelPath: string;
       estimate: MemoryEstimate;

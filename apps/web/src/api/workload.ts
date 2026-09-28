@@ -17,7 +17,7 @@ import type {
 } from "@arriero/core";
 
 import { absoluteUrl, activeNodeScopedPath } from "./base.js";
-import { buildQuery, nodeRequest as request } from "./http.js";
+import { buildQuery, request } from "./http.js";
 
 function queryOf(query: Record<string, unknown>): string {
   const params: Record<string, string | undefined> = {};

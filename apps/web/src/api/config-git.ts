@@ -19,40 +19,38 @@ import type {
   ConfigGitValidation,
 } from "@arriero/core";
 
-import { buildQuery, nodeRequest } from "./http.js";
+import { buildQuery, request } from "./http.js";
 
 export function getConfigGitStatus() {
-  return nodeRequest<{ data: ConfigGitStatus }>("/api/config-git/status");
+  return request<{ data: ConfigGitStatus }>("/api/config-git/status");
 }
 
 export function getConfigGitDirty() {
-  return nodeRequest<{ data: ConfigGitDirtySummary }>("/api/config-git/dirty");
+  return request<{ data: ConfigGitDirtySummary }>("/api/config-git/dirty");
 }
 
 export function getConfigGitValidation() {
-  return nodeRequest<{ data: ConfigGitValidation }>(
-    "/api/config-git/validation",
-  );
+  return request<{ data: ConfigGitValidation }>("/api/config-git/validation");
 }
 
 export function getConfigDoctorReport() {
-  return nodeRequest<{ data: ConfigDoctorReport }>("/api/config-git/doctor");
+  return request<{ data: ConfigDoctorReport }>("/api/config-git/doctor");
 }
 
 export function getConfigGitDiff(path?: string) {
-  return nodeRequest<{ data: ConfigGitDiff }>(
+  return request<{ data: ConfigGitDiff }>(
     `/api/config-git/diff${buildQuery(path ? { path } : {})}`,
   );
 }
 
 export function getConfigGitLog(limit = 50) {
-  return nodeRequest<{ data: ConfigGitCommit[] }>(
+  return request<{ data: ConfigGitCommit[] }>(
     `/api/config-git/log${buildQuery({ limit: String(limit) })}`,
   );
 }
 
 export function getConfigGitCommit(hash: string) {
-  return nodeRequest<{ data: ConfigGitCommitDetail }>(
+  return request<{ data: ConfigGitCommitDetail }>(
     `/api/config-git/commits/${encodeURIComponent(hash)}`,
   );
 }
@@ -61,7 +59,7 @@ function mutate(
   path: string,
   body?: unknown,
 ): Promise<{ data: ConfigGitMutationResult }> {
-  return nodeRequest<{ data: ConfigGitMutationResult }>(path, {
+  return request<{ data: ConfigGitMutationResult }>(path, {
     method: "POST",
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -116,7 +114,7 @@ export function commitConfigChanges(input: ConfigGitCommitInput) {
 }
 
 export function deleteConfigBackup(name: string) {
-  return nodeRequest<{ data: ConfigGitBackups }>(
+  return request<{ data: ConfigGitBackups }>(
     `/api/config-git/backups/${encodeURIComponent(name)}`,
     { method: "DELETE" },
   );

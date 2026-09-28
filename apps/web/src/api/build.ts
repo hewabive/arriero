@@ -7,7 +7,7 @@ import type {
   LlamaSourceStatus,
 } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 export async function getBuildSettings() {
   return request<{ data: BuildSettings }>("/api/build/settings");

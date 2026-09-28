@@ -4,7 +4,7 @@ import type {
   LlamaArgumentEngineeringDoc,
 } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 export type EngineArgumentReferenceSummary = {
   engineId: string;

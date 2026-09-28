@@ -7,10 +7,12 @@ scoping, streams, version guard — is `docs/WEB.md`; read it before structural 
 - `src/ui/views/*` are the top-level pages; `src/api/` is the typed fetch layer (`http.ts` +
   `base.ts` do the work, `client.ts` re-exports). All request/response shapes come from
   `@arriero/core` — never redeclare them here.
-- Every network call goes through the `src/api` helpers on `apiBase` (`request` / `nodeRequest` /
-  `absoluteUrl`): a hardcoded root-absolute `/api` breaks the subpath deploy, and a raw `fetch`
-  skips the active-node scope. A query over plain `request` is tagged `meta: { scope: "self" }`, or a
-  node switch resets it (`docs/WEB.md` § Node scoping).
+- Every network call goes through the `src/api` helpers on `apiBase`: `request` follows the active
+  node, `selfRequest` stays on the entry node, `requestOn(nodeId, …)` targets a chosen one — never
+  hand a helper a pre-scoped path; `nodeUrl` / `nodeUrlOn` / `absoluteUrl` build stream and link
+  URLs. A hardcoded root-absolute `/api` breaks the subpath deploy, and a raw `fetch` skips the node
+  scope. A query over `selfRequest` / `requestOn` is built with `selfQueryOptions`, or a node switch
+  resets it (`docs/WEB.md` § Node scoping).
 - **A new page is a leaf in an existing `navSections` section (`src/ui/routing.ts`), never a new
   sidebar row.** The route entry owns the page title and one-line description — a view never repeats
   them — and the leaf's `keywords` feed the Ctrl+K palette.

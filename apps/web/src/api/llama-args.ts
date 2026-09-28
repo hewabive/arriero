@@ -7,7 +7,7 @@ import type {
   LlamaArgumentEngineeringDoc,
 } from "@arriero/core";
 
-import { buildQuery, nodeRequest as request } from "./http.js";
+import { buildQuery, request } from "./http.js";
 
 export async function getLlamaArguments(
   binaryPath?: string,

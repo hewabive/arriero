@@ -1,6 +1,6 @@
 import type { PackageRegistriesSettings } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 export async function getPackageRegistriesSettings() {
   return request<{ data: PackageRegistriesSettings }>("/api/registries");

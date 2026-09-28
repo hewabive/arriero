@@ -34,6 +34,7 @@ import {
   listSelfInstances,
   updateMemoryPool,
 } from "../../api/client";
+import { selfQueryOptions } from "../NodeContext.js";
 import { NumaTopologyPanel } from "../components/NumaTopologyPanel";
 import { formatBytes } from "../utils/models";
 import { formatMemoryPoolName } from "../utils/pools";
@@ -92,19 +93,21 @@ export function ResourcesView() {
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [draft, setDraft] = useState<PoolDraft | null>(null);
 
-  const fleetQuery = useQuery({
-    queryKey: ["fleet-resources"],
-    queryFn: getFleetResources,
-    meta: { scope: "self" },
-    staleTime: 10_000,
-    refetchInterval: 15_000,
-  });
-  const instancesQuery = useQuery({
-    queryKey: ["instances", "self"],
-    queryFn: listSelfInstances,
-    meta: { scope: "self" },
-    staleTime: 10_000,
-  });
+  const fleetQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["fleet-resources"],
+      queryFn: getFleetResources,
+      staleTime: 10_000,
+      refetchInterval: 15_000,
+    }),
+  );
+  const instancesQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["instances", "self"],
+      queryFn: listSelfInstances,
+      staleTime: 10_000,
+    }),
+  );
 
   const entries = fleetQuery.data?.data ?? [];
   const instances = instancesQuery.data?.data ?? [];

@@ -5,16 +5,17 @@ import { useEffect } from "react";
 
 import { SELF_NODE_ID } from "../../api/base.js";
 import { listNodes } from "../../api/client";
-import { useActiveNode } from "../NodeContext";
+import { selfQueryOptions, useActiveNode } from "../NodeContext";
 
 export function NodeSwitcher() {
   const { activeNodeId, setActiveNode } = useActiveNode();
-  const nodesQuery = useQuery({
-    queryKey: ["nodes"],
-    queryFn: listNodes,
-    staleTime: 10_000,
-    meta: { scope: "self" },
-  });
+  const nodesQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["nodes"],
+      queryFn: listNodes,
+      staleTime: 10_000,
+    }),
+  );
 
   const nodes = nodesQuery.data?.data ?? [];
   const enabledNodes = nodes.filter((node) => node.enabled && !node.self);

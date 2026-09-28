@@ -6,39 +6,39 @@ import type {
   FleetSelf,
 } from "@arriero/core";
 
-import { request } from "./http.js";
+import { selfRequest } from "./http.js";
 
 export async function listNodes() {
-  return request<{ data: FleetNodeView[] }>("/api/nodes");
+  return selfRequest<{ data: FleetNodeView[] }>("/api/nodes");
 }
 
 export async function createNode(input: FleetNodeCreate) {
-  return request<{ data: FleetNodeView }>("/api/nodes", {
+  return selfRequest<{ data: FleetNodeView }>("/api/nodes", {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
 export async function updateNode(id: string, input: FleetNodeUpdate) {
-  return request<{ data: FleetNodeView }>(`/api/nodes/${id}`, {
+  return selfRequest<{ data: FleetNodeView }>(`/api/nodes/${id}`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });
 }
 
 export async function deleteNode(id: string) {
-  return request<{ data: { deleted: boolean } }>(`/api/nodes/${id}`, {
+  return selfRequest<{ data: { deleted: boolean } }>(`/api/nodes/${id}`, {
     method: "DELETE",
   });
 }
 
 export async function setFleetSelf(nodeId: string | null) {
-  return request<{ data: FleetSelf }>("/api/fleet/self", {
+  return selfRequest<{ data: FleetSelf }>("/api/fleet/self", {
     method: "PUT",
     body: JSON.stringify({ nodeId }),
   });
 }
 
 export async function getFleetResources() {
-  return request<{ data: FleetResourcesEntry[] }>("/api/fleet/resources");
+  return selfRequest<{ data: FleetResourcesEntry[] }>("/api/fleet/resources");
 }

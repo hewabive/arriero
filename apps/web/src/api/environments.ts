@@ -9,7 +9,7 @@ import type {
   EnvironmentSourceRefs,
 } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 type EnvironmentJobStartResult = {
   environment: EnvironmentRecord;

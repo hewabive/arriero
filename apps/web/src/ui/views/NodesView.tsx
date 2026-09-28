@@ -48,6 +48,7 @@ import {
   startNodeUpdate,
   updateNode,
 } from "../../api/client";
+import { selfQueryOptions } from "../NodeContext.js";
 import {
   JobPanelControls,
   useJobPanelCollapse,
@@ -186,19 +187,21 @@ export function NodesView() {
 
   const anyJobRunning = Object.keys(runningJobs).length > 0;
 
-  const nodesQuery = useQuery({
-    queryKey: ["nodes"],
-    queryFn: listNodes,
-    staleTime: 10_000,
-    meta: { scope: "self" },
-  });
-  const fleetQuery = useQuery({
-    queryKey: ["update-fleet"],
-    queryFn: getUpdateFleet,
-    meta: { scope: "self" },
-    retry: 1,
-    refetchInterval: () => (anyJobRunning ? 2500 : 15_000),
-  });
+  const nodesQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["nodes"],
+      queryFn: listNodes,
+      staleTime: 10_000,
+    }),
+  );
+  const fleetQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["update-fleet"],
+      queryFn: getUpdateFleet,
+      retry: 1,
+      refetchInterval: () => (anyJobRunning ? 2500 : 15_000),
+    }),
+  );
 
   const registryNodes = nodesQuery.data?.data ?? [];
   const fleet = fleetQuery.data?.data;
@@ -601,15 +604,16 @@ function NodeCard({
   const version = fleetNode?.version ?? null;
   const supervised = Boolean(version?.supervised);
 
-  const jobQuery = useQuery({
-    queryKey: ["update-job", nodeId, jobId],
-    queryFn: () => getNodeUpdateJob(nodeId, jobId!),
-    meta: { scope: "self" },
-    enabled: Boolean(jobId),
-    retry: 1,
-    refetchInterval: (query) =>
-      query.state.data?.data.status === "running" ? 1500 : false,
-  });
+  const jobQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["update-job", nodeId, jobId],
+      queryFn: () => getNodeUpdateJob(nodeId, jobId!),
+      enabled: Boolean(jobId),
+      retry: 1,
+      refetchInterval: (query) =>
+        query.state.data?.data.status === "running" ? 1500 : false,
+    }),
+  );
   const job = jobQuery.data?.data ?? null;
 
   const isRestarting = Boolean(
@@ -652,15 +656,16 @@ function NodeCard({
     return () => window.clearTimeout(timer);
   }, [isSelf, jobId, applied]);
 
-  const logsQuery = useQuery({
-    queryKey: ["update-logs", nodeId, jobId],
-    queryFn: () => getNodeUpdateJobLogs(nodeId, jobId!),
-    meta: { scope: "self" },
-    enabled: Boolean(jobId) && logsOpen,
-    retry: 1,
-    refetchInterval: () =>
-      logsOpen && job?.status === "running" && !isRestarting ? 1500 : false,
-  });
+  const logsQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["update-logs", nodeId, jobId],
+      queryFn: () => getNodeUpdateJobLogs(nodeId, jobId!),
+      enabled: Boolean(jobId) && logsOpen,
+      retry: 1,
+      refetchInterval: () =>
+        logsOpen && job?.status === "running" && !isRestarting ? 1500 : false,
+    }),
+  );
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelNodeUpdateJob(nodeId, jobId!),
@@ -677,14 +682,15 @@ function NodeCard({
     onError: notifyError(`Restart of ${nodeLabel} failed`),
   });
 
-  const restartPoll = useQuery({
-    queryKey: ["node-restart-poll", nodeId],
-    queryFn: () => getNodeVersion(nodeId),
-    meta: { scope: "self" },
-    enabled: restarting,
-    retry: false,
-    refetchInterval: RESTART_POLL_MS,
-  });
+  const restartPoll = useQuery(
+    selfQueryOptions({
+      queryKey: ["node-restart-poll", nodeId],
+      queryFn: () => getNodeVersion(nodeId),
+      enabled: restarting,
+      retry: false,
+      refetchInterval: RESTART_POLL_MS,
+    }),
+  );
   const polledStartedAt = restartPoll.data?.data.startedAt ?? null;
 
   useEffect(() => {

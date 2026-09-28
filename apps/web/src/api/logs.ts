@@ -6,8 +6,8 @@ import type {
   LogTail,
 } from "@arriero/core";
 
-import { apiBase, nodeScopedPath } from "./base.js";
-import { nodeRequest as request } from "./http.js";
+import { nodeUrlOn } from "./base.js";
+import { request } from "./http.js";
 
 export async function getInstanceLogs(
   id: string,
@@ -26,7 +26,7 @@ export async function getInstanceStatusSummary(id: string) {
 }
 
 export function instanceEventsUrl(nodeId: string, id: string) {
-  return `${apiBase}${nodeScopedPath(nodeId, `/api/instances/${id}/events`)}`;
+  return nodeUrlOn(nodeId, `/api/instances/${id}/events`);
 }
 
 export async function getLogRetentionSettings() {

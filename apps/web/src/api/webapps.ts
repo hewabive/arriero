@@ -8,7 +8,7 @@ import type {
   WebappUpdate,
 } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 export function listWebapps() {
   return request<{ data: Webapp[] }>("/api/webapps");

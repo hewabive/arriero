@@ -13,8 +13,8 @@ import type {
   LlamaSlotActionResult,
 } from "@arriero/core";
 
-import { activeNodeScopedPath, apiBase } from "./base.js";
-import { formatApiErrorValue, nodeRequest as request } from "./http.js";
+import { nodeUrl } from "./base.js";
+import { formatApiErrorValue, request } from "./http.js";
 import { readApiProbeStream, type ApiProbeStreamCallbacks } from "./sse.js";
 
 export async function getLlamaProbe(id: string) {
@@ -63,7 +63,7 @@ export async function streamInstanceApiProbe(
   signal?: AbortSignal,
 ) {
   const response = await fetch(
-    `${apiBase}${activeNodeScopedPath(`/api/instances/${id}/llama/probe/stream`)}`,
+    nodeUrl(`/api/instances/${id}/llama/probe/stream`),
     {
       method: "POST",
       credentials: "include",
@@ -94,16 +94,13 @@ export async function streamApiLabProbe(
   callbacks: ApiProbeStreamCallbacks,
   signal?: AbortSignal,
 ) {
-  const response = await fetch(
-    `${apiBase}${activeNodeScopedPath("/api/lab/probe/stream")}`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-      signal: signal ?? null,
-    },
-  );
+  const response = await fetch(nodeUrl("/api/lab/probe/stream"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+    signal: signal ?? null,
+  });
 
   if (!response.ok) {
     const error = await response.text();

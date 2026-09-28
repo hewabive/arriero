@@ -9,7 +9,7 @@ import type {
   BenchmarkScenarioInput,
 } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 export async function listBenchmarkPrompts() {
   return request<{ data: BenchmarkPromptWithSource[] }>(

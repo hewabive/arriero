@@ -62,23 +62,37 @@ the auth state, removes the instance caches and routes to `status`.
 ## Data layer (`src/api/`)
 
 One module per API domain; `client.ts` is the barrel the UI imports from. All request/response
-shapes come from `@arriero/core` and are never redeclared. `http.ts:request` is the single fetch
-wrapper: JSON in/out, non-OK responses become an `ApiError` carrying status and parsed body, with Zod
-issue and `fieldErrors` bodies flattened to a readable message by `formatApiErrorValue`.
-`buildQuery` drops undefined and empty params.
+shapes come from `@arriero/core` and are never redeclared. `http.ts:fetchJson` is the single fetch
+wrapper behind `request`, `selfRequest` and `requestOn` (which node each targets: § Node scoping):
+JSON in/out, non-OK responses become an `ApiError` carrying status and parsed body, with Zod issue
+and `fieldErrors` bodies flattened to a readable message by `formatApiErrorValue`. `buildQuery`
+drops undefined and empty params.
 
 Every URL is built on `apiBase` (`base.ts`), derived at runtime from `window.location.pathname` —
 this is what lets one `dist` serve at the domain root or behind any path prefix. A root-absolute
-`/api` in a fetch breaks the subpath deploy (`docs/SUBPATH_DEPLOY.md`); `absoluteUrl` is for URLs
+`/api` in a fetch breaks the subpath deploy (`docs/SUBPATH_DEPLOY.md`). A call the JSON wrapper
+cannot express — a streamed POST, `savePreset`'s 409 conflict body, an `EventSource` — takes its URL
+from `base.ts:nodeUrl` (active node) or `base.ts:nodeUrlOn` (a given node); `absoluteUrl` is for URLs
 shown to the user.
 
 ## Node scoping (federation)
 
-`base.ts` keeps a module-level active node id persisted in localStorage. `nodeRequest` wraps
-`request` in `nodeScopedPath`, which rewrites `/api/...` to `/api/nodes/:id/...` for any node but
-`self` (transport: `docs/FEDERATION.md`). Which helper an endpoint uses is the per-domain decision of
-whether it follows the node switcher: domain data does; auth, the public status, the nodes registry
-and the self version always target the local manager via plain `request`.
+`base.ts` keeps a module-level active node id persisted in localStorage, and privately rewrites
+`/api/...` to `/api/nodes/:id/...` for any node but `self` (transport: `docs/FEDERATION.md`). Which
+`http.ts` helper an endpoint uses is the per-domain decision of whether it follows the node switcher:
+
+- `request` — the default — scopes to the active node: all domain data.
+- `selfRequest` always targets the entry node: auth, the public status, the self instance list, the
+  nodes registry and fleet aggregates, the self version and the update check.
+- `requestOn(nodeId, path)` targets a node the caller chose — the Nodes page's update and restart
+  controls, the Resources page's per-node pool edits. The fleet reports the entry node as `self`,
+  which resolves to the local path.
+
+The scoped helper is the default because the opposite omission — a domain module on the unscoped
+helper, showing the entry node's data while a peer is active — shipped three times. The price is that
+an already-scoped path handed to `request` is prefixed twice (`/api/nodes/<active>/nodes/…`) with
+nothing to flag it, so an explicit target never builds one: it goes through `requestOn`, and
+`base.ts` exports no path builder for a chosen node.
 
 `NodeProvider` mirrors the id into React state. A switch resets every query not tagged
 `meta: { scope: "self" }` — data dropped, in-flight fetches cancelled — before React renders the new
@@ -88,11 +102,12 @@ the new node is unreachable (the node proxy answers 502) while actions already g
 The refetch waits for the commit because `resetQueries` would refetch the outgoing view's queries
 with their old parameters — the previous node's selected instance — against the new node. Query keys
 therefore do not embed the node id — a new node-scoped query behaves correctly on switch with no
-extra work, at the cost that two nodes' data never coexist in the cache. A query whose fetch uses
-plain `request` carries the `self` tag (typed by the `Register` augmentation in `NodeContext.tsx`):
-an untagged `auth-state` would lose its data on every switch, flip `canUseAdmin` and unmount the
-admin UI. `NodesView.tsx`'s update-job and restart polling addresses an explicitly chosen peer
-regardless of the active node, keys by that `nodeId` and is tagged the same way.
+extra work, at the cost that two nodes' data never coexist in the cache. A query whose fetch does
+not follow the active node — `selfRequest` or `requestOn` — is built with
+`NodeContext.tsx:selfQueryOptions`, which sets the `self` tag (typed by the `Register` augmentation
+beside it): an untagged `auth-state` would lose its data on every switch, flip `canUseAdmin` and
+unmount the admin UI. `NodesView.tsx`'s update-job and restart polling addresses an explicitly
+chosen peer regardless of the active node, keys by that `nodeId` and is built the same way.
 
 View state is reset too: `App.tsx` renders the node-scoped views inside a fragment keyed by the
 active node id, so a switch remounts them and drops their drafts, selections, stream buffers and the
@@ -107,8 +122,8 @@ Polling via `refetchInterval` is the default liveness mechanism (instances 2.5 s
 `notifications.show` — there is no global error handler; each mutation owns its message.
 
 Three streams bypass polling. Instance runtime events (`InstanceDetails.tsx`) and the system-metrics
-live stream (`use-system-metrics.ts`) use `EventSource` with URLs built through `apiBase` +
-`nodeScopedPath` from the context's active node, so they follow both the subpath and the node scope;
+live stream (`use-system-metrics.ts`) use `EventSource` with URLs built by `nodeUrlOn` from the
+context's active node, so they follow both the subpath and the node scope;
 the URL is the effect's dependency, so a switch reconnects the stream even where no key remounts it.
 The api-lab probe stream is a POST, which `EventSource` cannot express:
 `api/sse.ts:readApiProbeStream` parses SSE blocks off a fetch body instead.

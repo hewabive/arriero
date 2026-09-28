@@ -1,5 +1,12 @@
 import type { FleetNodeView } from "@arriero/core";
-import { useQuery, useQueryClient, type Query } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type DefaultError,
+  type Query,
+  type QueryKey,
+  type UseQueryOptions,
+} from "@tanstack/react-query";
 import {
   createContext,
   useCallback,
@@ -18,6 +25,20 @@ declare module "@tanstack/react-query" {
   }
 }
 
+export function selfQueryOptions<
+  TQueryFnData = unknown,
+  TError = DefaultError,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+>(
+  options: Omit<
+    UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+    "meta"
+  >,
+): UseQueryOptions<TQueryFnData, TError, TData, TQueryKey> {
+  return { ...options, meta: { scope: "self" } };
+}
+
 type NodeContextValue = {
   activeNodeId: string;
   setActiveNode: (id: string) => void;
@@ -34,13 +55,14 @@ export function useActiveNode() {
 
 export function useActiveFleetNode(): FleetNodeView | null {
   const { activeNodeId } = useActiveNode();
-  const nodesQuery = useQuery({
-    queryKey: ["nodes"],
-    queryFn: listNodes,
-    staleTime: 10_000,
-    meta: { scope: "self" },
-    enabled: activeNodeId !== SELF_NODE_ID,
-  });
+  const nodesQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["nodes"],
+      queryFn: listNodes,
+      staleTime: 10_000,
+      enabled: activeNodeId !== SELF_NODE_ID,
+    }),
+  );
   if (activeNodeId === SELF_NODE_ID) {
     return null;
   }

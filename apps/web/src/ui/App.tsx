@@ -26,7 +26,7 @@ import {
   listInstances,
   logoutAdmin,
 } from "../api/client";
-import { useActiveNode } from "./NodeContext.js";
+import { selfQueryOptions, useActiveNode } from "./NodeContext.js";
 import { AppLogo } from "./components/AppLogo";
 import { AppNav, type NavSectionBadge } from "./components/AppNav";
 import { CommandPalette } from "./components/CommandPalette";
@@ -105,16 +105,17 @@ export function App() {
   const { setColorScheme } = useMantineColorScheme();
   const colorScheme = useComputedColorScheme("dark");
   const queryClient = useQueryClient();
-  const authQuery = useQuery({
-    queryKey: ["auth-state"],
-    queryFn: getAuthState,
-    meta: { scope: "self" },
-    retry: 1,
-    refetchInterval: (query) =>
-      query.state.status === "error" || query.state.fetchFailureCount > 0
-        ? 3_000
-        : 30_000,
-  });
+  const authQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["auth-state"],
+      queryFn: getAuthState,
+      retry: 1,
+      refetchInterval: (query) =>
+        query.state.status === "error" || query.state.fetchFailureCount > 0
+          ? 3_000
+          : 30_000,
+    }),
+  );
   const authState = authQuery.data?.data;
   const canUseAdmin = authState?.authenticated ?? false;
   const isPublicRoute = route === "status";

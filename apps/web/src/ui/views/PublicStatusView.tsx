@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
 import { getPublicStatus } from "../../api/client";
+import { selfQueryOptions } from "../NodeContext.js";
 import { countLabel } from "../utils/plural";
 
 function modelLoadStateColor(value: PublicProxyModel["status"]["value"]) {
@@ -64,12 +65,13 @@ function ProxyModelCard(props: { model: PublicProxyModel }) {
 }
 
 export function PublicStatusView() {
-  const statusQuery = useQuery({
-    queryKey: ["public-status"],
-    queryFn: getPublicStatus,
-    meta: { scope: "self" },
-    refetchInterval: 5_000,
-  });
+  const statusQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["public-status"],
+      queryFn: getPublicStatus,
+      refetchInterval: 5_000,
+    }),
+  );
   const status = statusQuery.data?.data;
 
   if (statusQuery.isError) {

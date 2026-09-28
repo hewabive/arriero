@@ -5,20 +5,10 @@ function deriveBasePath(): string {
     .replace(/\/+$/, "");
 }
 
-export const apiBase = deriveBasePath();
+const apiBase = deriveBasePath();
 
 export function absoluteUrl(path: string): string {
   return `${window.location.origin}${apiBase}${path}`;
-}
-
-export function nodeScopedPath(
-  nodeId: string | undefined,
-  path: string,
-): string {
-  if (!nodeId || nodeId === "self") {
-    return path;
-  }
-  return `/api/nodes/${nodeId}${path.replace(/^\/api/, "")}`;
 }
 
 export const SELF_NODE_ID = "self";
@@ -42,6 +32,21 @@ export function setActiveNodeId(nodeId: string): void {
   }
 }
 
+function nodeScopedPath(nodeId: string, path: string): string {
+  if (!nodeId || nodeId === SELF_NODE_ID) {
+    return path;
+  }
+  return `/api/nodes/${nodeId}${path.replace(/^\/api/, "")}`;
+}
+
 export function activeNodeScopedPath(path: string): string {
   return nodeScopedPath(activeNodeId, path);
+}
+
+export function nodeUrlOn(nodeId: string, path: string): string {
+  return `${apiBase}${nodeScopedPath(nodeId, path)}`;
+}
+
+export function nodeUrl(path: string): string {
+  return nodeUrlOn(activeNodeId, path);
 }

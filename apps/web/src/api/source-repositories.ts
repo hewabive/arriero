@@ -7,7 +7,7 @@ import type {
   SourceSyncReport,
 } from "@arriero/core";
 
-import { nodeRequest as request } from "./http.js";
+import { request } from "./http.js";
 
 function sourcePath(id: string, suffix = "") {
   return `/api/source-repositories/${encodeURIComponent(id)}${suffix}`;

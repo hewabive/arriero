@@ -26,6 +26,7 @@ import {
   listEngineHelpSources,
   listSourceRepositories,
 } from "../../api/client";
+import { selfQueryOptions } from "../NodeContext.js";
 import { formatBytes } from "../utils/models";
 import { countLabel } from "../utils/plural";
 import { useAutoUpdateCheck } from "../utils/use-auto-update-check";
@@ -48,13 +49,14 @@ function severityRank(item: AttentionItem) {
 
 export function AttentionSignalsCard() {
   const queryClient = useQueryClient();
-  const versionQuery = useQuery({
-    queryKey: ["app-version"],
-    queryFn: getSelfVersion,
-    meta: { scope: "self" },
-    staleTime: 60_000,
-    refetchInterval: 300_000,
-  });
+  const versionQuery = useQuery(
+    selfQueryOptions({
+      queryKey: ["app-version"],
+      queryFn: getSelfVersion,
+      staleTime: 60_000,
+      refetchInterval: 300_000,
+    }),
+  );
   const configStateQuery = useQuery({
     queryKey: ["config-state"],
     queryFn: getConfigState,

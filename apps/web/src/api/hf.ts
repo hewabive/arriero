@@ -22,7 +22,7 @@ import type {
   ModelLibraryEntryStatus,
 } from "@arriero/core";
 
-import { buildQuery, nodeRequest as request } from "./http.js";
+import { buildQuery, request } from "./http.js";
 
 export function listModelLibraryEntries() {
   return request<{ data: ModelLibraryEntryStatus[] }>("/api/hf/library");
