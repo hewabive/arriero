@@ -49,6 +49,10 @@ const PROFILE_ROWS: Array<{
     value: (window) => formatTokens(window.completionTokensP50),
   },
   {
+    label: "Answer p90",
+    value: (window) => formatTokens(window.completionTokensP90),
+  },
+  {
     label: "Lost cache",
     value: (window) => formatTokens(window.cacheLossTokens),
   },
