@@ -1048,3 +1048,53 @@ test("a shutdown abort re-persists the active job as queued with resumable files
   );
   assert.equal(existsSync(join(destDir, "slow.bin.part")), true);
 });
+
+test("the queue moves on while a post-download update check waits on HuggingFace", async () => {
+  const files = new Map<string, FixtureFile>([
+    ["model.safetensors", { content: randomBytes(256), lfs: true }],
+  ]);
+  const stub = makeStub(files);
+  const releases: (() => void)[] = [];
+  const fetchImpl = ((input: string | URL | Request, init?: RequestInit) => {
+    if (!String(input).includes("/revision/main")) {
+      return stub.fetchImpl(input, init);
+    }
+    return new Promise<Response>((resolveResponse, reject) => {
+      releases.push(() =>
+        resolveResponse(
+          new Response(JSON.stringify({ sha: SHA }), {
+            headers: { "content-type": "application/json" },
+          }),
+        ),
+      );
+      init?.signal?.addEventListener("abort", () =>
+        reject(init.signal?.reason),
+      );
+    });
+  }) as typeof fetch;
+  const options = { ...stubOptions(stub), fetchImpl };
+  const secondDir = join(config.runtimeDir, `hf-queue-test-${randomUUID()}`);
+  const first = await enqueueHfDownload(
+    { repoId: REPO_ID, revision: SHA, paths: ["model.safetensors"], destDir },
+    options,
+  );
+  const second = await enqueueHfDownload(
+    {
+      repoId: REPO_ID,
+      revision: SHA,
+      paths: ["model.safetensors"],
+      destDir: secondDir,
+    },
+    options,
+  );
+  await waitFor(() => releases.length === 2, "both update checks to start");
+  assert.equal(historyJob(first.id).status, "succeeded");
+  assert.equal(historyJob(second.id).status, "succeeded");
+  assert.equal(getActiveJob(HF_DOWNLOAD_JOB_DOMAIN, destDir), null);
+  assert.equal(getHfDownloadQueueState().active, null);
+  assert.equal(getHfUpdateCheck(destDir).status, "unchecked");
+  for (const release of releases) release();
+  await waitForHfDownloadQueueIdleForTests();
+  assert.equal(getHfUpdateCheck(destDir).status, "in-sync");
+  assert.equal(getHfUpdateCheck(secondDir).status, "in-sync");
+});

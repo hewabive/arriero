@@ -7,6 +7,7 @@ import { beforeEach, test } from "node:test";
 import { config } from "../config.js";
 import { writeHfManifest, type HfManifest } from "./manifest.js";
 import {
+  clearHfUpdateCheck,
   diffHfManifest,
   getHfUpdateCheck,
   pruneHfUpdateCheckFiles,
@@ -175,5 +176,26 @@ test("a dir without a manifest reports error", async () => {
   const result = await runHfUpdateChecks([dir]);
   assert.equal(result[dir]?.status, "error");
   assert.match(result[dir]?.error ?? "", /no download manifest/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("a check still in flight when its entry is cleared does not overwrite it", async () => {
+  const dir = tempManifestDir([manifestFile("a.bin")]);
+  let answer: () => void = () => {};
+  const fetchImpl = (() =>
+    new Promise<Response>((resolveResponse) => {
+      answer = () =>
+        resolveResponse(
+          new Response(JSON.stringify({ sha: OLD_SHA }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+    })) as typeof fetch;
+  const pending = runHfUpdateChecks([dir], { fetchImpl, token: null });
+  clearHfUpdateCheck(dir);
+  answer();
+  const result = await pending;
+  assert.equal(result[dir]?.status, "in-sync");
+  assert.equal(getHfUpdateCheck(dir).status, "unchecked");
   rmSync(dir, { recursive: true, force: true });
 });

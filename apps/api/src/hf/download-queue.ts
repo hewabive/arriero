@@ -87,6 +87,7 @@ let currentTelemetry: HfTransferTelemetry | null = null;
 let slowEtaTrigger: string | null = null;
 let fallbackJobOptions: HfDownloadQueueOptions | null = null;
 const jobOptions = new Map<string, HfDownloadQueueOptions>();
+const pendingUpdateChecks = new Set<Promise<void>>();
 const liveBytes = new Map<string, number>();
 const pendingBaselinePaths = new Set<string>();
 const userCanceledPaths = new Set<string>();
@@ -514,6 +515,22 @@ function finalizeJob(
   return "finished";
 }
 
+function checkForUpdatesAfterDownload(
+  job: HfQueueJob,
+  clientOptions: HfClientOptions,
+): void {
+  const check: Promise<void> = runHfUpdateChecks([job.destDir], clientOptions)
+    .then(() => undefined)
+    .catch((error: unknown) => {
+      logger.warn(
+        { repoId: job.repoId, destDir: job.destDir, err: error },
+        "post-download update check failed",
+      );
+    })
+    .finally(() => pendingUpdateChecks.delete(check));
+  pendingUpdateChecks.add(check);
+}
+
 async function runActive(
   job: HfQueueJob,
   controller: AbortController,
@@ -556,14 +573,7 @@ async function runActive(
       jobOptions.delete(job.id);
       clearHfUpdateCheck(job.destDir);
       if (job.status === "succeeded") {
-        try {
-          await runHfUpdateChecks([job.destDir], clientOptions);
-        } catch (error) {
-          logger.warn(
-            { repoId: job.repoId, destDir: job.destDir, err: error },
-            "post-download update check failed",
-          );
-        }
+        checkForUpdatesAfterDownload(job, clientOptions);
       }
       if (outcome.downloadedModelFile) {
         startModelScan({ refresh: true });
@@ -887,12 +897,16 @@ export async function waitForHfDownloadQueueIdleForTests(): Promise<void> {
     }
     const current = ensureState();
     if (
-      shuttingDown ||
-      !current.queue.some((entry) => entry.status === "queued")
+      !shuttingDown &&
+      current.queue.some((entry) => entry.status === "queued")
     ) {
+      await new Promise((resolveDone) => setImmediate(resolveDone));
+      continue;
+    }
+    if (pendingUpdateChecks.size === 0) {
       return;
     }
-    await new Promise((resolveDone) => setImmediate(resolveDone));
+    await Promise.all(pendingUpdateChecks);
   }
 }
 

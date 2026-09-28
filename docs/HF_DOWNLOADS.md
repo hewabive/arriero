@@ -83,8 +83,14 @@ roughly 1 MiB before a positional write; a stream failure flushes valid buffered
 retry. All payload requests go through a dedicated raw `node:https` transport
 (`apps/api/src/hf/http.ts`) while metadata requests retain `fetch`: the Node stream keeps the
 socket receive window open on high-RTT paths, with 30 s to response headers and a 45 s body-idle
-timeout. Redirects are HTTPS-only and capped at five; authorization, cookie and proxy credentials
-are stripped when the origin changes. A `416`/`200` on a bounded range falls the file back to a
+timeout. Every Hub API metadata request (`hfFetch` in `apps/api/src/hf/client.ts`: repo info,
+tree pages, `paths-info`, search) has its own deadline covering headers and body — 30 s, or 120 s
+per 1000-path `paths-info` chunk with `expand: true` — combined with any caller signal, so browse,
+enqueue, the delete pre-check and update checks never wait on undici's multi-minute defaults. A
+deadline surfaces as a `network` error (502) naming the limit, never as invalid JSON. It never
+applies to file payloads, which only use the transfer transport above. Redirects are HTTPS-only
+and capped at five; authorization, cookie and proxy credentials are stripped when the origin
+changes. A `416`/`200` on a bounded range falls the file back to a
 single stream. All workers share one `429` cooldown, honor `Retry-After`/HF reset timing, otherwise
 back off for 15/30/60/120/240 s, and reduce parallelism. Exhausting the five-attempt or 10-minute
 budget pauses the resumable job as a network stall instead of failing it. `unauthorized`/`gated`
@@ -407,8 +413,11 @@ download is deleted, and lost on manager restart; `checkedAt` is the honesty sta
 UI. Every finished download job clears the (now stale) cached entry for its directory, and a
 **succeeded** job seeds a fresh check right away — so a new download shows `in-sync` as of its
 completion and a finished "Download updates" run stops showing the old `drift`; failed/canceled
-jobs fall back to `unchecked`. The repo-level sha alone is never the drift signal (a README edit would
-false-positive). "Download updates" is the ordinary start endpoint called with the check's pinned
+jobs fall back to `unchecked`. That seeded check runs detached after the job has settled: the next
+queued job starts and the directory stops reading as busy while it still waits on HuggingFace.
+A check that was already in flight when its entry is cleared or pruned (job completion, deletion,
+import) does not store its result over the newer state. The repo-level sha alone is never the
+drift signal (a README edit would false-positive). "Download updates" is the ordinary start endpoint called with the check's pinned
 sha, the `updated` paths and the existing directory; `deleted` files are reported, never removed
 locally.
 

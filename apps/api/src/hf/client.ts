@@ -5,6 +5,7 @@ import {
 } from "@arriero/core";
 import { z } from "zod";
 
+import { errorMessage } from "../utils/error-message.js";
 import type { HfDownloadImpl } from "./http.js";
 import { getHfToken } from "./token.js";
 
@@ -14,6 +15,8 @@ const PATHS_INFO_CHUNK = 1_000;
 const MAX_ERROR_DETAIL_LENGTH = 300;
 const RATE_LIMIT_MIN_DELAY_MS = 1_000;
 const RATE_LIMIT_MAX_DELAY_MS = 300_000;
+const HF_METADATA_TIMEOUT_MS = 30_000;
+const HF_PATHS_INFO_EXPAND_TIMEOUT_MS = 120_000;
 
 export type HfErrorKind =
   | "unauthorized"
@@ -57,6 +60,7 @@ export type HfClientOptions = {
   downloadImpl?: HfDownloadImpl | undefined;
   fetchImpl?: typeof fetch | undefined;
   token?: string | null | undefined;
+  metadataTimeoutMs?: number | undefined;
 };
 
 export type HfRepoInfo = {
@@ -182,58 +186,115 @@ export async function hfErrorFromResponse(
   );
 }
 
+type HfRequestSignal = {
+  signal: AbortSignal;
+  timeout: AbortSignal;
+  timeoutMs: number;
+  caller: AbortSignal | undefined;
+};
+
+type HfResponse = {
+  response: Response;
+  request: HfRequestSignal;
+};
+
+function hfRequestSignal(
+  options: HfClientOptions | undefined,
+  defaultTimeoutMs: number,
+): HfRequestSignal {
+  const timeoutMs = options?.metadataTimeoutMs ?? defaultTimeoutMs;
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const caller = options?.signal;
+  return {
+    signal: caller ? AbortSignal.any([caller, timeout]) : timeout,
+    timeout,
+    timeoutMs,
+    caller,
+  };
+}
+
+function formatTimeout(timeoutMs: number): string {
+  return timeoutMs % 1_000 === 0 ? `${timeoutMs / 1_000} s` : `${timeoutMs} ms`;
+}
+
+function hfAbortError(request: HfRequestSignal): HfHubError | null {
+  if (request.timeout.aborted) {
+    return new HfHubError(
+      "network",
+      null,
+      `HuggingFace did not respond within ${formatTimeout(request.timeoutMs)}`,
+    );
+  }
+  if (request.caller?.aborted) {
+    return new HfHubError(
+      "network",
+      null,
+      `HuggingFace request aborted: ${errorMessage(request.caller.reason)}`,
+    );
+  }
+  return null;
+}
+
 async function hfFetch(
   url: string,
   init: RequestInit,
   options?: HfClientOptions,
-): Promise<Response> {
+  timeoutMs = HF_METADATA_TIMEOUT_MS,
+): Promise<HfResponse> {
   const fetchImpl = options?.fetchImpl ?? fetch;
+  const request = hfRequestSignal(options, timeoutMs);
   let response: Response;
   try {
-    response = await fetchImpl(
-      url,
-      options?.signal
-        ? {
-            ...init,
-            signal: AbortSignal.any([
-              options.signal,
-              AbortSignal.timeout(30000),
-            ]),
-          }
-        : init,
-    );
+    response = await fetchImpl(url, { ...init, signal: request.signal });
   } catch (error) {
-    throw new HfHubError(
-      "network",
-      null,
-      `HuggingFace request failed: ${(error as Error).message}`,
+    throw (
+      hfAbortError(request) ??
+      new HfHubError(
+        "network",
+        null,
+        `HuggingFace request failed: ${(error as Error).message}`,
+      )
     );
   }
   if (!response.ok) {
     throw await hfErrorFromResponse(response);
   }
-  return response;
+  return { response, request };
+}
+
+async function hfResponseJson(
+  { response, request }: HfResponse,
+  invalidMessage: string,
+): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    throw (
+      hfAbortError(request) ??
+      new HfHubError(
+        "upstream",
+        response.status,
+        `${invalidMessage}: ${(error as Error).message}`,
+      )
+    );
+  }
 }
 
 async function hfApiJson(
   url: string,
   init: RequestInit,
   options?: HfClientOptions,
+  timeoutMs = HF_METADATA_TIMEOUT_MS,
 ): Promise<unknown> {
-  const response = await hfFetch(
-    url,
-    { ...init, headers: { ...hfRequestHeaders(options), ...init.headers } },
-    options,
+  return hfResponseJson(
+    await hfFetch(
+      url,
+      { ...init, headers: { ...hfRequestHeaders(options), ...init.headers } },
+      options,
+      timeoutMs,
+    ),
+    "HuggingFace returned invalid JSON",
   );
-  try {
-    return await response.json();
-  } catch (error) {
-    throw new HfHubError(
-      "upstream",
-      response.status,
-      `HuggingFace returned invalid JSON: ${(error as Error).message}`,
-    );
-  }
 }
 
 export async function fetchHfRepoInfo(
@@ -293,21 +354,16 @@ export async function fetchHfTree(
       break;
     }
     pages += 1;
-    const response = await hfFetch(
+    const page = await hfFetch(
       url,
       { headers: hfRequestHeaders(options) },
       options,
     );
-    let raw: unknown;
-    try {
-      raw = await response.json();
-    } catch (error) {
-      throw new HfHubError(
-        "upstream",
-        response.status,
-        `HuggingFace tree response is not JSON: ${(error as Error).message}`,
-      );
-    }
+    const { response } = page;
+    const raw = await hfResponseJson(
+      page,
+      "HuggingFace tree response is not JSON",
+    );
     const parsed = z.array(HfTreeEntrySchema).safeParse(raw);
     if (!parsed.success) {
       throw new HfHubError(
@@ -344,6 +400,7 @@ export async function fetchHfPathsInfo(
         body: JSON.stringify({ paths: chunk, expand }),
       },
       options,
+      expand ? HF_PATHS_INFO_EXPAND_TIMEOUT_MS : HF_METADATA_TIMEOUT_MS,
     );
     const parsed = z.array(HfTreeEntrySchema).safeParse(raw);
     if (!parsed.success) {
@@ -387,21 +444,16 @@ export async function searchHfModels(
   if (input.author) params.set("author", input.author);
   for (const filter of input.filters) params.append("filter", filter);
   for (const field of ["sha", "siblings"]) params.append("expand", field);
-  const response = await hfFetch(
+  const result = await hfFetch(
     `${HF_BASE_URL}/api/models?${params}`,
     { headers: hfRequestHeaders(options) },
     options,
   );
-  let raw: unknown;
-  try {
-    raw = await response.json();
-  } catch (error) {
-    throw new HfHubError(
-      "upstream",
-      response.status,
-      `HuggingFace search response is not JSON: ${(error as Error).message}`,
-    );
-  }
+  const { response } = result;
+  const raw = await hfResponseJson(
+    result,
+    "HuggingFace search response is not JSON",
+  );
   const parsed = z.array(HfSearchModelSchema).safeParse(raw);
   if (!parsed.success) {
     throw new HfHubError(

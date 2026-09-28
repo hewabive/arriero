@@ -167,3 +167,96 @@ test("hfResolveUrl encodes repo, revision and path segments", () => {
     "https://huggingface.co/owner/repo/resolve/refs%2Fpr%2F1/sub%20dir/file.gguf",
   );
 });
+
+function hangingFetch(requests: RecordedRequest[]): typeof fetch {
+  return ((input: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(input), init });
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () =>
+        reject(init.signal?.reason),
+      );
+    });
+  }) as typeof fetch;
+}
+
+function stalledBodyFetch(): typeof fetch {
+  return (async (_input: string | URL | Request, init?: RequestInit) =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("["));
+          init?.signal?.addEventListener("abort", () =>
+            controller.error(init.signal?.reason),
+          );
+        },
+      }),
+      { headers: { "content-type": "application/json" } },
+    )) as typeof fetch;
+}
+
+function isTimeout(error: unknown): boolean {
+  return (
+    error instanceof HfHubError &&
+    error.kind === "network" &&
+    /did not respond within 20 ms/.test(error.message)
+  );
+}
+
+test("metadata requests without a caller signal still carry a deadline", async () => {
+  const { fetchImpl, requests } = stubFetch(() =>
+    jsonResponse({ sha: "b".repeat(40) }),
+  );
+  await fetchHfRepoInfo("owner/repo", "main", { fetchImpl, token: null });
+  const signal = requests[0]?.init?.signal;
+  assert.ok(signal instanceof AbortSignal);
+  assert.equal(signal.aborted, false);
+});
+
+test("a Hub request that never answers fails with a typed timeout", async () => {
+  const requests: RecordedRequest[] = [];
+  const options = {
+    fetchImpl: hangingFetch(requests),
+    token: null,
+    metadataTimeoutMs: 20,
+  };
+  await assert.rejects(
+    fetchHfRepoInfo("owner/repo", "main", options),
+    isTimeout,
+  );
+  await assert.rejects(fetchHfTree("owner/repo", "main", options), isTimeout);
+  await assert.rejects(
+    fetchHfPathsInfo("owner/repo", "main", ["a.gguf"], true, options),
+    isTimeout,
+  );
+  assert.equal(requests.length, 3);
+});
+
+test("a response body that stalls past the deadline is a timeout, not invalid JSON", async () => {
+  const options = {
+    fetchImpl: stalledBodyFetch(),
+    token: null,
+    metadataTimeoutMs: 20,
+  };
+  await assert.rejects(
+    fetchHfPathsInfo("owner/repo", "main", ["a.gguf"], false, options),
+    isTimeout,
+  );
+  await assert.rejects(fetchHfTree("owner/repo", "main", options), isTimeout);
+});
+
+test("a caller abort stays distinguishable from the deadline", async () => {
+  const controller = new AbortController();
+  const pending = fetchHfRepoInfo("owner/repo", "main", {
+    fetchImpl: hangingFetch([]),
+    token: null,
+    signal: controller.signal,
+  });
+  controller.abort(new Error("dialog closed"));
+  await assert.rejects(
+    pending,
+    (error: unknown) =>
+      error instanceof HfHubError &&
+      error.kind === "network" &&
+      /aborted: dialog closed/.test(error.message),
+  );
+});

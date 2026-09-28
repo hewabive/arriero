@@ -15,6 +15,8 @@ import {
 import { readHfManifest, type HfManifest } from "./manifest.js";
 
 const checks = new Map<string, HfUpdateCheck>();
+const invalidations = new Map<string, number>();
+let invalidationCount = 0;
 
 const UNCHECKED: HfUpdateCheck = {
   status: "unchecked",
@@ -28,8 +30,15 @@ export function getHfUpdateCheck(dir: string): HfUpdateCheck {
   return checks.get(resolve(dir)) ?? UNCHECKED;
 }
 
+function invalidateInFlightChecks(key: string): void {
+  invalidationCount += 1;
+  invalidations.set(key, invalidationCount);
+}
+
 export function clearHfUpdateCheck(dir: string): void {
-  checks.delete(resolve(dir));
+  const key = resolve(dir);
+  checks.delete(key);
+  invalidateInFlightChecks(key);
 }
 
 export function pruneHfUpdateCheckFiles(
@@ -37,6 +46,7 @@ export function pruneHfUpdateCheckFiles(
   removedPaths: ReadonlySet<string>,
 ): void {
   const key = resolve(dir);
+  invalidateInFlightChecks(key);
   const existing = checks.get(key);
   if (!existing) {
     return;
@@ -148,8 +158,11 @@ export async function runHfUpdateChecks(
   const worker = async () => {
     for (let dir = queue.shift(); dir !== undefined; dir = queue.shift()) {
       const resolved = resolve(dir);
+      const invalidation = invalidations.get(resolved);
       const check = await runHfUpdateCheck(resolved, options);
-      checks.set(resolved, check);
+      if (invalidations.get(resolved) === invalidation) {
+        checks.set(resolved, check);
+      }
       result[resolved] = check;
     }
   };
