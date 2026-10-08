@@ -24,6 +24,7 @@ export type DomainLeaseRequest = {
   targetId: string;
   priority: number;
   preemptible: boolean;
+  continuation?: boolean | undefined;
   decide: (context: DomainAdmissionContext) => DomainAdmissionDecision;
   signal?: AbortSignal | undefined;
 };
@@ -49,6 +50,8 @@ const MAINTENANCE_TARGET = "__maintenance__";
 
 const SWAP_FAIRNESS_MS = 2000;
 
+const CONTINUATION_FAIRNESS_MS = 10_000;
+
 type DomainLeaseStatus = "waiting" | "holding" | "suspended" | "settled";
 
 type InternalDomainLease = {
@@ -56,6 +59,7 @@ type InternalDomainLease = {
   targetId: string;
   priority: number;
   preemptible: boolean;
+  continuation: boolean;
   domains: string[];
   decide: (context: DomainAdmissionContext) => DomainAdmissionDecision;
   seq: number;
@@ -79,7 +83,10 @@ export class ComputeDomainCoordinator {
   private waiters: InternalDomainLease[] = [];
   private seq = 0;
 
-  constructor(private readonly swapFairnessMs: number = SWAP_FAIRNESS_MS) {}
+  constructor(
+    private readonly swapFairnessMs: number = SWAP_FAIRNESS_MS,
+    private readonly continuationFairnessMs: number = CONTINUATION_FAIRNESS_MS,
+  ) {}
 
   acquire(request: DomainLeaseRequest): Promise<DomainLease> {
     const internal = this.createLease(request);
@@ -143,6 +150,7 @@ export class ComputeDomainCoordinator {
       targetId: request.targetId,
       priority: request.priority,
       preemptible: request.preemptible,
+      continuation: request.continuation ?? false,
       domains: [...request.domains],
       decide: request.decide,
       seq: this.seq++,
@@ -200,12 +208,20 @@ export class ComputeDomainCoordinator {
         (lease) =>
           !isAffine(lease) && now - lease.enqueuedAt >= this.swapFairnessMs,
       );
+      const starvedFreshWaiting = pending.some(
+        (lease) =>
+          !lease.continuation &&
+          now - lease.enqueuedAt >= this.continuationFairnessMs,
+      );
       const candidates = pending.sort(
         (left, right) =>
           right.priority - left.priority ||
           (starvedSwapWaiting
             ? 0
             : Number(isAffine(right)) - Number(isAffine(left))) ||
+          (starvedFreshWaiting
+            ? 0
+            : Number(right.continuation) - Number(left.continuation)) ||
           left.seq - right.seq,
       );
 

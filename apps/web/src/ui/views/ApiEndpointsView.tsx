@@ -1,9 +1,10 @@
 import {
+  API_PROXY_CONTINUATION_HOLD_MAX_MS,
   isFilesApiEndpoint,
   type ApiEndpointRecord,
   type ApiEndpointUpdate,
 } from "@arriero/core";
-import { Paper, Select, Stack } from "@mantine/core";
+import { NumberInput, Paper, Select, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -62,6 +63,49 @@ function StreamIdleTimeoutSetting() {
         disabled={query.isPending || mutation.isPending}
         value={draft !== undefined ? draft : streamIdleSecondsFromMs(stored)}
         onChange={setDraft}
+        onBlur={commit}
+      />
+    </Paper>
+  );
+}
+
+function ContinuationHoldSetting() {
+  const { query, mutation, settings } = useApiProxySettings(
+    notifyError("Settings update failed"),
+  );
+  const stored = settings?.continuationHoldMs ?? null;
+  const [draft, setDraft] = useState<number | null | undefined>(undefined);
+  const commit = () => {
+    if (draft === undefined) {
+      return;
+    }
+    if (draft === null || draft * 1000 === stored) {
+      setDraft(undefined);
+      return;
+    }
+    mutation.mutate(
+      { continuationHoldMs: draft * 1000 },
+      { onSuccess: () => setDraft(undefined) },
+    );
+  };
+  return (
+    <Paper withBorder p="md" radius="sm">
+      <NumberInput
+        label="Tool continuation hold (seconds)"
+        description="After a response that ends in tool calls, its instance counts one slot as busy in the /v1/models available_slots until the client sends the tool results, at most this long. 0 disables the hold."
+        maw={520}
+        min={0}
+        max={API_PROXY_CONTINUATION_HOLD_MAX_MS / 1000}
+        allowDecimal={false}
+        disabled={query.isPending || mutation.isPending}
+        value={
+          draft !== undefined
+            ? (draft ?? "")
+            : stored === null
+              ? ""
+              : Math.round(stored / 1000)
+        }
+        onChange={(value) => setDraft(typeof value === "number" ? value : null)}
         onBlur={commit}
       />
     </Paper>
@@ -256,6 +300,7 @@ export function ApiEndpointsView() {
         loading={proxyQuery.isPending || proxyQuery.isError}
       />
       <StreamIdleTimeoutSetting />
+      <ContinuationHoldSetting />
 
       <EndpointEditorModal
         editor={endpointEditor}

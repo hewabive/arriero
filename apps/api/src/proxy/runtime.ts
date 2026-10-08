@@ -14,7 +14,10 @@ import {
 } from "@arriero/core";
 
 import { asObject } from "./json.js";
-import type { ApiProxySlotActivity } from "./inflight.js";
+import type {
+  ApiProxyContinuationHold,
+  ApiProxySlotActivity,
+} from "./inflight.js";
 import {
   availableApiProxyTargetSlots,
   instanceRequestDemand,
@@ -306,6 +309,7 @@ function deriveApiProxyTargetRuntime(input: {
   inFlight?: boolean | undefined;
   inflight?: ApiProxyInflightRequest[] | undefined;
   instanceDemand?: InstanceRequestDemand | undefined;
+  instanceKey: string;
   checkedAt: string;
 }): ApiProxyTargetRuntime {
   const inflight = input.endpointEnabled ? (input.inflight ?? []) : [];
@@ -339,6 +343,13 @@ function deriveApiProxyTargetRuntime(input: {
     checkedAt: input.checkedAt,
     metadata: input.metadata,
   });
+  const availableSlots = availableApiProxyTargetSlots({
+    state: derived.state,
+    instance: input.instance,
+    health: input.remoteManaged ? input.remoteHealth : input.health,
+    model: input.target.model,
+    demand: input.instanceDemand,
+  });
 
   return {
     targetId: input.target.id,
@@ -350,13 +361,10 @@ function deriveApiProxyTargetRuntime(input: {
     state: derived.state,
     stateDetail: derived.detail,
     activeRequests,
-    availableSlots: availableApiProxyTargetSlots({
-      state: derived.state,
-      instance: input.instance,
-      health: input.remoteManaged ? input.remoteHealth : input.health,
-      model: input.target.model,
-      demand: input.instanceDemand,
-    }),
+    availableSlots,
+    heldSlots:
+      availableSlots === null ? null : (input.instanceDemand?.held ?? 0),
+    slotPool: availableSlots === null ? null : input.instanceKey,
     idleSince: tracker.idleSince,
     lastRequestAt: tracker.lastRequestAt,
     savedSlotIds: tracker.savedSlotIds,
@@ -376,6 +384,7 @@ export function buildApiProxyRuntimeSnapshot(input: {
   busyTargetIds?: Set<string> | undefined;
   inflightByTargetId?: Map<string, ApiProxyInflightRequest[]> | undefined;
   recentSlotActivity?: ApiProxySlotActivity[] | undefined;
+  continuationHolds?: ApiProxyContinuationHold[] | undefined;
 }): ApiProxyRuntimeSnapshot {
   const instanceById = new Map(
     input.instances.map((instance) => [instance.name, instance]),
@@ -400,6 +409,7 @@ export function buildApiProxyRuntimeSnapshot(input: {
     inflightByTargetId: input.inflightByTargetId ?? new Map(),
     busyTargetIds: input.busyTargetIds ?? new Set(),
     recentSlotActivity: input.recentSlotActivity ?? [],
+    continuationHolds: input.continuationHolds ?? [],
   });
   for (const targetId of runtimeTrackers.keys()) {
     if (!activeTargetIds.has(targetId)) {
@@ -411,6 +421,8 @@ export function buildApiProxyRuntimeSnapshot(input: {
     checkedAt: input.checkedAt,
     targets: input.targets.map((target) => {
       const resolution = resolutionByTargetId.get(target.id);
+      const instanceKey =
+        instanceKeyByTargetId.get(target.id) ?? target.endpointId;
       return deriveApiProxyTargetRuntime({
         target,
         kind: resolution?.kind ?? "external-api",
@@ -430,9 +442,8 @@ export function buildApiProxyRuntimeSnapshot(input: {
         metadata: input.metadataByTargetId?.get(target.id),
         inFlight: input.busyTargetIds?.has(target.id) ?? false,
         inflight: input.inflightByTargetId?.get(target.id),
-        instanceDemand: demandByInstance.get(
-          instanceKeyByTargetId.get(target.id) ?? target.endpointId,
-        ),
+        instanceDemand: demandByInstance.get(instanceKey),
+        instanceKey,
         checkedAt: input.checkedAt,
       });
     }),

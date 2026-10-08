@@ -29,7 +29,8 @@ OpenAI/Anthropic-compatible facades. Overview, admin surface and telemetry:
   before routing or autostart, yet the model stays callable by name so hidden models can be tested.
 - `GET /v1/models` mirrors llama.cpp router mode with a per-model `status` (`model-status.ts`, off a
   2 s `getCachedApiProxyRuntimeSnapshot`, never autoloads). Its load `value` is a frozen
-  llama.cpp-derived external contract. The four status layers (process → instance-health →
+  llama.cpp-derived external contract. `available_slots` also subtracts tool-continuation holds
+  kept by `inflight.ts` (`docs/API_PROXY_FOUNDATION.md` § Model visibility). The four status layers (process → instance-health →
   proxy-target → public) and their intentional divergences are mapped in `docs/STATUS_LAYERS.md` —
   do not "unify" them.
 

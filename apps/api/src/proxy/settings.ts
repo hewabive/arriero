@@ -52,6 +52,7 @@ export function updateApiProxySettings(
         ? parsed.streamIdleTimeoutMs
         : current.streamIdleTimeoutMs,
     traceRetentionDays: parsed.traceRetentionDays ?? current.traceRetentionDays,
+    continuationHoldMs: parsed.continuationHoldMs ?? current.continuationHoldMs,
   };
   writeObjectFile(SETTINGS_FILE, StoredApiProxySettingsSchema, next);
   return next;

@@ -537,6 +537,39 @@ test("createUsageMeterStream meters OpenAI Responses stream", async () => {
   assert.equal(counted?.completionTokens, 5);
 });
 
+test("createUsageMeterStream reports Responses client tool calls to the observer", async () => {
+  const toolCalls: unknown[] = [];
+  const meter = createUsageMeterStream({
+    codec: openAiResponsesUsageCodec,
+    stripUsageFrames: false,
+    onComplete: () => {},
+    onToolCall: (delta) => toolCalls.push(delta),
+  });
+  const done = (outputIndex: number, item: unknown) =>
+    `event: response.output_item.done\ndata: ${JSON.stringify({ type: "response.output_item.done", output_index: outputIndex, item })}`;
+  const frames = [
+    done(0, { type: "web_search_call", id: "ws_1", status: "completed" }),
+    done(1, {
+      type: "function_call",
+      call_id: "call_7",
+      name: "shell",
+      arguments: '{"cmd":"ls"}',
+    }),
+  ];
+  const input = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        new TextEncoder().encode(frames.map((f) => `${f}\n\n`).join("")),
+      );
+      controller.close();
+    },
+  });
+  await drain(input.pipeThrough(meter.transform));
+  assert.deepEqual(toolCalls, [
+    { index: 1, id: "call_7", name: "shell", arguments: '{"cmd":"ls"}' },
+  ]);
+});
+
 test("returnProgressRequested / withReturnProgress", () => {
   assert.equal(returnProgressRequested({ return_progress: true }), true);
   assert.equal(returnProgressRequested({ return_progress: false }), false);

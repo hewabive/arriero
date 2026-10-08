@@ -56,6 +56,7 @@ function req(input: {
   targetId: string;
   priority: number;
   preemptible?: boolean;
+  continuation?: boolean;
   decide: (context: DomainAdmissionContext) => DomainAdmissionDecision;
   signal?: AbortSignal;
 }) {
@@ -64,6 +65,7 @@ function req(input: {
     targetId: input.targetId,
     priority: input.priority,
     preemptible: input.preemptible ?? false,
+    continuation: input.continuation ?? false,
     decide: input.decide,
     signal: input.signal,
   };
@@ -364,4 +366,86 @@ test("a starved swap waiter overrides affinity once past the fairness window", a
   (swap.value as DomainLease | undefined)?.release();
   await flush();
   assert.equal(affine.done, true);
+});
+
+async function queueBehindHolder(coord: ComputeDomainCoordinator) {
+  const holder = await coord.acquire(
+    req({ targetId: "x", priority: 100, decide: admitIfNoRunning }),
+  );
+  const fresh = track(
+    coord.acquire(
+      req({ targetId: "x", priority: 100, decide: admitIfNoRunning }),
+    ),
+  );
+  const continuation = track(
+    coord.acquire(
+      req({
+        targetId: "x",
+        priority: 100,
+        continuation: true,
+        decide: admitIfNoRunning,
+      }),
+    ),
+  );
+  await flush();
+  assert.equal(fresh.done, false);
+  assert.equal(continuation.done, false);
+  holder.release();
+  await flush();
+  return { fresh, continuation };
+}
+
+test("a tool continuation overtakes an earlier fresh waiter of equal priority", async () => {
+  const { fresh, continuation } = await queueBehindHolder(
+    new ComputeDomainCoordinator(),
+  );
+  assert.equal(continuation.done, true);
+  assert.equal(fresh.done, false);
+
+  (continuation.value as DomainLease | undefined)?.release();
+  await flush();
+  assert.equal(fresh.done, true);
+});
+
+test("a fresh waiter starved past the continuation fairness window keeps its turn", async () => {
+  const { fresh, continuation } = await queueBehindHolder(
+    new ComputeDomainCoordinator(2000, 0),
+  );
+  assert.equal(fresh.done, true);
+  assert.equal(continuation.done, false);
+
+  (fresh.value as DomainLease | undefined)?.release();
+  await flush();
+  assert.equal(continuation.done, true);
+});
+
+test("priority outranks the continuation preference", async () => {
+  const coord = new ComputeDomainCoordinator();
+  const holder = await coord.acquire(
+    req({ targetId: "x", priority: 100, decide: admitIfNoRunning }),
+  );
+  const continuation = track(
+    coord.acquire(
+      req({
+        targetId: "x",
+        priority: 100,
+        continuation: true,
+        decide: admitIfNoRunning,
+      }),
+    ),
+  );
+  const urgent = track(
+    coord.acquire(
+      req({ targetId: "x", priority: 200, decide: admitIfNoRunning }),
+    ),
+  );
+  await flush();
+  holder.release();
+  await flush();
+  assert.equal(urgent.done, true);
+  assert.equal(continuation.done, false);
+
+  (urgent.value as DomainLease | undefined)?.release();
+  await flush();
+  assert.equal(continuation.done, true);
 });

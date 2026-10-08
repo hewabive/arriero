@@ -73,6 +73,8 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
           activeRequests: 2,
           queuedRequests: 5,
           availableSlots: null,
+          heldSlots: null,
+          slotPool: null,
         },
       ],
     ]),
@@ -90,12 +92,17 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
       active_requests: 2,
       queued_requests: 5,
       available_slots: null,
+      held_slots: null,
+      slot_pool: null,
     },
   });
 });
 
-test("openAiModelsList preserves zero and positive available slot counts", () => {
-  for (const availableSlots of [0, 2]) {
+test("openAiModelsList preserves zero and positive slot counts with their pool", () => {
+  for (const [availableSlots, heldSlots] of [
+    [0, 3],
+    [2, 0],
+  ] as const) {
     const response = openAiModelsList(
       [
         {
@@ -118,11 +125,15 @@ test("openAiModelsList preserves zero and positive available slot counts", () =>
             activeRequests: 2,
             queuedRequests: 0,
             availableSlots,
+            heldSlots,
+            slotPool: "instance:qwen",
           },
         ],
       ]),
     );
     assert.equal(response.data[0]?.status?.available_slots, availableSlots);
+    assert.equal(response.data[0]?.status?.held_slots, heldSlots);
+    assert.equal(response.data[0]?.status?.slot_pool, "instance:qwen");
   }
 });
 

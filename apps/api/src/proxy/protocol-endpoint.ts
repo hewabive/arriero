@@ -61,6 +61,11 @@ import {
   type ApiProxyProtocolOperation,
   type ApiProxyResumableCodec,
 } from "./protocol.js";
+import { getApiProxySettings } from "./settings.js";
+import {
+  markToolContinuation,
+  recordNonStreamToolCalls,
+} from "./tool-continuation.js";
 import {
   applyServerGenerationTiming,
   applyTraceDiagnostic,
@@ -248,7 +253,7 @@ export async function runWithProxyTrace(
         !trace.errorCode &&
         !trace.errorMessage,
       );
-      inflight.end(trace.ok);
+      inflight.end(trace.ok, getApiProxySettings().continuationHoldMs);
       apiProxyStreamSessions.release(inflight.id);
       apiProxyStats.record({ ...trace });
     },
@@ -319,6 +324,7 @@ async function proxyProtocolEndpointInner(
   inflight: ApiProxyInflightHandle,
 ): Promise<Response> {
   const body = await readOperationBody(c, operation);
+  markToolContinuation(inflight, operation, body);
   if (body && typeof body === "object" && "model" in body) {
     const model = (body as { model?: unknown }).model;
     if (typeof model === "string") {
@@ -784,6 +790,7 @@ async function delegateRemoteTarget(input: {
       if (usage) {
         trace.usage = traceUsageFromCounts(usage);
       }
+      recordNonStreamToolCalls(inflight, operation, text);
       const delivered = applyApiProxyResponsePlanText(responsePlan, text, {
         status: upstream.status,
         contentType: headers.get("content-type") ?? "application/json",
@@ -1051,6 +1058,7 @@ export async function serveResolvedTarget(input: {
         targetId: decision.target.id,
         priority: decision.target.priority,
         preemptible: leasePreemptible,
+        continuation: inflight.isContinuation(),
         signal: c.req.raw.signal,
         decide: buildDomainAdmissionDecider({
           candidateTargetId: decision.target.id,
@@ -1386,6 +1394,7 @@ export async function serveResolvedTarget(input: {
           ? translateOpenAiResponseText(text)
           : null;
         const clientText = translatedText ?? text;
+        recordNonStreamToolCalls(inflight, operation, clientText);
         const clientContentType = translatedText
           ? "application/json"
           : (upstream.headers.get("content-type") ?? "application/json");

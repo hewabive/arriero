@@ -16,6 +16,7 @@ import type {
   ApiProxyProtocolOperation,
 } from "./protocol.js";
 import { serveTargetId } from "./serve-target-id.js";
+import { markToolContinuation } from "./tool-continuation.js";
 
 function serveOperation(
   protocol: ApiProxyServeRequest["protocol"],
@@ -108,6 +109,7 @@ export async function serveApiProxyPinnedInstance(
     inflight.setTarget(target.id);
     inflight.setStream(payload.stream);
     applyDelegatedServeOrigin(payload.origin, trace, inflight);
+    markToolContinuation(inflight, operation, payload.body);
     const response = await serveResolvedTarget({
       c,
       adapter,

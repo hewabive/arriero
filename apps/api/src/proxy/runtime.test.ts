@@ -650,12 +650,13 @@ function trackedAvailability() {
         healthByInstanceId: new Map([["instance-a", slotHealth(4)]]),
         inflightByTargetId: registry.snapshotByTarget(),
         recentSlotActivity: registry.recentSlotActivity(),
+        continuationHolds: registry.continuationHolds(),
         ...overrides,
       }),
   };
 }
 
-test("completed generations hold available slots for five seconds without keeping requests active", () => {
+test("completed generations hold available slots for two seconds without keeping requests active", () => {
   const view = trackedAvailability();
   const request = view.registry.begin({
     modelId: "agent",
@@ -671,9 +672,9 @@ test("completed generations hold available slots for five seconds without keepin
   assert.equal(completed.activeRequests, 0);
   assert.equal(completed.inflight[0]?.phase, "done");
   assert.equal(view.registry.activeCount(), 0);
-  view.at(5999);
+  view.at(2999);
   assert.equal(view.snapshot().targets[0]?.availableSlots, 3);
-  view.at(6000);
+  view.at(3000);
   const released = view.snapshot().targets[0]!;
   assert.equal(released.availableSlots, 4);
   assert.equal(released.inflight[0]?.phase, "done");
@@ -706,9 +707,9 @@ test("successive agent steps share one cooldown slot across target aliases and p
       [3, 3],
     );
   }
-  view.at(8999);
+  view.at(5999);
   assert.equal(view.snapshot({ targets }).targets[0]?.availableSlots, 3);
-  view.at(9000);
+  view.at(6000);
   assert.equal(view.snapshot({ targets }).targets[0]?.availableSlots, 4);
 });
 
@@ -727,15 +728,17 @@ test("concurrent generations release cooldown slots independently", () => {
   for (const [index, request] of requests.entries()) {
     view.at((index + 1) * 1000);
     request.end();
-    assert.equal(view.snapshot().targets[0]?.availableSlots, 1);
+    assert.equal(
+      view.snapshot().targets[0]?.availableSlots,
+      index < 2 ? 1 : 2,
+      `${index}`,
+    );
   }
   for (const [at, slots] of [
-    [5999, 1],
-    [6000, 2],
-    [6999, 2],
-    [7000, 3],
-    [7999, 3],
-    [8000, 4],
+    [3999, 2],
+    [4000, 3],
+    [4999, 3],
+    [5000, 4],
   ] as const) {
     view.at(at);
     assert.equal(view.snapshot().targets[0]?.availableSlots, slots, `${at}ms`);
@@ -767,8 +770,61 @@ test("current demand takes precedence over cooldown and cancelled queued request
   view.at(2000);
   queued.end(false);
   assert.equal(view.snapshot().targets[0]?.availableSlots, 3);
-  view.at(6000);
+  view.at(3000);
   assert.equal(view.snapshot().targets[0]?.availableSlots, 4);
+});
+
+test("a tool-call response keeps its instance slot held across target aliases until the results arrive", () => {
+  const view = trackedAvailability();
+  const targets = [
+    target({ model: null }),
+    target({ id: "target-b", model: null }),
+  ];
+  const step = view.registry.begin({
+    modelId: "agent",
+    protocol: "openai",
+    targetId: "target-a",
+  });
+  step.dispatched();
+  step.appendToolCall({ index: 0, id: "call_1", name: "bash" });
+  view.at(1000);
+  step.end(true, 60_000);
+
+  view.at(30_000);
+  const held = view.snapshot({ targets }).targets;
+  assert.deepEqual(
+    held.map((item) => [item.availableSlots, item.heldSlots, item.slotPool]),
+    [
+      [3, 1, "instance:instance-a"],
+      [3, 1, "instance:instance-a"],
+    ],
+  );
+
+  const next = view.registry.begin({
+    modelId: "agent",
+    protocol: "openai",
+    targetId: "target-b",
+  });
+  next.continueToolCalls(["call_1"]);
+  const continued = view.snapshot({ targets }).targets[0]!;
+  assert.equal(continued.availableSlots, 3);
+  assert.equal(continued.heldSlots, 0);
+
+  next.dispatched();
+  view.at(31_000);
+  next.end(true, 60_000);
+  view.at(33_000);
+  assert.equal(view.snapshot({ targets }).targets[0]?.availableSlots, 4);
+});
+
+test("unknown capacity reports neither held slots nor a pool", () => {
+  const view = trackedAvailability();
+  const unknown = view.snapshot({
+    healthByInstanceId: new Map(),
+  }).targets[0]!;
+  assert.equal(unknown.availableSlots, null);
+  assert.equal(unknown.heldSlots, null);
+  assert.equal(unknown.slotPool, null);
 });
 
 test("available slots account for sibling targets, model aliases, queues, and completed requests", () => {

@@ -106,6 +106,8 @@ export const ApiProxyPublicModelStatusSchema = z.object({
   activeRequests: z.number().int().nonnegative(),
   queuedRequests: z.number().int().nonnegative(),
   availableSlots: z.number().int().nonnegative().nullable().default(null),
+  heldSlots: z.number().int().nonnegative().nullable().default(null),
+  slotPool: z.string().min(1).nullable().default(null),
 });
 
 const ApiProxyPipelineConfigBaseSchema = z.object({
@@ -262,6 +264,14 @@ export const ApiProxySourceRecordSchema = ApiProxySourceConfigSchema.extend({
 
 export const ApiProxyTraceRetentionDaysSchema = RetentionDaysSchema;
 
+export const API_PROXY_CONTINUATION_HOLD_MAX_MS = 10 * 60 * 1000;
+
+const ApiProxyContinuationHoldSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(API_PROXY_CONTINUATION_HOLD_MAX_MS);
+
 export const ApiProxySettingsSchema = z.object({
   filesEndpointId: ApiEndpointIdSchema.nullable().default(null),
   allowAnonymous: z.boolean().default(true),
@@ -269,6 +279,7 @@ export const ApiProxySettingsSchema = z.object({
   unknownKeyBlockedMessage: ApiProxyBlockedMessageSchema.default(""),
   streamIdleTimeoutMs: ApiProxyStreamIdleTimeoutSchema.nullable().default(null),
   traceRetentionDays: ApiProxyTraceRetentionDaysSchema.default(30),
+  continuationHoldMs: ApiProxyContinuationHoldSchema.default(60_000),
 });
 
 export const ApiProxySettingsUpdateSchema = updateSchemaFrom(
@@ -669,6 +680,8 @@ export const ApiProxyTargetRuntimeSchema = z.object({
   stateDetail: z.string().nullable().default(null),
   activeRequests: z.number().int().min(0).default(0),
   availableSlots: z.number().int().nonnegative().nullable().default(null),
+  heldSlots: z.number().int().nonnegative().nullable().default(null),
+  slotPool: z.string().min(1).nullable().default(null),
   idleSince: z.string().nullable().default(null),
   lastRequestAt: z.string().nullable().default(null),
   savedSlotIds: z.array(z.number().int().min(0)).default([]),

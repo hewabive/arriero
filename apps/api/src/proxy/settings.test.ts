@@ -23,7 +23,22 @@ test("defaults to allowing anonymous requests", () => {
     unknownKeyBlockedMessage: "",
     streamIdleTimeoutMs: null,
     traceRetentionDays: 30,
+    continuationHoldMs: 60_000,
   });
+});
+
+test("persists the continuation hold independently of other fields", () => {
+  updateApiProxySettings({ continuationHoldMs: 0 });
+  assert.equal(getApiProxySettings().continuationHoldMs, 0);
+
+  updateApiProxySettings({ allowAnonymous: false });
+  assert.equal(getApiProxySettings().continuationHoldMs, 0);
+
+  resetConfigFilesCache();
+  assert.equal(getApiProxySettings().continuationHoldMs, 0);
+  assert.throws(() =>
+    updateApiProxySettings({ continuationHoldMs: 10 * 60 * 1000 + 1 }),
+  );
 });
 
 test("persists the trace retention independently of other fields", () => {

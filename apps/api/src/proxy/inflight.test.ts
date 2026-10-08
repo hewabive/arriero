@@ -499,3 +499,91 @@ test("retains silent requests in every active phase until their owner ends them"
   assert.deepEqual(registry.snapshotList(), []);
   assert.equal(registry.getDetail(handle.id), null);
 });
+
+function holdRegistry() {
+  let now = 0;
+  const registry = new ApiProxyInflightRegistry({ now: () => now });
+  const toolCallResponse = (input: {
+    targetId?: string;
+    sourceId?: string;
+    callIds: Array<string | undefined>;
+    ok?: boolean;
+    holdMs?: number;
+  }) => {
+    const handle = registry.begin({
+      modelId: "agent",
+      protocol: "openai",
+      targetId: input.targetId ?? "target-a",
+    });
+    if (input.sourceId) handle.setSource(input.sourceId, input.sourceId);
+    handle.dispatched();
+    input.callIds.forEach((id, index) =>
+      handle.appendToolCall({ index, ...(id ? { id } : {}), name: "bash" }),
+    );
+    handle.end(input.ok ?? true, input.holdMs ?? 60_000);
+  };
+  const continuation = (toolCallIds: string[], sourceId?: string) => {
+    const handle = registry.begin({ modelId: "agent", protocol: "openai" });
+    if (sourceId) handle.setSource(sourceId, sourceId);
+    handle.continueToolCalls(toolCallIds);
+    return handle;
+  };
+  const held = () => registry.continuationHolds().map((hold) => hold.targetId);
+  return {
+    registry,
+    at: (value: number) => {
+      now = value;
+    },
+    toolCallResponse,
+    continuation,
+    held,
+  };
+}
+
+test("a successful response with tool calls holds its target until the tool results arrive", () => {
+  const holds = holdRegistry();
+  holds.toolCallResponse({ callIds: ["call_1", "call_2"] });
+  assert.deepEqual(holds.held(), ["target-a"]);
+
+  const next = holds.continuation(["call_2"]);
+  assert.deepEqual(holds.held(), []);
+  assert.equal(next.isContinuation(), true);
+});
+
+test("holds expire, skip failed or disabled responses and stay with their source", () => {
+  const holds = holdRegistry();
+  holds.toolCallResponse({ callIds: ["call_failed"], ok: false });
+  holds.toolCallResponse({ callIds: ["call_off"], holdMs: 0 });
+  assert.deepEqual(holds.held(), []);
+
+  holds.toolCallResponse({ callIds: ["call_1"], sourceId: "claude-code" });
+  holds.continuation(["call_1"], "rag-manager");
+  assert.deepEqual(holds.held(), ["target-a"]);
+
+  holds.at(59_999);
+  assert.deepEqual(holds.held(), ["target-a"]);
+  holds.at(60_000);
+  assert.deepEqual(holds.held(), []);
+});
+
+test("tool results without a matching id claim the oldest id-less hold of their source", () => {
+  const holds = holdRegistry();
+  holds.toolCallResponse({ callIds: ["call_known"], targetId: "target-a" });
+  holds.toolCallResponse({ callIds: [undefined], targetId: "target-b" });
+  holds.toolCallResponse({ callIds: [undefined], targetId: "target-c" });
+
+  holds.continuation(["toolu_0"]);
+  assert.deepEqual(holds.held(), ["target-a", "target-c"]);
+  holds.continuation(["call_known"]);
+  assert.deepEqual(holds.held(), ["target-c"]);
+});
+
+test("a request without trailing tool results is not a continuation", () => {
+  const holds = holdRegistry();
+  const fresh = holds.registry.begin({ modelId: "agent", protocol: "openai" });
+  assert.equal(fresh.isContinuation(), false);
+  holds.registry.reset();
+  holds.toolCallResponse({ callIds: ["call_1"] });
+  holds.registry.reset();
+  assert.deepEqual(holds.held(), []);
+});

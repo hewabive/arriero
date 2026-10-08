@@ -1047,6 +1047,80 @@ for (const route of [
   }
 }
 
+const toolCallSse = [
+  'data: {"id":"c2","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"bash","arguments":"{}"}}]},"finish_reason":null}]}',
+  'data: {"id":"c2","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+  "data: [DONE]",
+]
+  .map((frame) => `${frame}\n\n`)
+  .join("");
+
+const toolContinuationBodies = {
+  openai: {
+    messages: [
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "bash", arguments: "{}" },
+          },
+        ],
+      },
+      { role: "tool", tool_call_id: "call_1", content: "ok" },
+    ],
+  },
+  anthropic: {
+    messages: [
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "call_1", name: "bash", input: {} }],
+      },
+      {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "call_1", content: "ok" },
+        ],
+      },
+    ],
+  },
+} as const;
+
+for (const protocol of ["openai", "anthropic"] as const) {
+  test(`${protocol}: a tool-call response holds its target until the tool results return`, async (t) => {
+    const upstream = await seedCapturedUpstream(
+      t,
+      { status: 200, contentType: "text/event-stream", body: toolCallSse },
+      { cache: false },
+    );
+    const app = buildApp();
+    const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+    const first = await postCapturedRequest(app, protocol, true);
+    assert.equal(first.status, 200);
+    await first.text();
+    await settle();
+    assert.deepEqual(
+      apiProxyInflight.continuationHolds().map((hold) => hold.targetId),
+      [upstream.target.id],
+    );
+
+    const second = await postCapturedRequest(
+      app,
+      protocol,
+      true,
+      toolContinuationBodies[protocol],
+    );
+    assert.equal(second.status, 200);
+    await second.text();
+    await settle();
+    assert.equal(apiProxyInflight.continuationHolds().length, 1);
+  });
+}
+
 async function postChatCompletion(
   app: Hono,
   modelId: string,

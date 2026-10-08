@@ -186,7 +186,9 @@ scheduler + coordinator + swap-lock stack on this scenario.
    resident (affine — target already a holder on an overlapping domain) waiters ahead
    of swap-needing waiters at equal priority, draining a model's queue before paying a
    swap; a fairness window (`swapFairnessMs`, default 2 s) lifts the preference once a
-   swap waiter has starved. `decide()` caps concurrent same-target holders at the
+   swap waiter has starved. After affinity, tool continuations of running agent sessions
+   go before fresh requests until a fresh waiter passes `continuationFairnessMs`
+   (default 10 s; `docs/API_PROXY_PREEMPTION.md`). `decide()` caps concurrent same-target holders at the
    descriptor-selected concurrency argument (`--parallel`/`-np`, vLLM
    `--max-num-seqs`, or SGLang `--max-running-requests`), so excess queues in
    the proxy (priority-ordered, observable) instead of blindly inside the engine.

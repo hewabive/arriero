@@ -36,6 +36,7 @@ type InflightEntry = {
   answerText: string;
   answerCharsTotal: number;
   toolCalls: { id: string | null; name: string | null; arguments: string }[];
+  continuation: boolean;
   controlHandlers: Partial<
     Record<ApiProxyInflightControlAction, ApiProxyInflightControlHandler>
   >;
@@ -46,7 +47,7 @@ type InflightEntry = {
 };
 
 const DEFAULT_INFLIGHT_ENDED_RETAIN_MS = 15 * 1000;
-const SLOT_RELEASE_COOLDOWN_MS = 5 * 1000;
+const SLOT_RELEASE_COOLDOWN_MS = 2 * 1000;
 const REASONING_BUFFER_CAP = 256 * 1024;
 const ANSWER_BUFFER_CAP = 64 * 1024;
 const TOOL_ARGS_BUFFER_CAP = 16 * 1024;
@@ -118,6 +119,20 @@ export type ApiProxySlotActivity = {
   endedAt: number;
 };
 
+export type ApiProxyContinuationHold = {
+  targetId: string;
+};
+
+type ContinuationHoldEntry = ApiProxyContinuationHold & {
+  sourceKey: string;
+  toolCallIds: Set<string>;
+  expiresAt: number;
+};
+
+function sourceKeyOf(entry: InflightEntry): string {
+  return entry.sourceId ?? "";
+}
+
 export type ApiProxyInflightHandle = {
   readonly id: string;
   setModel(modelId: string): void;
@@ -148,7 +163,9 @@ export type ApiProxyInflightHandle = {
     handler: ApiProxyInflightControlHandler | null,
   ): void;
   controlSignal(action: ApiProxyInflightControlAction): AbortSignal;
-  end(ok?: boolean): void;
+  continueToolCalls(toolCallIds: string[]): void;
+  isContinuation(): boolean;
+  end(ok?: boolean, continuationHoldMs?: number): void;
 };
 
 function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
@@ -200,6 +217,7 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
 
 export class ApiProxyInflightRegistry {
   private readonly entries = new Map<string, InflightEntry>();
+  private holds: ContinuationHoldEntry[] = [];
   private readonly clock: () => number;
   private readonly endedRetainMs: number;
 
@@ -240,6 +258,7 @@ export class ApiProxyInflightRegistry {
       answerText: "",
       answerCharsTotal: 0,
       toolCalls: [],
+      continuation: false,
       controlHandlers: {},
       controlControllers: {},
       endedAt: null,
@@ -371,14 +390,64 @@ export class ApiProxyInflightRegistry {
         };
         return controller.signal;
       },
-      end: (ok = true) => {
+      continueToolCalls: (toolCallIds) => {
+        entry.continuation = true;
+        this.claimHold(sourceKeyOf(entry), toolCallIds);
+      },
+      isContinuation: () => entry.continuation,
+      end: (ok = true, continuationHoldMs = 0) => {
         if (entry.endedAt !== null) {
           return;
         }
         entry.endedAt = this.clock();
         entry.phase = ok ? "done" : "failed";
+        if (ok && continuationHoldMs > 0) {
+          this.holdForContinuation(entry, continuationHoldMs);
+        }
       },
     };
+  }
+
+  private holdForContinuation(entry: InflightEntry, holdMs: number): void {
+    const calls = entry.toolCalls.filter(Boolean);
+    if (
+      calls.length === 0 ||
+      entry.targetId === null ||
+      entry.dispatchedAt === null ||
+      entry.endedAt === null
+    ) {
+      return;
+    }
+    this.holds.push({
+      targetId: entry.targetId,
+      sourceKey: sourceKeyOf(entry),
+      toolCallIds: new Set(
+        calls
+          .map((call) => call.id)
+          .filter((id): id is string => id !== null && id.length > 0),
+      ),
+      expiresAt: entry.endedAt + holdMs,
+    });
+  }
+
+  private sweepHolds(at: number): void {
+    this.holds = this.holds.filter((hold) => hold.expiresAt > at);
+  }
+
+  private claimHold(sourceKey: string, toolCallIds: string[]): void {
+    this.sweepHolds(this.clock());
+    const own = this.holds.filter((hold) => hold.sourceKey === sourceKey);
+    const claimed =
+      own.find((hold) => toolCallIds.some((id) => hold.toolCallIds.has(id))) ??
+      own.find((hold) => hold.toolCallIds.size === 0);
+    if (claimed) {
+      this.holds = this.holds.filter((hold) => hold !== claimed);
+    }
+  }
+
+  continuationHolds(): ApiProxyContinuationHold[] {
+    this.sweepHolds(this.clock());
+    return this.holds.map((hold) => ({ targetId: hold.targetId }));
   }
 
   private sweepEnded(at: number): void {
@@ -527,6 +596,7 @@ export class ApiProxyInflightRegistry {
 
   reset(): void {
     this.entries.clear();
+    this.holds = [];
   }
 }
 

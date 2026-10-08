@@ -11,13 +11,17 @@ import {
 
 import { parseInstanceConcurrencyLimit } from "./domain-admission.js";
 import { externalTargetEndpointId } from "./external-target.js";
-import type { ApiProxySlotActivity } from "./inflight.js";
+import type {
+  ApiProxyContinuationHold,
+  ApiProxySlotActivity,
+} from "./inflight.js";
 import { asObject } from "./json.js";
 import { serveTargetInstanceId } from "./serve-target-id.js";
 
 export type InstanceRequestDemand = {
   active: number;
   queued: number;
+  held: number;
   recentPeak: number;
 };
 
@@ -34,6 +38,7 @@ export function instanceRequestDemand(input: {
   inflightByTargetId: Map<string, ApiProxyInflightRequest[]>;
   busyTargetIds: Set<string>;
   recentSlotActivity: ApiProxySlotActivity[];
+  continuationHolds: ApiProxyContinuationHold[];
 }): Map<string, InstanceRequestDemand> {
   const requestsByInstance = new Map<
     string,
@@ -43,6 +48,11 @@ export function instanceRequestDemand(input: {
   const activityByInstance = new Map<string, { at: number; delta: number }[]>();
   const instanceKey = (targetId: string) =>
     input.instanceKeyByTargetId.get(targetId) ?? ephemeralInstanceKey(targetId);
+  const heldByInstance = new Map<string, number>();
+  for (const hold of input.continuationHolds) {
+    const key = instanceKey(hold.targetId);
+    if (key) heldByInstance.set(key, (heldByInstance.get(key) ?? 0) + 1);
+  }
   for (const activity of input.recentSlotActivity) {
     const key = instanceKey(activity.targetId);
     if (!key) continue;
@@ -57,6 +67,7 @@ export function instanceRequestDemand(input: {
     ...input.inflightByTargetId.keys(),
     ...input.busyTargetIds,
     ...input.recentSlotActivity.map((activity) => activity.targetId),
+    ...input.continuationHolds.map((hold) => hold.targetId),
   ]);
   for (const targetId of targetIds) {
     const key = instanceKey(targetId);
@@ -90,6 +101,7 @@ export function instanceRequestDemand(input: {
         {
           active: requests.size - queued + (untrackedByInstance.get(key) ?? 0),
           queued,
+          held: heldByInstance.get(key) ?? 0,
           recentPeak,
         },
       ];
@@ -149,7 +161,7 @@ export function availableApiProxyTargetSlots(input: {
   if (limit === undefined) return null;
   const active = Math.max(measured?.active ?? 0, input.demand?.active ?? 0);
   const demand = Math.max(
-    active + (input.demand?.queued ?? 0),
+    active + (input.demand?.queued ?? 0) + (input.demand?.held ?? 0),
     input.demand?.recentPeak ?? 0,
   );
   return Math.max(0, limit - demand);

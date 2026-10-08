@@ -33,6 +33,8 @@ function targetRuntime(
     stateDetail: null,
     activeRequests: 0,
     availableSlots,
+    heldSlots: availableSlots === null ? null : 0,
+    slotPool: availableSlots === null ? null : "instance:instance",
     idleSince: null,
     lastRequestAt: null,
     savedSlotIds: [],
@@ -180,6 +182,7 @@ test("deriveApiProxyModelStatus reports disabled while still counting requests",
   assert.equal(status.value, "disabled");
   assert.equal(status.queuedRequests, 1);
   assert.equal(status.availableSlots, 0);
+  assert.equal(status.slotPool, null);
 });
 
 test("deriveApiProxyModelStatus follows a pipeline route to its target leaf", () => {
@@ -207,6 +210,8 @@ test("model aliases share target availability independently of their own activit
       inflight: modelId === "interactive" ? [inflight("generating")] : [],
     });
     assert.equal(status.availableSlots, 1);
+    assert.equal(status.heldSlots, 0);
+    assert.equal(status.slotPool, "instance:instance");
     assert.equal(status.activeRequests, modelId === "interactive" ? 1 : 0);
   }
 });
@@ -240,5 +245,7 @@ test("availability stays unknown for external, missing, and multi-target routes"
       inflight: [],
     });
     assert.equal(status.availableSlots, null);
+    assert.equal(status.heldSlots, null);
+    assert.equal(status.slotPool, null);
   }
 });

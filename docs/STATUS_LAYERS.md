@@ -118,8 +118,9 @@ modelled as an extended version of the **llama.cpp router** status set:
   (`enabled:false`). There is nothing to unify them with, and that is correct.
 
 Plus the orthogonal activity counters `active_requests` / `queued_requests` and the nullable
-`available_slots` estimate of shared instance capacity for a route with one target, including a
-5-second release cooldown based on recently dispatched proxy requests.
+`available_slots` estimate of shared instance capacity for a route with one target, minus
+tool-continuation holds and with a 2-second release cooldown based on recently dispatched proxy
+requests, plus `held_slots` and the instance key `slot_pool`.
 See `docs/API_PROXY_FOUNDATION.md` for the wire shape.
 
 ## The boundary adapter

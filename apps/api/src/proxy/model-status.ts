@@ -118,6 +118,8 @@ export function deriveApiProxyModelStatus(input: {
       activeRequests,
       queuedRequests,
       availableSlots: 0,
+      heldSlots: null,
+      slotPool: null,
     };
   }
 
@@ -127,6 +129,8 @@ export function deriveApiProxyModelStatus(input: {
       activeRequests,
       queuedRequests,
       availableSlots: null,
+      heldSlots: null,
+      slotPool: null,
     };
   }
 
@@ -143,14 +147,15 @@ export function deriveApiProxyModelStatus(input: {
     ),
   );
 
+  const single =
+    targetIds.length === 1 ? runtimeByTargetId.get(targetIds[0]!) : undefined;
   return {
     value: aggregateApiProxyLoadState(leaves),
     activeRequests,
     queuedRequests,
-    availableSlots:
-      targetIds.length === 1
-        ? (runtimeByTargetId.get(targetIds[0]!)?.availableSlots ?? null)
-        : null,
+    availableSlots: single?.availableSlots ?? null,
+    heldSlots: single?.heldSlots ?? null,
+    slotPool: single?.slotPool ?? null,
   };
 }
 

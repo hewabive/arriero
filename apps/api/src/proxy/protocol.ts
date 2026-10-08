@@ -212,6 +212,7 @@ type ApiProxyOperationSpec = {
   countTokensResponse: boolean;
   tokenCountRequest: "chat" | null;
   nativeReasoningControl: boolean;
+  toolContinuation: ApiProxyResponseShape | null;
 };
 
 const apiProxyOperationSpecs = {
@@ -228,6 +229,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: "chat",
     nativeReasoningControl: true,
+    toolContinuation: "openai-chat",
   },
   completions: {
     protocol: "openai",
@@ -242,6 +244,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
+    toolContinuation: null,
   },
   embeddings: {
     protocol: "openai",
@@ -256,6 +259,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
+    toolContinuation: null,
   },
   rerank: {
     protocol: "openai",
@@ -270,6 +274,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
+    toolContinuation: null,
   },
   responses: {
     protocol: "openai",
@@ -284,6 +289,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
+    toolContinuation: "openai-responses",
   },
   messages: {
     protocol: "anthropic",
@@ -298,6 +304,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: "chat",
     nativeReasoningControl: true,
+    toolContinuation: "anthropic",
   },
   "messages.count_tokens": {
     protocol: "anthropic",
@@ -312,6 +319,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: true,
     tokenCountRequest: null,
     nativeReasoningControl: false,
+    toolContinuation: null,
   },
 } satisfies Record<string, ApiProxyOperationSpec>;
 
