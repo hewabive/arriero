@@ -88,6 +88,7 @@ export async function getApiProxyRuntimeSnapshot(options?: {
         apiProxyInflight.snapshotByTarget(),
         delegatedInflight,
       ),
+      recentSlotActivity: apiProxyInflight.recentSlotActivity(),
     }),
   };
 }

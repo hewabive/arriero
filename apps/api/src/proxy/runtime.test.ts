@@ -10,6 +10,7 @@ import {
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { ApiProxyInflightRegistry } from "./inflight.js";
 import {
   buildApiProxyRuntimeSnapshot,
   resetApiProxyRuntimeTrackers,
@@ -630,6 +631,145 @@ function pendingRequest(id: string, phase = "generating", modelId = id) {
     waitingMs: 0,
   });
 }
+
+function trackedAvailability() {
+  let now = 0;
+  const registry = new ApiProxyInflightRegistry({ now: () => now });
+  return {
+    registry,
+    at: (value: number) => {
+      now = value;
+    },
+    snapshot: (
+      overrides: Partial<
+        Parameters<typeof buildApiProxyRuntimeSnapshot>[0]
+      > = {},
+    ) =>
+      availabilitySnapshot({
+        checkedAt: new Date(now).toISOString(),
+        healthByInstanceId: new Map([["instance-a", slotHealth(4)]]),
+        inflightByTargetId: registry.snapshotByTarget(),
+        recentSlotActivity: registry.recentSlotActivity(),
+        ...overrides,
+      }),
+  };
+}
+
+test("completed generations hold available slots for five seconds without keeping requests active", () => {
+  const view = trackedAvailability();
+  const request = view.registry.begin({
+    modelId: "agent",
+    protocol: "openai",
+    targetId: "target-a",
+  });
+  request.dispatched();
+  view.at(1000);
+  request.end();
+
+  const completed = view.snapshot().targets[0]!;
+  assert.equal(completed.availableSlots, 3);
+  assert.equal(completed.activeRequests, 0);
+  assert.equal(completed.inflight[0]?.phase, "done");
+  assert.equal(view.registry.activeCount(), 0);
+  view.at(5999);
+  assert.equal(view.snapshot().targets[0]?.availableSlots, 3);
+  view.at(6000);
+  const released = view.snapshot().targets[0]!;
+  assert.equal(released.availableSlots, 4);
+  assert.equal(released.inflight[0]?.phase, "done");
+});
+
+test("successive agent steps share one cooldown slot across target aliases and pinned routes", () => {
+  const view = trackedAvailability();
+  const targets = [
+    target({ model: null }),
+    target({ id: "target-b", model: null }),
+  ];
+  const routes = [
+    "target-a",
+    "target-b",
+    "serve:instance-a",
+    "endpoint:instance:instance-a#chat",
+  ];
+  for (const [index, targetId] of routes.entries()) {
+    view.at(index * 1000);
+    const request = view.registry.begin({
+      modelId: `alias-${index}`,
+      protocol: "openai",
+      targetId,
+    });
+    request.dispatched();
+    view.at((index + 1) * 1000);
+    request.end();
+    assert.deepEqual(
+      view.snapshot({ targets }).targets.map((item) => item.availableSlots),
+      [3, 3],
+    );
+  }
+  view.at(8999);
+  assert.equal(view.snapshot({ targets }).targets[0]?.availableSlots, 3);
+  view.at(9000);
+  assert.equal(view.snapshot({ targets }).targets[0]?.availableSlots, 4);
+});
+
+test("concurrent generations release cooldown slots independently", () => {
+  const view = trackedAvailability();
+  const requests = Array.from({ length: 3 }, (_, index) => {
+    view.at(index * 100);
+    const request = view.registry.begin({
+      modelId: `agent-${index}`,
+      protocol: "openai",
+      targetId: "target-a",
+    });
+    request.dispatched();
+    return request;
+  });
+  for (const [index, request] of requests.entries()) {
+    view.at((index + 1) * 1000);
+    request.end();
+    assert.equal(view.snapshot().targets[0]?.availableSlots, 1);
+  }
+  for (const [at, slots] of [
+    [5999, 1],
+    [6000, 2],
+    [6999, 2],
+    [7000, 3],
+    [7999, 3],
+    [8000, 4],
+  ] as const) {
+    view.at(at);
+    assert.equal(view.snapshot().targets[0]?.availableSlots, slots, `${at}ms`);
+  }
+});
+
+test("current demand takes precedence over cooldown and cancelled queued requests do not extend it", () => {
+  const view = trackedAvailability();
+  const completed = view.registry.begin({
+    modelId: "agent",
+    protocol: "openai",
+    targetId: "target-a",
+  });
+  completed.dispatched();
+  view.at(1000);
+  completed.end();
+  const queued = view.registry.begin({
+    modelId: "agent",
+    protocol: "openai",
+    targetId: "target-a",
+  });
+  assert.equal(view.snapshot().targets[0]?.availableSlots, 3);
+  assert.equal(
+    view.snapshot({
+      healthByInstanceId: new Map([["instance-a", slotHealth(4, 3)]]),
+    }).targets[0]?.availableSlots,
+    0,
+  );
+  view.at(2000);
+  queued.end(false);
+  assert.equal(view.snapshot().targets[0]?.availableSlots, 3);
+  view.at(6000);
+  assert.equal(view.snapshot().targets[0]?.availableSlots, 4);
+});
 
 test("available slots account for sibling targets, model aliases, queues, and completed requests", () => {
   const snapshot = availabilitySnapshot({

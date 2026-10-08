@@ -11,10 +11,15 @@ import {
 
 import { parseInstanceConcurrencyLimit } from "./domain-admission.js";
 import { externalTargetEndpointId } from "./external-target.js";
+import type { ApiProxySlotActivity } from "./inflight.js";
 import { asObject } from "./json.js";
 import { serveTargetInstanceId } from "./serve-target-id.js";
 
-type RequestDemand = { active: number; queued: number };
+export type InstanceRequestDemand = {
+  active: number;
+  queued: number;
+  recentPeak: number;
+};
 
 function ephemeralInstanceKey(targetId: string): string | null {
   const endpointId = externalTargetEndpointId(targetId);
@@ -28,20 +33,33 @@ export function instanceRequestDemand(input: {
   instanceKeyByTargetId: Map<string, string>;
   inflightByTargetId: Map<string, ApiProxyInflightRequest[]>;
   busyTargetIds: Set<string>;
-}): Map<string, RequestDemand> {
+  recentSlotActivity: ApiProxySlotActivity[];
+}): Map<string, InstanceRequestDemand> {
   const requestsByInstance = new Map<
     string,
     Map<string, ApiProxyInflightRequest>
   >();
   const untrackedByInstance = new Map<string, number>();
+  const activityByInstance = new Map<string, { at: number; delta: number }[]>();
+  const instanceKey = (targetId: string) =>
+    input.instanceKeyByTargetId.get(targetId) ?? ephemeralInstanceKey(targetId);
+  for (const activity of input.recentSlotActivity) {
+    const key = instanceKey(activity.targetId);
+    if (!key) continue;
+    const events = activityByInstance.get(key) ?? [];
+    events.push(
+      { at: activity.startedAt, delta: 1 },
+      { at: activity.endedAt, delta: -1 },
+    );
+    activityByInstance.set(key, events);
+  }
   const targetIds = new Set([
     ...input.inflightByTargetId.keys(),
     ...input.busyTargetIds,
+    ...input.recentSlotActivity.map((activity) => activity.targetId),
   ]);
   for (const targetId of targetIds) {
-    const key =
-      input.instanceKeyByTargetId.get(targetId) ??
-      ephemeralInstanceKey(targetId);
+    const key = instanceKey(targetId);
     if (!key) continue;
     const requests = (input.inflightByTargetId.get(targetId) ?? []).filter(
       (request) => !apiProxyInflightPhaseEnded(request.phase),
@@ -59,11 +77,20 @@ export function instanceRequestDemand(input: {
       const queued = [...requests.values()].filter(
         (request) => request.phase === "queued",
       ).length;
+      const events = activityByInstance.get(key) ?? [];
+      events.sort((a, b) => a.at - b.at || a.delta - b.delta);
+      let active = 0;
+      let recentPeak = 0;
+      for (const event of events) {
+        active += event.delta;
+        recentPeak = Math.max(recentPeak, active);
+      }
       return [
         key,
         {
           active: requests.size - queued + (untrackedByInstance.get(key) ?? 0),
           queued,
+          recentPeak,
         },
       ];
     }),
@@ -95,7 +122,7 @@ export function availableApiProxyTargetSlots(input: {
   instance: Instance | undefined;
   health: InstanceHealthSummary | undefined;
   model: string | null;
-  demand: RequestDemand | undefined;
+  demand: InstanceRequestDemand | undefined;
 }): number | null {
   if (input.state === "unknown") return null;
   if (input.state !== "ready") return 0;
@@ -121,5 +148,9 @@ export function availableApiProxyTargetSlots(input: {
     configuredLimit;
   if (limit === undefined) return null;
   const active = Math.max(measured?.active ?? 0, input.demand?.active ?? 0);
-  return Math.max(0, limit - active - (input.demand?.queued ?? 0));
+  const demand = Math.max(
+    active + (input.demand?.queued ?? 0),
+    input.demand?.recentPeak ?? 0,
+  );
+  return Math.max(0, limit - demand);
 }

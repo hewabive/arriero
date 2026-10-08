@@ -46,6 +46,7 @@ type InflightEntry = {
 };
 
 const DEFAULT_INFLIGHT_ENDED_RETAIN_MS = 15 * 1000;
+const SLOT_RELEASE_COOLDOWN_MS = 5 * 1000;
 const REASONING_BUFFER_CAP = 256 * 1024;
 const ANSWER_BUFFER_CAP = 64 * 1024;
 const TOOL_ARGS_BUFFER_CAP = 16 * 1024;
@@ -109,6 +110,12 @@ function entryControls(entry: InflightEntry): ApiProxyInflightControls {
 type ApiProxyInflightRegistryOptions = {
   now?: () => number;
   endedRetainMs?: number;
+};
+
+export type ApiProxySlotActivity = {
+  targetId: string;
+  startedAt: number;
+  endedAt: number;
 };
 
 export type ApiProxyInflightHandle = {
@@ -400,6 +407,23 @@ export class ApiProxyInflightRegistry {
       }
     }
     return targetIds;
+  }
+
+  recentSlotActivity(): ApiProxySlotActivity[] {
+    const at = this.clock();
+    const since = at - SLOT_RELEASE_COOLDOWN_MS;
+    const activity: ApiProxySlotActivity[] = [];
+    for (const entry of this.entries.values()) {
+      if (entry.targetId === null || entry.dispatchedAt === null) {
+        continue;
+      }
+      const startedAt = Math.max(since, entry.dispatchedAt);
+      const endedAt = entry.endedAt ?? at;
+      if (endedAt > startedAt) {
+        activity.push({ targetId: entry.targetId, startedAt, endedAt });
+      }
+    }
+    return activity;
   }
 
   snapshotByTarget(): Map<string, ApiProxyInflightRequest[]> {

@@ -157,8 +157,17 @@ disables the argument fallback; router presets do not supply a per-model fallbac
 uses the larger of observed upstream processing slots and tracked active proxy requests,
 then subtracts queued proxy requests as already committed demand. Requests are grouped across
 all targets and public model names sharing the instance, including pinned/delegated serve
-requests. Ended requests retained for display do not consume capacity. Without native slot
-telemetry, this is an estimate based on traffic seen by this manager; remote engines without
+requests. To bridge short agent tool-execution gaps, the estimate also holds the highest number
+of simultaneously dispatched proxy requests in the preceding **5 seconds**. It uses the larger
+of this recent peak and current occupancy plus queued demand; successive non-overlapping
+generations therefore reuse the same cooldown slot instead of accumulating reservations. The
+window follows actual dispatch/completion times, independently of status polling, and excludes
+requests cancelled before dispatch. A drop in concurrency frees capacity after five seconds,
+visible on the next runtime snapshot refresh (the public cache can add up to 2 seconds).
+The cooldown affects only `available_slots` / `availableSlots`: activity counters and scheduler
+admission continue to use current requests. Ended requests retained for display beyond the
+cooldown do not consume capacity. Without native slot telemetry, this is an estimate based on
+traffic seen by this manager; remote engines without
 capacity telemetry remain unknown. The result shares the runtime snapshot cache and is advisory,
 not a reservation or a guarantee of scheduler admission. A background client can keep a soft
 reserve of one slot by choosing the model only when `available_slots > 1` and

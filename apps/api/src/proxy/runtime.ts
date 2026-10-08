@@ -14,9 +14,11 @@ import {
 } from "@arriero/core";
 
 import { asObject } from "./json.js";
+import type { ApiProxySlotActivity } from "./inflight.js";
 import {
   availableApiProxyTargetSlots,
   instanceRequestDemand,
+  type InstanceRequestDemand,
 } from "./target-availability.js";
 import { resolveApiProxyTarget } from "./targets.js";
 
@@ -303,7 +305,7 @@ function deriveApiProxyTargetRuntime(input: {
   metadata?: ApiProxyRuntimeMetadataRecord | undefined;
   inFlight?: boolean | undefined;
   inflight?: ApiProxyInflightRequest[] | undefined;
-  instanceDemand?: { active: number; queued: number } | undefined;
+  instanceDemand?: InstanceRequestDemand | undefined;
   checkedAt: string;
 }): ApiProxyTargetRuntime {
   const inflight = input.endpointEnabled ? (input.inflight ?? []) : [];
@@ -373,6 +375,7 @@ export function buildApiProxyRuntimeSnapshot(input: {
   metadataByTargetId?: Map<string, ApiProxyRuntimeMetadataRecord> | undefined;
   busyTargetIds?: Set<string> | undefined;
   inflightByTargetId?: Map<string, ApiProxyInflightRequest[]> | undefined;
+  recentSlotActivity?: ApiProxySlotActivity[] | undefined;
 }): ApiProxyRuntimeSnapshot {
   const instanceById = new Map(
     input.instances.map((instance) => [instance.name, instance]),
@@ -396,6 +399,7 @@ export function buildApiProxyRuntimeSnapshot(input: {
     instanceKeyByTargetId,
     inflightByTargetId: input.inflightByTargetId ?? new Map(),
     busyTargetIds: input.busyTargetIds ?? new Set(),
+    recentSlotActivity: input.recentSlotActivity ?? [],
   });
   for (const targetId of runtimeTrackers.keys()) {
     if (!activeTargetIds.has(targetId)) {
