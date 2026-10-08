@@ -1,5 +1,6 @@
 import {
   apiProxyInflightPhaseEnded,
+  instanceEndpointId,
   type ApiEndpointRecord,
   type ApiProxyInflightRequest,
   type ApiProxyModelState,
@@ -13,6 +14,10 @@ import {
 } from "@arriero/core";
 
 import { asObject } from "./json.js";
+import {
+  availableApiProxyTargetSlots,
+  instanceRequestDemand,
+} from "./target-availability.js";
 import { resolveApiProxyTarget } from "./targets.js";
 
 type RuntimeTracker = {
@@ -298,6 +303,7 @@ function deriveApiProxyTargetRuntime(input: {
   metadata?: ApiProxyRuntimeMetadataRecord | undefined;
   inFlight?: boolean | undefined;
   inflight?: ApiProxyInflightRequest[] | undefined;
+  instanceDemand?: { active: number; queued: number } | undefined;
   checkedAt: string;
 }): ApiProxyTargetRuntime {
   const inflight = input.endpointEnabled ? (input.inflight ?? []) : [];
@@ -342,6 +348,13 @@ function deriveApiProxyTargetRuntime(input: {
     state: derived.state,
     stateDetail: derived.detail,
     activeRequests,
+    availableSlots: availableApiProxyTargetSlots({
+      state: derived.state,
+      instance: input.instance,
+      health: input.remoteManaged ? input.remoteHealth : input.health,
+      model: input.target.model,
+      demand: input.instanceDemand,
+    }),
     idleSince: tracker.idleSince,
     lastRequestAt: tracker.lastRequestAt,
     savedSlotIds: tracker.savedSlotIds,
@@ -371,6 +384,19 @@ export function buildApiProxyRuntimeSnapshot(input: {
     ]),
   );
   const activeTargetIds = new Set(input.targets.map((target) => target.id));
+  const instanceKeyByTargetId = new Map(
+    [...resolutionByTargetId].map(([id, resolution]) => [
+      id,
+      resolution.instanceId
+        ? instanceEndpointId(resolution.instanceId)
+        : resolution.endpointId,
+    ]),
+  );
+  const demandByInstance = instanceRequestDemand({
+    instanceKeyByTargetId,
+    inflightByTargetId: input.inflightByTargetId ?? new Map(),
+    busyTargetIds: input.busyTargetIds ?? new Set(),
+  });
   for (const targetId of runtimeTrackers.keys()) {
     if (!activeTargetIds.has(targetId)) {
       runtimeTrackers.delete(targetId);
@@ -400,6 +426,9 @@ export function buildApiProxyRuntimeSnapshot(input: {
         metadata: input.metadataByTargetId?.get(target.id),
         inFlight: input.busyTargetIds?.has(target.id) ?? false,
         inflight: input.inflightByTargetId?.get(target.id),
+        instanceDemand: demandByInstance.get(
+          instanceKeyByTargetId.get(target.id) ?? target.endpointId,
+        ),
         checkedAt: input.checkedAt,
       });
     }),

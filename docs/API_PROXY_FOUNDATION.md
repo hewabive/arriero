@@ -134,7 +134,8 @@ A proxy model carries two independent control flags in `config/proxy/models.json
 
 ```json
 { "id": "my-model", "object": "model", "owned_by": "arriero",
-  "status": { "value": "partial", "active_requests": 2, "queued_requests": 5 } }
+  "status": { "value": "loaded", "active_requests": 2, "queued_requests": 0,
+    "available_slots": 2 } }
 ```
 
 Two orthogonal axes:
@@ -143,6 +144,25 @@ Two orthogonal axes:
 - **Work** is `active_requests` (dispatched to a target) and `queued_requests` (accepted by the proxy, waiting on a domain lease / autostart). Independent of the load axis — a model can be busy while only partially loaded.
 
 The status is derived from a short-TTL (2s) cache of the proxy runtime snapshot (`getCachedApiProxyRuntimeSnapshot`), so `/v1/models` stays read-only and cheap and never triggers autoload. Derivation lives in `proxy/model-status.ts`.
+
+`status.available_slots` is an arriero extension for clients that prefer another model when
+capacity is low. It is a nonnegative integer or `null` (unknown). For a route with one target,
+it exposes that target's `availableSlots` from `/api/proxy/runtime`; multi-target routes,
+endpoint-routed models, and external providers return `null`. Disabled models and targets that are known to be stopped,
+loading, failed, or sleeping have zero immediately available slots.
+
+Capacity comes first from a valid llama `/slots` response, then `/props.total_slots`, the
+instance's logged slot count, or an explicit engine concurrency argument. Configuration drift
+disables the argument fallback; router presets do not supply a per-model fallback. Occupancy
+uses the larger of observed upstream processing slots and tracked active proxy requests,
+then subtracts queued proxy requests as already committed demand. Requests are grouped across
+all targets and public model names sharing the instance, including pinned/delegated serve
+requests. Ended requests retained for display do not consume capacity. Without native slot
+telemetry, this is an estimate based on traffic seen by this manager; remote engines without
+capacity telemetry remain unknown. The result shares the runtime snapshot cache and is advisory,
+not a reservation or a guarantee of scheduler admission. A background client can keep a soft
+reserve of one slot by choosing the model only when `available_slots > 1` and
+`queued_requests === 0`, using its fallback model when availability is `null`.
 
 This `value` is the public **L4** layer — a frozen, llama.cpp-router-derived external contract. The internal target/instance/process status layers it is computed from, and the boundary adapter (`leafLoadFromTargetState`) that translates internal `ready`/`error` into the public `loaded`/`failed`, are documented in `docs/STATUS_LAYERS.md`.
 

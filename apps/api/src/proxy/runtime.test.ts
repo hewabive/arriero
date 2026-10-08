@@ -1,10 +1,11 @@
-import type {
-  ApiEndpointRecord,
-  ApiProxyRuntimeMetadataRecord,
-  ApiProxyTargetRecord,
-  Instance,
-  InstanceHealthSummary,
-  EndpointProbe,
+import {
+  ApiProxyInflightRequestSchema,
+  type ApiEndpointRecord,
+  type ApiProxyRuntimeMetadataRecord,
+  type ApiProxyTargetRecord,
+  type Instance,
+  type InstanceHealthSummary,
+  type EndpointProbe,
 } from "@arriero/core";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -217,6 +218,7 @@ test("buildApiProxyRuntimeSnapshot derives model runtime and tracks idle state",
 
   assert.equal(first.targets[0]?.state, "ready");
   assert.equal(first.targets[0]?.activeRequests, 0);
+  assert.equal(first.targets[0]?.availableSlots, 1);
   assert.equal(first.targets[0]?.idleSince, "2026-05-30T10:00:00.000Z");
 
   const second = buildApiProxyRuntimeSnapshot({
@@ -239,6 +241,7 @@ test("buildApiProxyRuntimeSnapshot derives model runtime and tracks idle state",
 
   assert.equal(busy.targets[0]?.state, "ready");
   assert.equal(busy.targets[0]?.activeRequests, 1);
+  assert.equal(busy.targets[0]?.availableSlots, 0);
   assert.equal(busy.targets[0]?.idleSince, null);
   assert.equal(busy.targets[0]?.lastRequestAt, "2026-05-30T10:00:10.000Z");
 });
@@ -285,6 +288,7 @@ test("buildApiProxyRuntimeSnapshot marks an in-flight lease busy during prefill"
 
   assert.equal(snapshot.targets[0]?.state, "ready");
   assert.equal(snapshot.targets[0]?.activeRequests, 1);
+  assert.equal(snapshot.targets[0]?.availableSlots, 0);
   assert.equal(snapshot.targets[0]?.idleSince, null);
   assert.equal(snapshot.targets[0]?.lastRequestAt, "2026-05-30T10:00:10.000Z");
 });
@@ -304,6 +308,7 @@ test("buildApiProxyRuntimeSnapshot does not override loading state for an in-fli
   });
 
   assert.equal(snapshot.targets[0]?.state, "loading");
+  assert.equal(snapshot.targets[0]?.availableSlots, 0);
 });
 
 test("buildApiProxyRuntimeSnapshot treats listed models without status as idle", () => {
@@ -407,6 +412,7 @@ test("buildApiProxyRuntimeSnapshot reports a ready remote target as idle", () =>
   });
 
   assert.equal(snapshot.targets[0]?.state, "ready");
+  assert.equal(snapshot.targets[0]?.availableSlots, 1);
 });
 
 test("buildApiProxyRuntimeSnapshot reports an unreachable remote target as unknown", () => {
@@ -423,6 +429,7 @@ test("buildApiProxyRuntimeSnapshot reports an unreachable remote target as unkno
   });
 
   assert.equal(snapshot.targets[0]?.state, "unknown");
+  assert.equal(snapshot.targets[0]?.availableSlots, null);
 });
 
 test("buildApiProxyRuntimeSnapshot reports a disabled remote node as error", () => {
@@ -469,6 +476,7 @@ test("buildApiProxyRuntimeSnapshot treats external endpoint as external API", ()
 
   assert.equal(snapshot.targets[0]?.state, "ready");
   assert.equal(snapshot.targets[0]?.kind, "external-api");
+  assert.equal(snapshot.targets[0]?.availableSlots, null);
 });
 
 test("buildApiProxyRuntimeSnapshot treats startable previous errors as stopped", () => {
@@ -491,6 +499,7 @@ test("buildApiProxyRuntimeSnapshot treats startable previous errors as stopped",
   });
 
   assert.equal(snapshot.targets[0]?.state, "stopped");
+  assert.equal(snapshot.targets[0]?.availableSlots, 0);
 });
 
 test("buildApiProxyRuntimeSnapshot reports failure detail for a failed model", () => {
@@ -585,4 +594,262 @@ test("buildApiProxyRuntimeSnapshot treats reachable stale process targets as idl
 
   assert.equal(snapshot.targets[0]?.state, "ready");
   assert.equal(snapshot.targets[0]?.idleSince, "2026-05-30T10:00:00.000Z");
+});
+
+function availabilitySnapshot(
+  overrides: Partial<Parameters<typeof buildApiProxyRuntimeSnapshot>[0]> = {},
+) {
+  return buildApiProxyRuntimeSnapshot({
+    checkedAt: "2026-05-30T10:00:00.000Z",
+    targets: [target({ model: null })],
+    endpoints: [apiEndpoint()],
+    instances: [instance()],
+    healthByInstanceId: new Map([["instance-a", health()]]),
+    ...overrides,
+  });
+}
+
+function slotHealth(total: number, active = 0) {
+  const summary = health();
+  summary.probe.llama!.slots = endpoint(
+    Array.from({ length: total }, (_, id) => ({
+      id,
+      is_processing: id < active,
+    })),
+  );
+  return summary;
+}
+
+function pendingRequest(id: string, phase = "generating", modelId = id) {
+  return ApiProxyInflightRequestSchema.parse({
+    id,
+    modelId,
+    protocol: "openai",
+    stream: true,
+    phase,
+    waitingMs: 0,
+  });
+}
+
+test("available slots account for sibling targets, model aliases, queues, and completed requests", () => {
+  const snapshot = availabilitySnapshot({
+    targets: [target({ model: null }), target({ id: "target-b", model: null })],
+    healthByInstanceId: new Map([["instance-a", slotHealth(4, 1)]]),
+    inflightByTargetId: new Map([
+      ["target-a", [pendingRequest("a", "generating", "interactive")]],
+      [
+        "target-b",
+        [
+          pendingRequest("a", "generating", "interactive"),
+          pendingRequest("b", "prefilling", "other-alias"),
+          pendingRequest("c", "queued"),
+          pendingRequest("d", "done"),
+          pendingRequest("e", "failed"),
+        ],
+      ],
+    ]),
+  });
+  assert.deepEqual(
+    snapshot.targets.map((item) => item.availableSlots),
+    [1, 1],
+  );
+});
+
+test("available slots include upstream traffic and never double count observed proxy requests", () => {
+  const observed = new Map([["instance-a", slotHealth(4, 3)]]);
+  const snapshot = availabilitySnapshot({
+    healthByInstanceId: observed,
+    inflightByTargetId: new Map([["target-a", [pendingRequest("a")]]]),
+  });
+  assert.equal(snapshot.targets[0]?.availableSlots, 1);
+  const queued = availabilitySnapshot({
+    healthByInstanceId: observed,
+    inflightByTargetId: new Map([
+      [
+        "target-a",
+        [
+          pendingRequest("a"),
+          pendingRequest("b", "queued"),
+          pendingRequest("c", "queued"),
+        ],
+      ],
+    ]),
+  });
+  assert.equal(queued.targets[0]?.availableSlots, 0);
+});
+
+test("available slots include pinned and endpoint-routed traffic on the same instance", () => {
+  const snapshot = availabilitySnapshot({
+    healthByInstanceId: new Map([["instance-a", slotHealth(4)]]),
+    inflightByTargetId: new Map([
+      ["serve:instance-a", [pendingRequest("pinned")]],
+      ["endpoint:instance:instance-a#chat", [pendingRequest("endpoint")]],
+      ["serve:other-instance", [pendingRequest("unrelated")]],
+    ]),
+  });
+  assert.equal(snapshot.targets[0]?.availableSlots, 2);
+});
+
+test("available slots use measured llama capacity before configured arguments", () => {
+  const proxyInstance = instance();
+  proxyInstance.args = { "--parallel": 8 };
+  const summary = slotHealth(4, 1);
+  summary.configDrift = true;
+  summary.logSummary.slots = 16;
+  const snapshot = availabilitySnapshot({
+    instances: [proxyInstance],
+    healthByInstanceId: new Map([["instance-a", summary]]),
+  });
+  assert.equal(snapshot.targets[0]?.availableSlots, 3);
+});
+
+test("available slots fall back to props, log capacity, or an explicit engine limit", () => {
+  for (const source of ["props", "logs", "args"] as const) {
+    const summary = health();
+    summary.probe.llama!.slots = endpoint(null, false);
+    const proxyInstance = instance();
+    if (source === "props")
+      summary.probe.llama!.props = endpoint({ total_slots: 4 });
+    if (source === "logs") summary.logSummary.slots = 4;
+    if (source === "args") proxyInstance.args = { "--parallel": 4 };
+    const snapshot = availabilitySnapshot({
+      instances: [proxyInstance],
+      healthByInstanceId: new Map([["instance-a", summary]]),
+      inflightByTargetId: new Map([["target-a", [pendingRequest("a")]]]),
+    });
+    assert.equal(snapshot.targets[0]?.availableSlots, 3, source);
+  }
+});
+
+test("available slots support explicit Python engine limits and leave unknown or changed limits unknown", () => {
+  for (const kind of ["vllm", "sglang", "ktransformers"] as const) {
+    const flag = kind === "vllm" ? "--max-num-seqs" : "--max-running-requests";
+    for (const mode of ["explicit", "missing", "auto", "drift"] as const) {
+      const proxyInstance = instance();
+      proxyInstance.kind = kind;
+      proxyInstance.args =
+        mode === "missing" ? {} : { [flag]: mode === "auto" ? 0 : 4 };
+      const summary = health();
+      summary.probe.llama = null;
+      summary.configDrift = mode === "drift";
+      const snapshot = availabilitySnapshot({
+        instances: [proxyInstance],
+        healthByInstanceId: new Map([["instance-a", summary]]),
+        inflightByTargetId: new Map([
+          ["target-a", [pendingRequest("a"), pendingRequest("b", "queued")]],
+        ]),
+      });
+      assert.equal(
+        snapshot.targets[0]?.availableSlots,
+        mode === "explicit" ? 2 : null,
+        `${kind}: ${mode}`,
+      );
+    }
+  }
+});
+
+test("available slots do not treat malformed or absent probes as an idle server", () => {
+  for (const body of [
+    null,
+    [],
+    {},
+    [{ id: 0 }],
+    [null],
+    [{ is_processing: "false" }],
+  ]) {
+    const summary = health();
+    summary.probe.llama!.slots = endpoint(body);
+    const snapshot = availabilitySnapshot({
+      healthByInstanceId: new Map([["instance-a", summary]]),
+    });
+    assert.equal(snapshot.targets[0]?.availableSlots, null);
+  }
+});
+
+test("sleeping models have no immediately available slots", () => {
+  const summary = slotHealth(4);
+  summary.probe.llama!.props = endpoint({ total_slots: 4, is_sleeping: true });
+  const snapshot = availabilitySnapshot({
+    healthByInstanceId: new Map([["instance-a", summary]]),
+  });
+  assert.equal(snapshot.targets[0]?.availableSlots, 0);
+});
+
+test("available slots use model-scoped llama probes", () => {
+  const summary = slotHealth(8);
+  summary.probe.llama!.modelDiagnostics.chat = {
+    id: "chat",
+    props: endpoint({}),
+    slots: slotHealth(4, 3).probe.llama!.slots,
+    metrics: endpoint(null, false),
+    loraAdapters: endpoint(null, false),
+  };
+  const snapshot = availabilitySnapshot({
+    targets: [target()],
+    healthByInstanceId: new Map([["instance-a", summary]]),
+  });
+  assert.equal(snapshot.targets[0]?.availableSlots, 1);
+});
+
+test("router-wide arguments and log slots do not invent per-model capacity", () => {
+  const proxyInstance = instance();
+  proxyInstance.args = {
+    "--models-preset": "/tmp/models.ini",
+    "--parallel": 8,
+  };
+  const summary = health();
+  summary.probe.llama!.slots = endpoint(null, false);
+  summary.probe.llama!.props = endpoint({ role: "router" });
+  summary.logSummary.slots = 8;
+  for (const model of [null, "chat"]) {
+    const snapshot = availabilitySnapshot({
+      targets: [target({ model })],
+      instances: [proxyInstance],
+      healthByInstanceId: new Map([["instance-a", summary]]),
+    });
+    assert.equal(snapshot.targets[0]?.availableSlots, null);
+  }
+});
+
+test("remote target aliases share slots without mixing other nodes or local instances", () => {
+  const local = instance("remote-a");
+  const snapshot = availabilitySnapshot({
+    targets: [
+      target({ id: "remote-1", endpointId: "remote:ny:remote-a", model: null }),
+      target({ id: "remote-2", endpointId: "remote:ny:remote-a", model: null }),
+      target({
+        id: "other-node",
+        endpointId: "remote:la:remote-a",
+        model: null,
+      }),
+      target({ id: "local", endpointId: "instance:remote-a", model: null }),
+    ],
+    endpoints: [
+      remoteEndpoint(),
+      apiEndpoint({
+        id: "remote:la:remote-a",
+        nodeId: "la",
+        instanceId: "remote-a",
+      }),
+      apiEndpoint({ id: "instance:remote-a", instanceId: "remote-a" }),
+    ],
+    instances: [local],
+    healthByInstanceId: new Map([["remote-a", slotHealth(4)]]),
+    remoteManagedTargetIds: new Set(["remote-1", "remote-2", "other-node"]),
+    remoteHealthByTargetId: new Map([
+      ["remote-1", slotHealth(4)],
+      ["remote-2", slotHealth(4)],
+      ["other-node", slotHealth(4)],
+    ]),
+    inflightByTargetId: new Map([
+      ["remote-1", [pendingRequest("a")]],
+      ["remote-2", [pendingRequest("b")]],
+      ["other-node", [pendingRequest("c")]],
+      ["serve:remote-a", [pendingRequest("d")]],
+    ]),
+  });
+  assert.deepEqual(
+    snapshot.targets.map((item) => item.availableSlots),
+    [2, 2, 3, 3],
+  );
 });

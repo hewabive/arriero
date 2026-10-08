@@ -117,7 +117,8 @@ modelled as an extended version of the **llama.cpp router** status set:
   (a model-aggregation concept), and `disabled` is a model-config override
   (`enabled:false`). There is nothing to unify them with, and that is correct.
 
-Plus the orthogonal activity counters `active_requests` / `queued_requests`.
+Plus the orthogonal activity counters `active_requests` / `queued_requests` and the nullable
+`available_slots` estimate of shared instance capacity for a route with one target.
 See `docs/API_PROXY_FOUNDATION.md` for the wire shape.
 
 ## The boundary adapter

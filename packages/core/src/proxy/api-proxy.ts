@@ -105,6 +105,7 @@ export const ApiProxyPublicModelStatusSchema = z.object({
   value: ApiProxyPublicModelLoadStateSchema,
   activeRequests: z.number().int().nonnegative(),
   queuedRequests: z.number().int().nonnegative(),
+  availableSlots: z.number().int().nonnegative().nullable().default(null),
 });
 
 const ApiProxyPipelineConfigBaseSchema = z.object({
@@ -667,6 +668,7 @@ export const ApiProxyTargetRuntimeSchema = z.object({
   state: ApiProxyModelStateSchema.default("unknown"),
   stateDetail: z.string().nullable().default(null),
   activeRequests: z.number().int().min(0).default(0),
+  availableSlots: z.number().int().nonnegative().nullable().default(null),
   idleSince: z.string().nullable().default(null),
   lastRequestAt: z.string().nullable().default(null),
   savedSlotIds: z.array(z.number().int().min(0)).default([]),

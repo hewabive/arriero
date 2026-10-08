@@ -60,6 +60,7 @@ export function openAiModelsList(
                   value: status.value,
                   active_requests: status.activeRequests,
                   queued_requests: status.queuedRequests,
+                  available_slots: status.availableSlots,
                 },
               }
             : {}),

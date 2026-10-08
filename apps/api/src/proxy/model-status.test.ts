@@ -20,6 +20,7 @@ import {
 function targetRuntime(
   targetId: string,
   state: ApiProxyModelState,
+  availableSlots: number | null = null,
 ): ApiProxyTargetRuntime {
   return {
     targetId,
@@ -31,6 +32,7 @@ function targetRuntime(
     state,
     stateDetail: null,
     activeRequests: 0,
+    availableSlots,
     idleSince: null,
     lastRequestAt: null,
     savedSlotIds: [],
@@ -152,7 +154,7 @@ test("resolveApiProxyModelLeafTargetIds resolves targets, legacy targetId, and n
 test("deriveApiProxyModelStatus splits active vs queued and maps the target load state", () => {
   const status = deriveApiProxyModelStatus({
     model: model({ routeTo: { type: "target", id: "t1" } }),
-    snapshot: snapshot([targetRuntime("t1", "ready")]),
+    snapshot: snapshot([targetRuntime("t1", "ready", 1)]),
     pipelinesById: new Map(),
     inflight: [
       inflight("queued"),
@@ -164,18 +166,20 @@ test("deriveApiProxyModelStatus splits active vs queued and maps the target load
   assert.equal(status.value, "loaded");
   assert.equal(status.activeRequests, 2);
   assert.equal(status.queuedRequests, 1);
+  assert.equal(status.availableSlots, 1);
 });
 
 test("deriveApiProxyModelStatus reports disabled while still counting requests", () => {
   const status = deriveApiProxyModelStatus({
     model: model({ enabled: false, routeTo: { type: "target", id: "t1" } }),
-    snapshot: snapshot([targetRuntime("t1", "ready")]),
+    snapshot: snapshot([targetRuntime("t1", "ready", 4)]),
     pipelinesById: new Map(),
     inflight: [inflight("queued")],
   });
 
   assert.equal(status.value, "disabled");
   assert.equal(status.queuedRequests, 1);
+  assert.equal(status.availableSlots, 0);
 });
 
 test("deriveApiProxyModelStatus follows a pipeline route to its target leaf", () => {
@@ -184,10 +188,57 @@ test("deriveApiProxyModelStatus follows a pipeline route to its target leaf", ()
   ]);
   const status = deriveApiProxyModelStatus({
     model: model({ routeTo: { type: "pipeline", id: "p1" } }),
-    snapshot: snapshot([targetRuntime("t1", "loading")]),
+    snapshot: snapshot([targetRuntime("t1", "loading", 0)]),
     pipelinesById: pipelines,
     inflight: [],
   });
 
   assert.equal(status.value, "loading");
+  assert.equal(status.availableSlots, 0);
+});
+
+test("model aliases share target availability independently of their own activity", () => {
+  const runtime = snapshot([targetRuntime("shared", "ready", 1)]);
+  for (const modelId of ["interactive", "background"]) {
+    const status = deriveApiProxyModelStatus({
+      model: model({ modelId, routeTo: { type: "target", id: "shared" } }),
+      snapshot: runtime,
+      pipelinesById: new Map(),
+      inflight: modelId === "interactive" ? [inflight("generating")] : [],
+    });
+    assert.equal(status.availableSlots, 1);
+    assert.equal(status.activeRequests, modelId === "interactive" ? 1 : 0);
+  }
+});
+
+test("availability stays unknown for external, missing, and multi-target routes", () => {
+  const branching = pipeline("branching", { type: "node", id: "condition" });
+  branching.nodes = [
+    {
+      id: "condition",
+      name: "",
+      type: "condition",
+      config: { predicate: { type: "source", sourceId: null } },
+      ports: {
+        true: { type: "target", id: "t1" },
+        false: { type: "target", id: "t2" },
+      },
+    },
+  ];
+  for (const routeTo of [
+    { type: "endpoint", endpointId: "external", upstreamModel: "chat" },
+    { type: "target", id: "missing" },
+    { type: "pipeline", id: "branching" },
+  ] as const) {
+    const status = deriveApiProxyModelStatus({
+      model: model({ routeTo }),
+      snapshot: snapshot([
+        targetRuntime("t1", "ready", 2),
+        targetRuntime("t2", "ready", 3),
+      ]),
+      pipelinesById: new Map([[branching.id, branching]]),
+      inflight: [],
+    });
+    assert.equal(status.availableSlots, null);
+  }
 });

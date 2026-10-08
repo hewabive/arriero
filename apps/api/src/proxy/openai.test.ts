@@ -66,7 +66,15 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
       },
     ],
     new Map([
-      ["alpha", { value: "partial", activeRequests: 2, queuedRequests: 5 }],
+      [
+        "alpha",
+        {
+          value: "partial",
+          activeRequests: 2,
+          queuedRequests: 5,
+          availableSlots: null,
+        },
+      ],
     ]),
   );
 
@@ -81,8 +89,41 @@ test("openAiModelsList attaches per-model status in llama.cpp router style", () 
       value: "partial",
       active_requests: 2,
       queued_requests: 5,
+      available_slots: null,
     },
   });
+});
+
+test("openAiModelsList preserves zero and positive available slot counts", () => {
+  for (const availableSlots of [0, 2]) {
+    const response = openAiModelsList(
+      [
+        {
+          id: "a",
+          modelId: "alpha",
+          visible: true,
+          enabled: true,
+          ownedBy: "arriero",
+          targetId: null,
+          routeTo: null,
+          description: null,
+          blockedMessage: "",
+        },
+      ],
+      new Map([
+        [
+          "alpha",
+          {
+            value: "loaded",
+            activeRequests: 2,
+            queuedRequests: 0,
+            availableSlots,
+          },
+        ],
+      ]),
+    );
+    assert.equal(response.data[0]?.status?.available_slots, availableSlots);
+  }
 });
 
 test("notImplementedResponse returns OpenAI-compatible error shape", () => {

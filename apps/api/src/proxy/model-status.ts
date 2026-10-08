@@ -113,27 +113,44 @@ export function deriveApiProxyModelStatus(input: {
   ).length;
 
   if (!input.model.enabled) {
-    return { value: "disabled", activeRequests, queuedRequests };
+    return {
+      value: "disabled",
+      activeRequests,
+      queuedRequests,
+      availableSlots: 0,
+    };
   }
 
   if (input.model.routeTo?.type === "endpoint") {
-    return { value: "loaded", activeRequests, queuedRequests };
+    return {
+      value: "loaded",
+      activeRequests,
+      queuedRequests,
+      availableSlots: null,
+    };
   }
 
-  const stateByTargetId = new Map(
-    input.snapshot.targets.map((target) => [target.targetId, target.state]),
+  const runtimeByTargetId = new Map(
+    input.snapshot.targets.map((target) => [target.targetId, target]),
   );
-  const leaves = resolveApiProxyModelLeafTargetIds(
+  const targetIds = resolveApiProxyModelLeafTargetIds(
     input.model,
     input.pipelinesById,
-  ).map((targetId) =>
-    leafLoadFromTargetState(stateByTargetId.get(targetId) ?? "unloaded"),
+  );
+  const leaves = targetIds.map((targetId) =>
+    leafLoadFromTargetState(
+      runtimeByTargetId.get(targetId)?.state ?? "unloaded",
+    ),
   );
 
   return {
     value: aggregateApiProxyLoadState(leaves),
     activeRequests,
     queuedRequests,
+    availableSlots:
+      targetIds.length === 1
+        ? (runtimeByTargetId.get(targetIds[0]!)?.availableSlots ?? null)
+        : null,
   };
 }
 
