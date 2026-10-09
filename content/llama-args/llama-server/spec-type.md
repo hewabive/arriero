@@ -29,6 +29,7 @@ related:
   - "--spec-draft-n-max"
   - "--spec-draft-n-min"
   - "--spec-draft-p-min"
+  - "--spec-draft-sampling"
   - "--spec-ngram-simple-size-n"
   - "--spec-ngram-map-k-size-n"
   - "--spec-ngram-mod-n-max"
@@ -95,7 +96,7 @@ N-gram варианты не добавляют GGUF, но имеют разны
 
 ## Взаимодействие с другими аргументами
 
-`--spec-draft-model` и `--spec-draft-hf` задают источник отдельной draft-модели. `--spec-draft-n-max`, `--spec-draft-n-min` и `--spec-draft-p-min` ограничивают длину и confidence для draft-model/MTP вариантов. `--spec-draft-type-k` и `--spec-draft-type-v` задают KV-cache draft/MTP контекста.
+`--spec-draft-model` и `--spec-draft-hf` задают источник отдельной draft-модели. `--spec-draft-n-max`, `--spec-draft-n-min` и `--spec-draft-p-min` ограничивают длину и confidence для draft-model/MTP вариантов. `--spec-draft-sampling` выбирает для `draft-simple` и `draft-mtp` между argmax draft с проверкой совпадением и сэмплированным draft с rejection sampling; остальные типы всегда проверяются совпадением. `--spec-draft-type-k` и `--spec-draft-type-v` задают KV-cache draft/MTP контекста.
 
 `--parallel` важен для draft-модели: `draft-simple` проверяет, что число последовательностей draft-контекста совпадает с `n_seq` speculative-системы. Если target-контекст не поддерживает нужное удаление последовательностей, сервер может вывести `speculative decoding not supported by this context` или использовать checkpoints.
 

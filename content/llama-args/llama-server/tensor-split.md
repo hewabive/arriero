@@ -18,6 +18,7 @@ related:
   - "--fit"
   - "--gpu-layers"
   - "--main-gpu"
+  - "--moe-cache-mib"
   - "--split-mode"
 ---
 
@@ -79,6 +80,8 @@ fraction of the model to offload to each GPU, comma-separated list of proportion
 `--split-mode layer`, `row` и `tensor` используют доли по-разному. В `split-mode none` практического смысла почти нет, потому что модель остается на одном `--main-gpu`.
 
 `--gpu-layers` определяет общий объем offload; `--tensor-split` только распределяет этот объем.
+
+`--moe-cache-mib` делит бюджет MoE-кеша между GPU с кешируемыми слоями по тем же долям, а без split — по свободной памяти на момент старта.
 
 ## INI-пресеты и router-режим
 

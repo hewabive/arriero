@@ -85,9 +85,9 @@ Save/restore может читать и писать большие бинарн
 
 ```bash
 llama-server --model /models/model.gguf --slot-save-path /var/lib/llama/slots
-curl -X POST "http://127.0.0.1:8080/slots/0?action=save" -d '{"filename":"warm.bin"}'
-curl -X POST "http://127.0.0.1:8080/slots/0?action=restore" -d '{"filename":"warm.bin"}'
-curl -X POST "http://127.0.0.1:8080/slots/0?action=erase" -d '{}'
+curl -X POST "http://127.0.0.1:9931/slots/0?action=save" -d '{"filename":"warm.bin"}'
+curl -X POST "http://127.0.0.1:9931/slots/0?action=restore" -d '{"filename":"warm.bin"}'
+curl -X POST "http://127.0.0.1:9931/slots/0?action=erase" -d '{}'
 ```
 
 ## Источники

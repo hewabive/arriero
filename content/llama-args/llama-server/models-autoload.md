@@ -118,13 +118,13 @@ llama-server --models-preset /srv/llama/models.ini --no-models-autoload
 ```
 
 ```bash
-curl -X POST http://127.0.0.1:8080/models/load \
+curl -X POST http://127.0.0.1:9931/models/load \
   -H "Content-Type: application/json" \
   -d '{"model":"coder"}'
 ```
 
 ```bash
-curl "http://127.0.0.1:8080/props?model=coder&autoload=false"
+curl "http://127.0.0.1:9931/props?model=coder&autoload=false"
 ```
 
 ## Источники

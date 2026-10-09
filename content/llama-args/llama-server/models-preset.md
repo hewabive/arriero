@@ -144,11 +144,11 @@ llama-server --models-preset /srv/llama/models.ini --models-max 2
 ```
 
 ```bash
-curl "http://127.0.0.1:8080/models?reload=1"
+curl "http://127.0.0.1:9931/models?reload=1"
 ```
 
 ```bash
-curl -X POST http://127.0.0.1:8080/models/load \
+curl -X POST http://127.0.0.1:9931/models/load \
   -H "Content-Type: application/json" \
   -d '{"model":"coder"}'
 ```

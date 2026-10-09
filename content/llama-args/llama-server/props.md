@@ -81,9 +81,9 @@ enable changing global properties via POST /props (default: disabled)
 
 ```bash
 llama-server --model /models/model.gguf
-curl http://127.0.0.1:8080/props
+curl http://127.0.0.1:9931/props
 llama-server --model /models/model.gguf --props
-curl -X POST http://127.0.0.1:8080/props -d '{}'
+curl -X POST http://127.0.0.1:9931/props -d '{}'
 ```
 
 ## Источники

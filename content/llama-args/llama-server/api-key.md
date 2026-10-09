@@ -86,8 +86,8 @@ OPTIONS-запросы пропускаются без проверки, что�
 ```bash
 llama-server --model /models/model.gguf --api-key local-secret
 llama-server --model /models/model.gguf --api-key key-a,key-b
-curl http://127.0.0.1:8080/v1/models -H "Authorization: Bearer local-secret"
-curl http://127.0.0.1:8080/v1/messages -H "X-Api-Key: local-secret"
+curl http://127.0.0.1:9931/v1/models -H "Authorization: Bearer local-secret"
+curl http://127.0.0.1:9931/v1/messages -H "X-Api-Key: local-secret"
 ```
 
 ## Источники

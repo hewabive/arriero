@@ -2,7 +2,7 @@
 schema: 1
 primaryName: "--spec-draft-p-min"
 title: "--spec-draft-p-min"
-summary: "Задает минимальную вероятность top draft-кандидата для greedy draft-model/MTP speculative decoding. Чем выше порог, тем короче и надежнее draft."
+summary: "Задает минимальную вероятность top draft-кандидата для draft-model/MTP speculative decoding в обоих режимах `--spec-draft-sampling`. Чем выше порог, тем короче и надежнее draft."
 category: "Параметры speculative decoding"
 valueType: "number"
 estimation: "normal"
@@ -19,6 +19,7 @@ related:
   - "--spec-draft-p-split"
   - "--spec-type"
   - "--spec-draft-backend-sampling"
+  - "--spec-draft-sampling"
 ---
 
 # --spec-draft-p-min
@@ -46,9 +47,9 @@ minimum speculative decoding probability (greedy) (default: 0.00)
 
 ## Что меняет в llama-server
 
-В `draft-simple` и `draft-mtp` draft sampler выбирает top token и смотрит его probability. Если probability ниже порога, текущий draft прекращается; уже набранные токены затем проходят проверку `--spec-draft-n-min`.
+В `draft-simple` и `draft-mtp` draft sampler на каждом шаге смотрит probability top-кандидата. Если она ниже порога, текущий draft прекращается; уже набранные токены затем проходят проверку `--spec-draft-n-min`. В режиме `--spec-draft-sampling greedy` в draft идет сам top-кандидат; в `probabilistic` (для запросов с temperature больше нуля) идет сэмплированный токен, но порог все равно сравнивается с top-кандидатом, а его probability считается после temperature запроса — при высокой temperature тот же порог обрывает draft раньше.
 
-Этот параметр влияет на draft generation, а не на acceptance target-моделью. Target все равно подтверждает draft через основной sampler.
+Этот параметр влияет на draft generation, а не на acceptance target-моделью. Target подтверждает draft основным sampler: sample-and-match в `greedy`, rejection sampling в `probabilistic` при temperature больше нуля.
 
 ## Значения и формат
 

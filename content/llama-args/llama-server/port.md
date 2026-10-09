@@ -28,12 +28,12 @@ related:
 
 ## Кратко
 
-`--port` записывается в `common_params::port` и используется при bind HTTP-сервера. По умолчанию это `8080`. Если указать `0`, `server_http_context::start()` вызывает `bind_to_any_port()` и сохраняет фактически выбранный порт в `listening_address`.
+`--port` записывается в `common_params::port` и используется при bind HTTP-сервера. По умолчанию это `9931`; до upstream PR #30159 (октябрь 2026) было `8080`, так что старые сборки по-прежнему слушают `8080`. Если указать `0`, `server_http_context::start()` вызывает `bind_to_any_port()` и сохраняет фактически выбранный порт в `listening_address`.
 
 ## Оригинальная справка llama.cpp
 
 ```text
-port to listen (default: 8080)
+port to listen (default: 9931)
 ```
 
 ## Паспорт аргумента
@@ -42,7 +42,7 @@ port to listen (default: 8080)
 - Значение: целое число `PORT`
 - Переменная окружения: `LLAMA_ARG_PORT`
 - Поле в `common_params`: `port`
-- Значение по умолчанию: `8080`
+- Значение по умолчанию: `9931` (в сборках до PR #30159 — `8080`)
 - Этап применения: старт HTTP-сервера
 
 ## Что меняет в llama-server
@@ -57,7 +57,7 @@ port to listen (default: 8080)
 
 ## Когда использовать
 
-Меняйте `--port`, когда на `8080` уже есть сервис, когда запускаете несколько экземпляров или когда порт должен совпасть с настройками reverse proxy, Docker mapping или health checks.
+Меняйте `--port`, когда на `9931` уже есть сервис, когда клиенты, reverse proxy или health checks жестко настроены на прежний `8080`, когда запускаете несколько экземпляров или когда порт должен совпасть с настройками reverse proxy, Docker mapping или health checks.
 
 ## Влияние на производительность и память
 
@@ -77,6 +77,7 @@ port to listen (default: 8080)
 ## Типовые проблемы и диагностика
 
 - `couldn't bind HTTP server socket`: порт занят, запрещен политикой ОС или указан неверный `--host`.
+- После обновления llama.cpp клиенты получают `connection refused` на `:8080`: сервер без явного `--port` теперь слушает `9931`. Задайте `--port 8080` явно или обновите URL клиентов. Предупреждение `server default port will be changed to :9931`, которое переходные сборки печатали при bind на `:8080`, удалено вместе со сменой порта.
 - При `--port 0` заранее неизвестен URL; смотрите строку `server is listening on ...`.
 - В контейнере нужно различать порт внутри контейнера (`--port`) и публикацию наружу (`docker run -p host:container`).
 
@@ -95,3 +96,4 @@ llama-server --model /models/model.gguf --port 0
 - `llama.cpp/tools/server/server-http.cpp`
 - `llama.cpp/tools/server/server-models.cpp`
 - `llama.cpp/tools/server/README.md`
+- https://github.com/ggml-org/llama.cpp/pull/30159 — смена порта по умолчанию с `8080` на `9931`.

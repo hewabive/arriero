@@ -72,7 +72,7 @@ VRAM draft-модели уменьшается за счет хранения ex
 
 ## Взаимодействие с другими аргументами
 
-`--spec-draft-n-cpu-moe` делает похожее, но только для первых N слоев. `--spec-draft-override-tensor` позволяет задать собственные patterns. `--spec-draft-ngl all` и `--spec-draft-cpu-moe` могут использоваться вместе: общий offload отправляет слои на GPU, а MoE experts остаются на CPU.
+`--spec-draft-n-cpu-moe` делает похожее, но только для первых N слоев. `--spec-draft-override-tensor` позволяет задать собственные patterns. `--spec-draft-ngl all` и `--spec-draft-cpu-moe` могут использоваться вместе: общий offload отправляет слои на GPU, а MoE experts остаются на CPU. GPU-кеш `--moe-cache-mib` на draft-модель не распространяется: draft-контекст создается с `moe_cache_size = 0`.
 
 ## INI-пресеты и router-режим
 

@@ -19,6 +19,7 @@ related:
   - "--gpu-layers"
   - "--cpu-moe"
   - "--n-cpu-moe"
+  - "--moe-cache-mib"
   - "--batch-size"
   - "--load-mode"
   - "--repack"
@@ -91,6 +92,8 @@ Override может переместить крупные веса между VR
 `--load-mode mmap` влияет на производительность CPU overrides; при warning попробуйте `--load-mode none`.
 
 `--device`, `--gpu-layers` и `--split-mode` задают базовое распределение, поверх которого применяются overrides.
+
+`--moe-cache-mib` кеширует в VRAM experts, вынесенные правилом вроде `exps=CPU`, но только для слоев, у которых в host buffer ушли все expert tensors, а сам слой остался на GPU.
 
 ## INI-пресеты и router-режим
 

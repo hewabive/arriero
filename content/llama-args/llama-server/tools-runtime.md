@@ -126,7 +126,7 @@ llama-server --model /models/model.gguf --tools all --tools-runtime ssh:builder@
 Per-request переопределение изолята:
 
 ```bash
-curl -X POST http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret" \
+curl -X POST http://127.0.0.1:9931/tools -H "Authorization: Bearer local-secret" \
   -H "x-tool-runtime: docker-container:agent-env" \
   -d '{"tool":"exec_shell_command","params":{"command":"ls /repo"}}'
 ```

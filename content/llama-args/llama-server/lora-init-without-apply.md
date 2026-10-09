@@ -95,7 +95,7 @@ llama-server --model /srv/models/base.gguf --lora /srv/loras/a.gguf,/srv/loras/b
 ```
 
 ```bash
-curl -X POST http://127.0.0.1:8080/lora-adapters -H 'Content-Type: application/json' -d '[{"id":0,"scale":0.8}]'
+curl -X POST http://127.0.0.1:9931/lora-adapters -H 'Content-Type: application/json' -d '[{"id":0,"scale":0.8}]'
 ```
 
 ## Источники

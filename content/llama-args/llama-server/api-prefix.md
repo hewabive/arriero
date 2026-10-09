@@ -51,7 +51,7 @@ prefix path the server serves from, without the trailing slash (default: )
 
 ## Когда использовать
 
-Используйте за reverse proxy, когда `llama-server` размещается не в корне домена, например `https://example.org/llama/`. Для локального OpenAI-compatible клиента чаще проще оставить пустой префикс и задавать `base_url=http://127.0.0.1:8080/v1`.
+Используйте за reverse proxy, когда `llama-server` размещается не в корне домена, например `https://example.org/llama/`. Для локального OpenAI-compatible клиента чаще проще оставить пустой префикс и задавать `base_url=http://127.0.0.1:9931/v1`.
 
 ## Влияние на производительность и память
 
@@ -77,7 +77,7 @@ prefix path the server serves from, without the trailing slash (default: )
 
 ```bash
 llama-server --model /models/model.gguf --api-prefix /llama
-curl http://127.0.0.1:8080/llama/v1/models
+curl http://127.0.0.1:9931/llama/v1/models
 ```
 
 ## Источники

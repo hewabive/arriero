@@ -80,8 +80,8 @@ enable prometheus compatible metrics endpoint (default: disabled)
 
 ```bash
 llama-server --model /models/model.gguf --metrics
-curl http://127.0.0.1:8080/metrics
-curl "http://127.0.0.1:8080/metrics?model=my-model"
+curl http://127.0.0.1:9931/metrics
+curl "http://127.0.0.1:9931/metrics?model=my-model"
 ```
 
 ## Источники

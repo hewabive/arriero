@@ -88,7 +88,7 @@ key-two
 
 ```bash
 llama-server --model /models/model.gguf --api-key-file /run/secrets/llama-api-keys
-curl http://127.0.0.1:8080/v1/chat/completions -H "Authorization: Bearer key-one"
+curl http://127.0.0.1:9931/v1/chat/completions -H "Authorization: Bearer key-one"
 ```
 
 ## Источники

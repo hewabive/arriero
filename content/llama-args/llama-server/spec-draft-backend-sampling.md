@@ -19,6 +19,7 @@ related:
   - "--spec-type"
   - "--spec-draft-p-min"
   - "--spec-draft-model"
+  - "--spec-draft-sampling"
 ---
 
 # --spec-draft-backend-sampling
@@ -78,6 +79,8 @@ Draft context заранее резервирует дополнительные
 `--backend-sampling` управляет основным sampling сервера и в `server-context.cpp` отключается для слота, если слот использует speculative decoding. `--spec-draft-backend-sampling` относится к draft/MTP sampler chain и хранится в другой структуре.
 
 `--spec-draft-p-min` использует probability candidates, полученные draft sampler; при backend fallback логика порога остается той же.
+
+`--spec-draft-sampling probabilistic` с этим флагом совместим: backend chain выполняет только `top_k(10)`, а temperature запроса и случайный выбор draft-токена применяет CPU sampler к этим candidates.
 
 ## INI-пресеты и router-режим
 

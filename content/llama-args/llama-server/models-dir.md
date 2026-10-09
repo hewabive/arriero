@@ -142,7 +142,7 @@ llama-server --models-dir /srv/llama/models --models-preset /srv/llama/models.in
 ```
 
 ```bash
-curl http://127.0.0.1:8080/models
+curl http://127.0.0.1:9931/models
 ```
 
 ## Источники

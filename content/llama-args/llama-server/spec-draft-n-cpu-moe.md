@@ -65,7 +65,7 @@ keep the Mixture of Experts (MoE) weights of the first N layers in the CPU for t
 
 ## Взаимодействие с другими аргументами
 
-`--spec-draft-cpu-moe` покрывает все MoE experts и обычно делает этот аргумент избыточным. `--spec-draft-override-tensor` можно использовать для более точного набора слоев. Target-модель управляется отдельным `--n-cpu-moe`.
+`--spec-draft-cpu-moe` покрывает все MoE experts и обычно делает этот аргумент избыточным. `--spec-draft-override-tensor` можно использовать для более точного набора слоев. Target-модель управляется отдельным `--n-cpu-moe`. GPU-кеш `--moe-cache-mib` работает только для target: draft-контекст создается с `moe_cache_size = 0`.
 
 ## INI-пресеты и router-режим
 

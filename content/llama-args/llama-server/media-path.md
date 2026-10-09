@@ -78,7 +78,7 @@ Directory traversal запрещен. Тесты покрывают отказ �
 
 ```bash
 llama-server --model /models/vision.gguf --mmproj /models/mmproj.gguf --media-path /srv/llama-media
-curl http://127.0.0.1:8080/v1/chat/completions -d '{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this"},{"type":"image_url","image_url":{"url":"file://images/cat.jpg"}}]}]}'
+curl http://127.0.0.1:9931/v1/chat/completions -d '{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this"},{"type":"image_url","image_url":{"url":"file://images/cat.jpg"}}]}]}'
 ```
 
 ## Источники

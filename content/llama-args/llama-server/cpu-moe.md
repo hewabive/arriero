@@ -15,6 +15,7 @@ env:
   - "LLAMA_ARG_CPU_MOE"
 related:
   - "--n-cpu-moe"
+  - "--moe-cache-mib"
   - "--gpu-layers"
   - "--override-tensor"
   - "--fit"
@@ -76,6 +77,7 @@ VRAM может заметно снизиться на MoE-моделях, по�
 - `--n-cpu-moe` делает то же частично: только первые `N` layers.
 - `--override-tensor` также добавляет tensor buffer overrides; не смешивайте без необходимости.
 - `--gpu-layers` определяет общий offload layers, а `--cpu-moe` точечно возвращает expert tensors на CPU.
+- `--moe-cache-mib` добавляет GPU-кеш для вынесенных experts: на генерации недавно использованные experts читаются из VRAM вместо CPU-пути.
 - Для draft-модели speculative decoding есть отдельный `--spec-draft-cpu-moe`.
 
 ## INI-пресеты и router-режим
@@ -92,7 +94,7 @@ cpu-moe = true
 
 - VRAM не уменьшилась: проверьте, что модель действительно MoE и tensor names соответствуют regex `ffn_*_exps`.
 - Старт падает на fit: проверьте сообщение `tensor_buft_overrides already set by user` и временно отключите `--fit`.
-- Генерация стала медленной: это ожидаемый tradeoff; попробуйте `--n-cpu-moe N` вместо полного `--cpu-moe`.
+- Генерация стала медленной: это ожидаемый tradeoff; попробуйте `--n-cpu-moe N` вместо полного `--cpu-moe` или отдайте свободную VRAM под `--moe-cache-mib`.
 
 ## Примеры
 

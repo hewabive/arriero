@@ -15,6 +15,7 @@ env:
   - "LLAMA_ARG_N_CPU_MOE"
 related:
   - "--cpu-moe"
+  - "--moe-cache-mib"
   - "--gpu-layers"
   - "--override-tensor"
   - "--batch-size"
@@ -81,6 +82,7 @@ blk.<i>\.ffn_(up|down|gate|gate_up)_(ch|)exps
 - `--cpu-moe` сильнее: переносит все MoE expert tensors на CPU.
 - `--gpu-layers` задает общий offload, `--n-cpu-moe` уточняет размещение expert tensors первых blocks.
 - `--override-tensor` может использоваться для ручных patterns; не дублируйте те же tensors двумя способами.
+- `--moe-cache-mib` держит в VRAM недавно использованные experts этих первых layers: на генерации (ubatch до 32 токенов) они читаются из GPU-кеша, а не считаются на CPU.
 - Для draft-модели есть отдельный `--spec-draft-n-cpu-moe`.
 
 ## INI-пресеты и router-режим

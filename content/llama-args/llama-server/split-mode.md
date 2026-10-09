@@ -23,6 +23,7 @@ related:
   - "--fit"
   - "--gpu-layers"
   - "--main-gpu"
+  - "--moe-cache-mib"
   - "--tensor-split"
 ---
 
@@ -71,7 +72,7 @@ how to split the model across multiple GPUs, one of:
 
 ## Влияние на производительность и память
 
-`layer` может включить pipeline parallelism, когда модель полностью offloaded, устройств больше одного, KV offload включен и нет tensor overrides. Это повышает throughput, но scheduler резервирует больше compute memory.
+`layer` может включить pipeline parallelism, когда модель полностью offloaded, устройств больше одного, KV offload включен, нет tensor overrides и не задан `--moe-cache-mib`. Это повышает throughput, но scheduler резервирует больше compute memory.
 
 `tensor` требует `--flash-attn on` или `auto`, не поддерживает quantized KV cache вместе с tensor split и может завершить создание context ошибкой при несовместимой конфигурации.
 
@@ -86,6 +87,8 @@ how to split the model across multiple GPUs, one of:
 `--tensor-split` задает пропорции по устройствам. В отсутствие `--tensor-split` используются пропорции свободной памяти.
 
 `--flash-attn` обязателен для `tensor`; в `auto` llama.cpp включает его сам.
+
+`--moe-cache-mib` работает с `layer` (каждый GPU кеширует experts своих слоев) и несовместим с `tensor`: создание контекста падает с `MoE cache does not support tensor parallelism`.
 
 Arriero точно учитывает `none`: все offloaded layers, KV и основной compute идут
 на выбранный `--main-gpu`, а остальные GPU не получают фиктивную долю. Для

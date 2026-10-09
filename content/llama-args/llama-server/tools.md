@@ -101,8 +101,8 @@ note: for security reasons, this will limit --cors-origins to localhost by defau
 ```bash
 llama-server --model /models/model.gguf --tools read_file,grep_search --api-key local-secret
 llama-server --model /models/model.gguf --tools all --host 127.0.0.1
-curl http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret"
-curl -X POST http://127.0.0.1:8080/tools -H "Authorization: Bearer local-secret" -d '{"tool":"get_info","params":{}}'
+curl http://127.0.0.1:9931/tools -H "Authorization: Bearer local-secret"
+curl -X POST http://127.0.0.1:9931/tools -H "Authorization: Bearer local-secret" -d '{"tool":"get_info","params":{}}'
 ```
 
 ## Источники

@@ -85,8 +85,8 @@ expose slots monitoring endpoint (default: enabled)
 ```bash
 llama-server --model /models/model.gguf --slots
 llama-server --model /models/model.gguf --no-slots
-curl http://127.0.0.1:8080/slots
-curl "http://127.0.0.1:8080/slots?fail_on_no_slot=1"
+curl http://127.0.0.1:9931/slots
+curl "http://127.0.0.1:9931/slots?fail_on_no_slot=1"
 ```
 
 ## Источники
