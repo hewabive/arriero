@@ -83,7 +83,7 @@ name or path will be used.
 
 - **Симптом:** `tokenizer must be a string, got NoneType: None. Please provide a valid tokenizer path or HuggingFace model ID.` **Причина:** значение не разрешилось (например, при программном конструировании конфига). **Лечение:** задать путь явно.
 - **Симптом:** модель отвечает связным текстом на «своих» промптах и мусором на других. **Причина:** словарь токенизатора не соответствует модели. **Проверка:** сравнить `vocab_size` в конфиге модели и размер словаря токенизатора. **Лечение:** взять токенизатор из репозитория модели.
-- **Симптом:** `Using a slow tokenizer. This might cause a significant slowdown. Consider using a fast tokenizer instead.` **Причина:** в указанном репозитории нет быстрого токенизатора либо задан `--tokenizer-mode slow`. **Лечение:** источник с `tokenizer.json`.
+- **Симптом:** `Using a slow tokenizer. This might cause a significant slowdown. Consider using a fast tokenizer instead.` **Причина:** в указанном репозитории нет быстрого токенизатора. **Лечение:** источник с `tokenizer.json`.
 - **Симптом:** при `HF_HUB_OFFLINE=1` в логе `HF_HUB_OFFLINE is True, replace tokenizer_id [...] to tokenizer_path [...]`. **Причина:** офлайн-подстановка локального пути. **Лечение:** если путь не тот, задать локальный каталог явно.
 
 ## Примеры

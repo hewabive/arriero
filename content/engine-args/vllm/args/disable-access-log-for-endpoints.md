@@ -8,7 +8,7 @@ group: Frontend
 related:
   - --disable-uvicorn-access-log
   - --uvicorn-log-level
-  - --log-config-file
+  - --logging-config
 ---
 
 # --disable-access-log-for-endpoints
@@ -36,7 +36,7 @@ while keeping logs for other endpoints.
 - Тип значения: str — одна строка с путями через запятую (не список: `nargs` у аргумента снят явно)
 - Допустимые значения: пути с ведущим слэшем; пробелы вокруг элементов обрезаются, пустые элементы отбрасываются
 - Значение по умолчанию: `None` — фильтра нет
-- Эффективное значение: **игнорируется**, если задан `--log-config-file` (или переменная `VLLM_LOGGING_CONFIG_PATH`): в `get_uvicorn_log_config()` файл проверяется первым и, если он загрузился, фильтр не строится
+- Эффективное значение: **игнорируется**, если задан файл конфигурации логирования — `--logging-config.pylogging_config_file`, устаревший `--log-config-file` или переменная `VLLM_LOGGING_CONFIG_PATH`: в `get_uvicorn_log_config()` файл из `args.logging_config` проверяется первым и, если он загрузился, фильтр не строится
 - Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_access_log_for_endpoints`
 - Этап применения: HTTP-слой, `build_and_serve()` → `get_uvicorn_log_config()` → `uvicorn.Config(log_config=...)`
 
@@ -64,7 +64,7 @@ while keeping logs for other endpoints.
 
 - На любом инстансе под наблюдением (arriero, Kubernetes-пробы, внешний мониторинг), где опрос здоровья идет чаще, чем реальные запросы.
 - Особенно в arriero: фоновый цикл прокси обновляет состояние примерно раз в секунду и на каждый круг опрашивает `/health` и `/v1/models` (`docs/API_PROXY_FOUNDATION.md`, arriero), а встроенный фильтр служебных строк менеджера понимает формат `llama-server` и строки uvicorn не убирает.
-- Не используйте вместе с `--log-config-file`: файл выигрывает и фильтр не подключится.
+- Не используйте вместе с файлом конфигурации логирования (`--logging-config.pylogging_config_file`, `--log-config-file`): файл выигрывает и фильтр не подключится.
 
 ## Влияние на производительность и память
 
@@ -72,15 +72,15 @@ while keeping logs for other endpoints.
 
 ## Взаимодействие с другими аргументами
 
-- `--log-config-file`: имеет приоритет, при загруженном файле фильтр не создается.
+- `--logging-config`: файл из `pylogging_config_file` (или устаревшего `--log-config-file`) имеет приоритет, при загруженном файле фильтр не создается.
 - `--uvicorn-log-level`: значение попадает в сгенерированную конфигурацию как уровень всех логгеров uvicorn.
 - `--disable-uvicorn-access-log`: полностью отключает access-лог; вместе с фильтром смысла не имеет.
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** строки опроса продолжают идти. **Причины:** путь указан неточно (лишний слэш, другой регистр, префикс), либо активен `--log-config-file`. **Проверка:** сравнить путь из строки access-лога со значением аргумента символ в символ.
+- **Симптом:** строки опроса продолжают идти. **Причины:** путь указан неточно (лишний слэш, другой регистр, префикс), либо загружен файл конфигурации логирования (`--logging-config.pylogging_config_file`, `--log-config-file`, `VLLM_LOGGING_CONFIG_PATH`). **Проверка:** сравнить путь из строки access-лога со значением аргумента символ в символ.
 - **Симптом:** пропали не только опросы, но и обычные запросы. **Причина:** в списке оказался рабочий путь. **Лечение:** сузить список.
-- **Симптом:** нужно отфильтровать группу путей по префиксу. **Причина:** фильтр сравнивает только на равенство. **Лечение:** перечислить пути явно либо задать собственную конфигурацию через `--log-config-file`.
+- **Симптом:** нужно отфильтровать группу путей по префиксу. **Причина:** фильтр сравнивает только на равенство. **Лечение:** перечислить пути явно либо задать собственную конфигурацию через `--logging-config.pylogging_config_file`.
 
 ## Примеры
 
@@ -96,7 +96,7 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --disable-access-log-for-endpoints 
 
 - `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
-- `vllm/vllm/entrypoints/serve/utils/server_utils.py`
+- `vllm/vllm/entrypoints/launchers/utils/server_utils.py`
 - `vllm/vllm/logging_utils/access_log_filter.py`
 - `vllm/tests/test_access_log_filter.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

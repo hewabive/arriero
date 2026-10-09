@@ -15,13 +15,14 @@ related:
   - --use-tqdm-on-load
   - --quantization
   - --tensor-parallel-size
+  - --enable-sleep-mode
 ---
 
 # --load-format
 
 ## Кратко
 
-Значение решает две вещи сразу: какой класс-загрузчик создаст `get_model_loader()` и какие шаблоны файлов уйдут в `allow_patterns` при скачивании. Большая часть значений (`auto`, `hf`, `safetensors`, `pt`, `npcache`, `mistral`, `fastsafetensors`, `instanttensor`) обслуживается одним `DefaultModelLoader` и различается именно набором файлов и способом их чтения; `tensorizer`, `runai_streamer`, `sharded_state`, `modelexpress`, `dummy` — отдельные загрузчики.
+Значение решает две вещи сразу: какой класс-загрузчик создаст `get_model_loader()` и какие шаблоны файлов уйдут в `allow_patterns` при скачивании. Большая часть значений (`auto`, `hf`, `safetensors`, `pt`, `npcache`, `mistral`, `fastsafetensors`, `instanttensor`) обслуживается одним `DefaultModelLoader` и различается именно набором файлов и способом их чтения; `tensorizer`, `runai_streamer`, `sharded_state`, `modelexpress`, `ipc_cache`, `dummy` — отдельные загрузчики.
 
 Список допустимых значений в декларации есть, но argparse его **не** проверяет. Тип поля записан как `str | LoadFormats`, а `LoadFormats` вне проверки типов равен обычному `str`, поэтому в runtime аннотация схлопывается в `str` и аргумент получает `type=str` без `choices`. Любая строка проходит разбор CLI и отвергается позже — при создании загрузчика.
 
@@ -38,9 +39,8 @@ The format of the model weights to load.
   InstantTensor, which enables distributed loading with pipelined prefetching
   and fast direct I/O.
 - "ipc_cache" will map post-quantized weights from a local weight cache
-  daemon via CUDA IPC for fast engine restarts. See
-  `vllm/model_executor/model_loader/weight_cache/daemon.py` for how to
-  launch the daemon.
+  daemon via CUDA IPC for fast engine restarts. Launch the daemon with
+  `vllm preload` first.
 - "npcache" will load the weights in pytorch format and store a numpy cache
   to speed up the loading.
 - "dummy" will initialize the weights with random values, which is mainly
@@ -83,6 +83,7 @@ The format of the model weights to load.
 | `runai_streamer` | `RunaiModelStreamerLoader` |
 | `runai_streamer_sharded`, `sharded_state` | `ShardedStateLoader` |
 | `modelexpress` | `ModelExpressModelLoader` |
+| `ipc_cache` | `IpcModelLoader` |
 
 **Набор файлов** в `DefaultModelLoader._prepare_weights`: `hf` → `["*.safetensors", "*.bin"]`; `safetensors`/`fastsafetensors`/`instanttensor` → `["*.safetensors"]`; `mistral` → `["consolidated*.safetensors"]` и индекс `consolidated.safetensors.index.json`; `pt` → `["*.pt"]`; `npcache` → `["*.bin"]`. Для явно safetensors-форматов отключается запасной вариант `*.pt`, чтобы `.pt`-файл не был случайно открыт как safetensors.
 
@@ -97,6 +98,7 @@ The format of the model weights to load.
 - `tensorizer` требует `--model-loader-extra-config '{"tensorizer_config": {...}}'`; ключи `device`, `dtype`, `mode` в нем запрещены.
 - `bitsandbytes` больше не входит в поставляемый vLLM список: загрузчик и quantization-config перенесены во внешний плагин. Строка снова станет допустимой только если установленный плагин зарегистрирует её через `register_model_loader(...)`; проверяйте `vllm serve --help` и документацию именно этого плагина.
 - `modelexpress` требует установленного пакета `modelexpress`, иначе — `ImportError` с прямой инструкцией.
+- `ipc_cache` не читает диск сам: модель строится на meta-устройстве, а уже квантованные и пошардированные по TP тензоры приходят через CUDA IPC от демона, запущенного заранее командой `vllm preload` с теми же моделью и TP/DP-раскладкой (по одному процессу-демону на GPU, связь через Unix-сокет, путь выводится из UUID GPU). Перед загрузкой сверяется отпечаток: содержимое чекпоинта, архитектура, TP/DP, dtype, квантизация, ревизия и версия vLLM. Ключи `--model-loader-extra-config`: `mode` (`zero_copy` по умолчанию — движок отображает память демона и демон обязан жить все время работы движка; `copy` — движок копирует тензоры к себе и просит демон освободить кэш), `fallback` (по умолчанию `true` — при недоступном демоне или несовпадении отпечатка грузить с диска), `socket_path`, `socket_dir`, `connect_timeout_s` (5 с), `state_timeout_s` (300 с); любой другой ключ — ошибка. Работает только на CUDA и ROCm; квантизация, не объявившая поддержку предобработанных весов, отвергается даже при `fallback`.
 - В тексте справки не упомянуты два валидных значения: `hf` (в него разрешается `auto`) и `fastsafetensors`.
 - Неизвестное значение (в том числе опечатка) даст `Load format `<значение>` is not supported` уже после разбора CLI.
 
@@ -106,6 +108,7 @@ The format of the model weights to load.
 - `safetensors` — когда нужно гарантированно исключить чтение `.bin`/`.pt` (безопасность: `torch.load` исполняет pickle, хотя vLLM и вызывает его с `weights_only=True`).
 - `runai_streamer` / `instanttensor` / `fastsafetensors` — оптимизация холодного старта на быстром хранилище или объектном сторадже; требуют дополнительных пакетов и собственной квалификации.
 - `dummy` — измерение памяти и времени старта без реальных весов; для выдачи осмысленного текста непригоден.
+- `ipc_cache` — частые перезапуски движка на одной и той же конфигурации: загрузка весов сводится к отображению уже готовой памяти. Демон `vllm preload` — отдельный долгоживущий процесс, который держит веса в VRAM; arriero его не запускает и не отслеживает, а инстанс arriero запускает только `vllm serve`. Учитывайте эту VRAM вручную и не используйте `ipc_cache` вместе с `--enable-sleep-mode` в режиме `zero_copy`.
 - `sharded_state` — быстрый повторный старт большой tensor-parallel конфигурации из заранее сохраненных шардов.
 - Не меняйте формат ради «ускорения» без замера: выигрыш зависит от файловой системы и часто перекрывается стратегией чтения safetensors.
 
@@ -114,7 +117,7 @@ The format of the model weights to load.
 - **Время старта.** Основной измеримый эффект. `npcache` окупается только со второго старта; `sharded_state`/`runai_streamer_sharded` экономят на распределении весов по рангам; `dummy` убирает загрузку целиком.
 - **Диск.** `npcache` создает вторую копию весов в numpy-формате внутри каталога модели.
 - **RAM хоста.** Зависит от связки с `--safetensors-load-strategy`: `eager` читает файл в память целиком, `lazy` использует mmap.
-- **VRAM.** Не влияет: формат определяет, откуда берутся тензоры, а не сколько их.
+- **VRAM.** Для дисковых форматов не влияет: формат определяет, откуда берутся тензоры, а не сколько их. Исключение — `ipc_cache`: в режиме `zero_copy` веса лежат в аллокациях демона, и на карте одна их копия; в режиме `copy` движок на время загрузки держит вторую копию, пока демон не освободит свою.
 - **Корректность.** `dummy` дает случайные веса — не перепутайте на продовом инстансе; симптом однозначный (бессвязный вывод при полностью здоровом сервере).
 
 ## Взаимодействие с другими аргументами
@@ -126,7 +129,8 @@ The format of the model weights to load.
 - `--pt-load-map-location`: применяется только к `.bin`/`.pt`, то есть к `pt`, `npcache` и к `hf`/`auto`, когда safetensors в репозитории нет.
 - `--use-tqdm-on-load`: включает прогресс-бары загрузки для всех форматов, идущих через общие итераторы.
 - `--quantization`: чтение конфигурации квантизации происходит независимо от формата; для `torchao`-чекпоинтов формат остаётся safetensors, а меняется стратегия чтения. В stock vLLM больше нет специальной подмены `load_format` для bitsandbytes; такую интеграцию может вернуть только внешний плагин.
-- `--tensor-parallel-size`: обязателен к согласованию с `sharded_state` — число шардов должно соответствовать числу рангов.
+- `--tensor-parallel-size`: обязателен к согласованию с `sharded_state` — число шардов должно соответствовать числу рангов; для `ipc_cache` TP/DP-раскладка движка должна совпадать с той, с которой запущен `vllm preload`, иначе отпечаток не совпадёт и сработает загрузка с диска.
+- `--enable-sleep-mode`: несовместим с `ipc_cache` в режиме `zero_copy` — веса принадлежат демону, и выгружать их CuMem-аллокатором нельзя.
 
 ## Типовые проблемы и диагностика
 
@@ -136,6 +140,8 @@ The format of the model weights to load.
 - **Симптом:** `Model loader extra config is not supported for load format dummy` **Лечение:** убрать `--model-loader-extra-config`.
 - **Симптом:** `The 'modelexpress' load format requires the ModelExpress Python package. Install it with `pip install modelexpress`.` **Лечение (arriero):** окружения неизменяемы — соберите новое окружение с нужным пакетом (`docs/ENVIRONMENTS.md`), а не доустанавливайте в существующее.
 - **Симптом:** `npcache` падает на записи. **Причина:** каталог модели недоступен на запись — numpy-кэш пишется в `<каталог модели>/np`. **Лечение:** сменить формат или права.
+- **Симптом:** при `ipc_cache` в логе `Weight cache unusable (...); falling back to disk loading`, старт идет обычной скоростью. **Причина:** демон `vllm preload` не запущен, ещё не закончил загрузку (сокет появляется только после полного кэширования шарда) или его отпечаток не совпал. **Проверка:** текст в скобках; удачная загрузка печатает `Mapped N tensors from the weight cache daemon (zero_copy mode)`. **Лечение:** запустить демон с той же моделью и раскладкой той же версии vLLM; `"fallback": false` превращает тихий откат в ошибку старта.
+- **Симптом:** `UnsupportedPlatformForIPCError: platform '...' does not support CUDA IPC weight sharing; only CUDA and ROCm are supported. Use the default --load-format for this platform.` **Лечение:** вернуть дисковый формат.
 - **Подтверждение принятого значения:** отладочная строка `Using model weights format <allow_patterns>` (уровень debug) и последующая `Loading weights took X.XX seconds`.
 
 ## Примеры
@@ -158,6 +164,11 @@ vllm serve /models/Qwen3-4B --load-format dummy --max-model-len 8192 --max-num-s
 - `vllm/vllm/model_executor/model_loader/tensorizer_loader.py`
 - `vllm/vllm/model_executor/model_loader/runai_streamer_loader.py`
 - `vllm/vllm/model_executor/model_loader/modelexpress_loader.py`
+- `vllm/vllm/model_executor/model_loader/weight_cache/ipc_loader.py`
+- `vllm/vllm/model_executor/model_loader/weight_cache/protocol.py`
+- `vllm/vllm/model_executor/model_loader/weight_cache/daemon.py`
+- `vllm/vllm/entrypoints/cli/preload.py`
+- `vllm/docs/features/preload.md`
 - `vllm/vllm/model_executor/model_loader/weight_utils.py`
 - `vllm/vllm/engine/arg_utils.py`
 - `docs/ENVIRONMENTS.md` (arriero)

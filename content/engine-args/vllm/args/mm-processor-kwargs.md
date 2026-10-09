@@ -11,6 +11,7 @@ related:
   - --hf-overrides
   - --trust-remote-code
   - --mm-processor-cache-gb
+  - --trust-request-mm-kwargs
 ---
 
 # --mm-processor-kwargs
@@ -41,7 +42,7 @@ For example, for Phi-3-Vision:
 - Тип значения: JSON-объект (`dict[str, object] | None`)
 - Допустимые значения: не ограничены движком; ключи проверяет уже HF-процессор
 - Значение по умолчанию: `None`
-- Эффективное значение: движок словарь не переопределяет; `merge_mm_processor_kwargs()` только сливает его с per-request kwargs, которые побеждают
+- Эффективное значение: движок словарь не переопределяет; `merge_mm_processor_kwargs()` только сливает его с per-request kwargs, которые побеждают. Per-request kwargs принимаются только при `--trust-request-mm-kwargs`, иначе запрос с ними отвергается
 - Где объявлен: `vllm/config/multimodal.py:MultiModalConfig.mm_processor_kwargs`
 - Этап применения: создание процессора → каждый вызов HF-процессора → расчёт `mm_hash`
 
@@ -56,7 +57,7 @@ return kwargs | dict(inference_kwargs)
 
 Порядок приоритета: engine-уровень → per-request kwargs (побеждают). Тот же словарь используется в `init_processor(...)` при построении процессора.
 
-**Per-request.** Chat-completions и responses-протоколы принимают поле `mm_processor_kwargs` в теле запроса; оно сливается с engine-уровнем по правилу выше. Некоторые модели читают его напрямую — например `use_audio_in_video` разбирается в `chat_utils`.
+**Per-request.** Протоколы chat completions, completions, responses и pooling объявляют поле `mm_processor_kwargs` в теле запроса, но по умолчанию непустое значение отвергается с HTTP 400 (`Per-request mm_processor_kwargs are disabled by default ...`). Только при `--trust-request-mm-kwargs` оно сливается с engine-уровнем по правилу выше. Некоторые модели читают его напрямую — например `use_audio_in_video` разбирается в `chat_utils`; без флага такой ключ задается только здесь, на уровне сервера.
 
 **Кэширование.** `MultiModalHasher.hash_kwargs` включает `hf_processor_mm_kwargs` в хеш элемента, так что элементы, обработанные с разными kwargs, не путаются в кэше.
 
@@ -83,7 +84,7 @@ return kwargs | dict(inference_kwargs)
 - Включить модель-специфичный режим (например обработку аудиодорожки видео), который иначе недоступен через CLI.
 - Не используйте для параметров **загрузки** медиа (число кадров, кодек, fps) — это `--media-io-kwargs`. Разделение простое: `media-io` управляет тем, что попадёт в процессор, `processor-kwargs` — тем, что процессор с этим сделает.
 - Не используйте для правки конфига модели: за это отвечает `--hf-overrides`.
-- Помните, что per-request `mm_processor_kwargs` приходят от клиента и перебивают серверные значения. Если вы задаёте лимиты ради экономии памяти, полагаться на этот флаг как на защиту нельзя.
+- Серверные значения защищены от клиента, пока не включен `--trust-request-mm-kwargs`: с ним per-request `mm_processor_kwargs` перебивают серверные, и лимиты ради экономии памяти перестают быть защитой.
 
 ## Влияние на производительность и память
 
@@ -100,11 +101,13 @@ return kwargs | dict(inference_kwargs)
 - `--hf-overrides`: правит конфиг модели, а не процессор.
 - `--trust-remote-code`: у моделей с кастомным процессором из репозитория без него kwargs просто некуда будет применить — процессор не загрузится.
 - `--mm-processor-cache-gb`: кэш ключуется в том числе по этим kwargs.
+- `--trust-request-mm-kwargs`: разрешает клиенту присылать свои `mm_processor_kwargs` поверх серверных; по умолчанию выключен.
 
 ## Типовые проблемы и диагностика
 
 - **Симптом:** `TypeError: ... got an unexpected keyword argument 'num_crops'`. **Причина:** ключ не поддерживается процессором этой модели/версии transformers. **Лечение:** сверить с сигнатурой процессора; vLLM ключи не валидирует.
-- **Симптом:** kwargs заданы, а поведение не изменилось. **Причина:** клиент присылает свои `mm_processor_kwargs`, которые применяются последними. **Проверка:** тело запроса.
+- **Симптом:** kwargs заданы, а поведение не изменилось. **Причина:** при включенном `--trust-request-mm-kwargs` клиент присылает свои `mm_processor_kwargs`, которые применяются последними. **Проверка:** тело запроса.
+- **Симптом:** клиент получает 400 `Per-request mm_processor_kwargs are disabled by default ...`. **Причина:** per-request kwargs без `--trust-request-mm-kwargs`. **Лечение:** перенести значение в этот флаг или, для доверенных клиентов, включить `--trust-request-mm-kwargs`.
 - **Симптом:** после изменения kwargs просела скорость. **Причина:** `mm_hash` изменился, кэш препроцессора начал с нуля. **Действие:** ожидаемо и разово.
 - **Подтверждение принятого значения:** словарь виден в стартовой строке конфига как `mm_processor_kwargs={...}`; косвенно — по изменившемуся числу токенов на изображение в логах запроса.
 
@@ -125,5 +128,6 @@ vllm serve /models/Qwen2.5-VL-7B-Instruct --mm-processor-kwargs.min_pixels 20070
 - `vllm/vllm/multimodal/processing/processor.py`
 - `vllm/vllm/entrypoints/chat_utils.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/protocol.py`
+- `vllm/vllm/entrypoints/generate/base/protocol.py`
 - `vllm/vllm/utils/argparse_utils.py`
 - `vllm/docs/configuration/conserving_memory.md`

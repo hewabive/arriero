@@ -9,7 +9,8 @@ related:
   - --enable-log-requests
   - --max-log-len
   - --uvicorn-log-level
-  - --log-config-file
+  - --log-level
+  - --logging-config
 ---
 
 # --log-error-stack
@@ -70,7 +71,8 @@ If set to True, log the stack trace of error responses
 
 - `--enable-log-requests`: вместе дают полную картину «что пришло и на чем упало».
 - `--max-log-len`: ограничивает длину промптов и ответов в логах, но не длину трассировки.
-- `--uvicorn-log-level`, `--log-config-file`: трассировки пишутся логгером vLLM, а не uvicorn; уровень логирования uvicorn их не скрывает.
+- `--uvicorn-log-level`: трассировки пишутся логгером vLLM, а не uvicorn; уровень логирования uvicorn их не скрывает.
+- `--log-level`, `--logging-config`: задают уровень и конфигурацию логгеров vLLM, через которые идут эти записи уровня `ERROR`; их скрывает только `CRITICAL` или собственный файл `dictConfig`, приглушающий логгеры `vllm.entrypoints`.
 
 ## Типовые проблемы и диагностика
 

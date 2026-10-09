@@ -44,7 +44,7 @@
     "--all2all-backend"
    ],
    "group": "ParallelConfig",
-   "help": "All2All backend for MoE expert parallel communication. Available options:\n\n- \"allgather_reducescatter\": All2all based on allgather and reducescatter\n- \"deepep_high_throughput\": Use deepep high-throughput kernels\n- \"deepep_low_latency\": Use deepep low-latency kernels\n- \"mori_high_throughput\": MoRI EP with InterNodeV1 for multi-node\n- \"mori_low_latency\": MoRI EP with InterNodeV1LL for multi-node\n- \"nixl_ep\": Use nixl-ep kernels\n- \"flashinfer_nvlink_one_sided\": Use flashinfer high-throughput a2a kernels\n- \"flashinfer_nvlink_two_sided\": Use flashinfer two-sided kernels for mnnvl",
+   "help": "All2All backend for MoE expert parallel communication. Available options:\n\n- \"allgather_reducescatter\": All2all based on allgather and reducescatter\n- \"deepep_high_throughput\": Use deepep high-throughput kernels\n- \"deepep_low_latency\": Use deepep low-latency kernels\n- \"mori_high_throughput\": MoRI EP with InterNodeV1 for multi-node\n- \"mori_low_latency\": MoRI EP with InterNodeV1LL for multi-node\n- \"moonep\": MoonEP balanced EP with dynamic redundant experts (NVLink)\n- \"nixl_ep\": Use nixl-ep kernels\n- \"flashinfer_nvlink_one_sided\": Use flashinfer high-throughput a2a kernels\n- \"flashinfer_nvlink_two_sided\": Use flashinfer two-sided kernels for mnnvl",
    "choices": [
     "naive",
     "pplx",
@@ -53,6 +53,7 @@
     "deepep_v2",
     "mori_high_throughput",
     "mori_low_latency",
+    "moonep",
     "nixl_ep",
     "allgather_reducescatter",
     "flashinfer_all2allv",
@@ -192,6 +193,31 @@
   },
   {
    "flags": [
+    "--anthropic-disabled-thinking-effort"
+   ],
+   "group": "Frontend",
+   "help": "Anthropic ``/v1/messages`` only. The ``reasoning_effort`` used for\nrequests with ``thinking: {\"type\": \"disabled\"}``. ``none`` turns thinking\noff for models that support it; ``low`` suits models that always think\n(e.g. GLM-5.3) or reject ``none`` (e.g. gpt-oss). ``auto`` (default) uses\n``low`` when the renderer rejects ``none`` or renders it the same as a\nthinking effort, and ``none`` otherwise.",
+   "choices": [
+    "auto",
+    "none",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.anthropic_disabled_thinking_effort"
+  },
+  {
+   "flags": [
     "--api-key"
    ],
    "group": "Frontend",
@@ -277,6 +303,23 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/vllm.py:VllmConfig.attention_config"
+  },
+  {
+   "flags": [
+    "--aux-output-config"
+   ],
+   "group": "VllmConfig",
+   "help": "Execution auxiliary output configuration.",
+   "choices": null,
+   "type": "json",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default_factory=AuxOutputConfig)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/vllm.py:VllmConfig.aux_output_config"
   },
   {
    "flags": [
@@ -1674,8 +1717,8 @@
   },
   {
    "flags": [
-    "--enable-mamba-fine-grained-prefix-cache",
-    "--no-enable-mamba-fine-grained-prefix-cache"
+    "--enable-mamba-shared-prefix-checkpoint",
+    "--no-enable-mamba-shared-prefix-checkpoint"
    ],
    "group": "CacheConfig",
    "help": "Also register a Mamba \"align\" checkpoint at the shared-prefix junction --\nwhere an EAGLE/MTP sibling was observed to resume -- instead of only at the\nprompt tail. Off by default; only takes effect with `mamba_cache_mode`\n\"align\", EAGLE on the Mamba group, and a prefix match unit smaller than the\nMamba block size.",
@@ -1688,7 +1731,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/config/cache.py:CacheConfig.enable_mamba_fine_grained_prefix_cache"
+   "origin": "vllm/config/cache.py:CacheConfig.enable_mamba_shared_prefix_checkpoint"
   },
   {
    "flags": [
@@ -1894,7 +1937,7 @@
     "--no-enable-return-routed-experts"
    ],
    "group": "ModelConfig",
-   "help": "Whether to return routed experts.",
+   "help": "Capture and return routed-experts auxiliary outputs.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -1904,7 +1947,7 @@
    },
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
-   "origin": "vllm/config/model.py:ModelConfig.enable_return_routed_experts"
+   "origin": "vllm/config/aux_output.py:AuxOutputConfig.enable_return_routed_experts"
   },
   {
    "flags": [
@@ -2254,10 +2297,11 @@
   },
   {
    "flags": [
-    "--gpu-memory-utilization"
+    "--gpu-memory-utilization",
+    "--device-memory-utilization"
    ],
    "group": "CacheConfig",
-   "help": "The fraction of GPU memory to be used for the model executor, which can\nrange from 0 to 1. For example, a value of 0.5 would imply 50% GPU memory\nutilization. If unspecified, will use the default value of 0.92. This is a\nper-instance limit, and only applies to the current vLLM instance. It does\nnot matter if you have another vLLM instance running on the same GPU. For\nexample, if you have two vLLM instances running on the same GPU, you can\nset the GPU memory utilization to 0.5 for each instance.",
+   "help": "The fraction of GPU memory to be used for the model executor, which can\nrange from 0 to 1. For example, a value of 0.5 would imply 50% GPU memory\nutilization. If unspecified, will use the default value of 0.92. This is a\nper-instance limit, and only applies to the current vLLM instance. It does\nnot matter if you have another vLLM instance running on the same GPU. For\nexample, if you have two vLLM instances running on the same GPU, you can\nset the GPU memory utilization to 0.5 for each instance. On non-GPU\ninstalls, this value controls the corresponding device memory utilization.",
    "choices": null,
    "type": "float",
    "optional": false,
@@ -2793,11 +2837,11 @@
    "group": "MultiModalConfig",
    "help": "The maximum number of input items and options allowed per\nprompt for each modality.\n\nDefaults to 999 for each modality.\n\nLegacy format (count only):\n    {\"image\": 16, \"video\": 2}\n\nConfigurable format (with options):\n    {\"video\": {\"count\": 1, \"num_frames\": 32, \"width\": 512, \"height\": 512},\n    \"image\": {\"count\": 5, \"width\": 512, \"height\": 512}}\n\nMixed format (combining both):\n    {\"image\": 16, \"video\": {\"count\": 1, \"num_frames\": 32, \"width\": 512,\n    \"height\": 512}}",
    "choices": null,
-   "type": null,
+   "type": "json",
    "optional": false,
    "default": {
     "kind": "expression",
-    "text": "Field(default_factory=dict)"
+    "text": "Field(default_factory=MultiModalDummyOptions)"
    },
    "action": null,
    "hidden": false,
@@ -2847,7 +2891,7 @@
     "--load-format"
    ],
    "group": "LoadConfig",
-   "help": "The format of the model weights to load.\n\n- \"auto\" will try to load the weights in the safetensors format and fall\n  back to the pytorch bin format if safetensors format is not available.\n- \"pt\" will load the weights in the pytorch bin format.\n- \"safetensors\" will load the weights in the safetensors format.\n- \"instanttensor\" will load the Safetensors weights on CUDA devices using\n  InstantTensor, which enables distributed loading with pipelined prefetching\n  and fast direct I/O.\n- \"ipc_cache\" will map post-quantized weights from a local weight cache\n  daemon via CUDA IPC for fast engine restarts. See\n  `vllm/model_executor/model_loader/weight_cache/daemon.py` for how to\n  launch the daemon.\n- \"npcache\" will load the weights in pytorch format and store a numpy cache\n  to speed up the loading.\n- \"dummy\" will initialize the weights with random values, which is mainly\n  for profiling.\n- \"tensorizer\" will use CoreWeave's tensorizer library for fast weight\n  loading. See the Tensorize vLLM Model script in the Examples section for\n  more information.\n- \"runai_streamer\" will load the Safetensors weights using Run:ai Model\n  Streamer.\n- \"runai_streamer_sharded\" will load weights from pre-sharded checkpoint\n  files using Run:ai Model Streamer.\n- \"sharded_state\" will load weights from pre-sharded checkpoint files,\n  supporting efficient loading of tensor-parallel models.\n- \"mistral\" will load weights from consolidated safetensors files used by\n  Mistral models.\n- \"modelexpress\" will load weights using ModelExpress.\n- Other custom values can be supported via plugins.",
+   "help": "The format of the model weights to load.\n\n- \"auto\" will try to load the weights in the safetensors format and fall\n  back to the pytorch bin format if safetensors format is not available.\n- \"pt\" will load the weights in the pytorch bin format.\n- \"safetensors\" will load the weights in the safetensors format.\n- \"instanttensor\" will load the Safetensors weights on CUDA devices using\n  InstantTensor, which enables distributed loading with pipelined prefetching\n  and fast direct I/O.\n- \"ipc_cache\" will map post-quantized weights from a local weight cache\n  daemon via CUDA IPC for fast engine restarts. Launch the daemon with\n  `vllm preload` first.\n- \"npcache\" will load the weights in pytorch format and store a numpy cache\n  to speed up the loading.\n- \"dummy\" will initialize the weights with random values, which is mainly\n  for profiling.\n- \"tensorizer\" will use CoreWeave's tensorizer library for fast weight\n  loading. See the Tensorize vLLM Model script in the Examples section for\n  more information.\n- \"runai_streamer\" will load the Safetensors weights using Run:ai Model\n  Streamer.\n- \"runai_streamer_sharded\" will load weights from pre-sharded checkpoint\n  files using Run:ai Model Streamer.\n- \"sharded_state\" will load weights from pre-sharded checkpoint files,\n  supporting efficient loading of tensor-parallel models.\n- \"mistral\" will load weights from consolidated safetensors files used by\n  Mistral models.\n- \"modelexpress\" will load weights using ModelExpress.\n- Other custom values can be supported via plugins.",
    "choices": [
     "auto",
     "hf",
@@ -2879,18 +2923,18 @@
    "flags": [
     "--log-config-file"
    ],
-   "group": "Frontend",
-   "help": "Path to logging config JSON file for both vllm and uvicorn",
+   "group": "LoggingConfig",
+   "help": "",
    "choices": null,
-   "type": "str",
-   "optional": true,
+   "type": null,
+   "optional": false,
    "default": {
     "kind": "expression",
-    "text": "envs.VLLM_LOGGING_CONFIG_PATH"
+    "text": "argparse.SUPPRESS"
    },
-   "action": null,
+   "action": "DeprecatedLogConfigFileAction",
    "hidden": false,
-   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.log_config_file"
+   "origin": "vllm/engine/arg_utils.py:add_cli_args"
   },
   {
    "flags": [
@@ -2909,6 +2953,37 @@
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
    "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.log_error_stack"
+  },
+  {
+   "flags": [
+    "--log-level"
+   ],
+   "group": "LoggingConfig",
+   "help": "Shortcut for --logging-config.log_level. Overrides that field if both are specified.",
+   "choices": null,
+   "type": null,
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "argparse.SUPPRESS"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/engine/arg_utils.py:add_cli_args"
+  },
+  {
+   "flags": [
+    "--logging-config"
+   ],
+   "group": "LoggingConfig",
+   "help": "",
+   "choices": null,
+   "type": null,
+   "optional": false,
+   "default": null,
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/engine/arg_utils.py:add_cli_args"
   },
   {
    "flags": [
@@ -2954,7 +3029,7 @@
     "--long-prefill-token-threshold"
    ],
    "group": "SchedulerConfig",
-   "help": "For chunked prefill, a request is considered long if the prompt is\nlonger than this number of tokens. 0 disables the cap (default).",
+   "help": "For chunked prefill, a request is considered long if the prompt is\nlonger than this number of tokens. 0 disables the cap (default).\n\nThe cap is not applied when the request is the only one in the batch,\nsince there is no other request for it to starve.",
    "choices": null,
    "type": "int",
    "optional": false,
@@ -2965,6 +3040,24 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/scheduler.py:SchedulerConfig.long_prefill_token_threshold"
+  },
+  {
+   "flags": [
+    "--long-prefill-token-threshold-adaptive",
+    "--no-long-prefill-token-threshold-adaptive"
+   ],
+   "group": "SchedulerConfig",
+   "help": "Floor the effective long prefill token threshold at a fair share of\nthe token budget: max_num_batched_tokens divided by the number of\nqueued and running requests. Only applies when\nlong_prefill_token_threshold is nonzero.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=False)"
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/scheduler.py:SchedulerConfig.long_prefill_token_threshold_adaptive"
   },
   {
    "flags": [
@@ -3263,6 +3356,23 @@
   },
   {
    "flags": [
+    "--max-lora-cls-labels"
+   ],
+   "group": "LoRAConfig",
+   "help": "Maximum output size for LoRA classification heads. Defaults to the\nbase classification head size.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=None, ge=1)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/lora.py:LoRAConfig.max_lora_cls_labels"
+  },
+  {
+   "flags": [
     "--max-lora-rank"
    ],
    "group": "LoRAConfig",
@@ -3321,6 +3431,23 @@
    "action": null,
    "hidden": false,
    "origin": "vllm/config/model.py:ModelConfig.max_model_len"
+  },
+  {
+   "flags": [
+    "--max-num-active-seqs"
+   ],
+   "group": "SchedulerConfig",
+   "help": "Maximum number of requests the scheduler admits into RUNNING.\n\n``max_num_seqs`` sizes the model runner (per-request buffers and CUDA\ngraph capture) and is also the default admission limit. Setting this\nlowers only the number of requests that may occupy RUNNING, so decode\nbatches stay smaller without shrinking runner or graph capacity. Must\nbe ``<= max_num_seqs``. ``None`` (default) keeps current behavior.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "expression",
+    "text": "Field(default=None, ge=1)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/scheduler.py:SchedulerConfig.max_num_active_seqs"
   },
   {
    "flags": [
@@ -4819,6 +4946,23 @@
   },
   {
    "flags": [
+    "--sleep-preserve-parameter-names"
+   ],
+   "group": "ModelConfig",
+   "help": "Parameter-name globs to preserve across level-2 sleep.\nThe sender must omit these parameters; loaders must preserve their storage.",
+   "choices": null,
+   "type": "list",
+   "optional": false,
+   "default": {
+    "kind": "expression",
+    "text": "field(default_factory=list)"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/config/model.py:ModelConfig.sleep_preserve_parameter_names"
+  },
+  {
+   "flags": [
     "--sparse-indexer-topk-backend"
    ],
    "group": "KernelConfig",
@@ -5107,6 +5251,24 @@
   },
   {
    "flags": [
+    "--swa-bounded-replay",
+    "--no-swa-bounded-replay"
+   ],
+   "group": "CacheConfig",
+   "help": "Keep the sliding-window KV of models that support it (DeepSeek-V4.1)\nout of prefix caching and rebuild it after a prefix hit by recomputing the\nhit's last window. Requires model runner V2.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": true
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/config/cache.py:CacheConfig.swa_bounded_replay"
+  },
+  {
+   "flags": [
     "--tensor-parallel-size",
     "-tp"
    ],
@@ -5145,11 +5307,10 @@
     "--tokenizer-mode"
    ],
    "group": "ModelConfig",
-   "help": "Tokenizer mode:\n\n- \"auto\" will use the tokenizer from `mistral_common` for Mistral models\n  if available, otherwise it will use the \"hf\" tokenizer.\n- \"hf\" will use the fast tokenizer if available.\n- \"slow\" will always use the slow tokenizer.\n- \"mistral\" will always use the tokenizer from `mistral_common`.\n- \"deepseek_v32\" will always use the tokenizer from `deepseek_v32`.\n- \"deepseek_v4\" will always use the tokenizer from `deepseek_v4`.\n- \"deepseek_v41\" will use the DeepSeek V4.1 prompt encoder.\n- \"kimi_k3\" will always use the \"hf\" tokenizer but render chat prompts\n  with Kimi K3's Python XTML encoding instead of a Jinja template.\n- \"cohere\" uses the standard HF tokenizer but renders the chat template\n  via the `cohere_melody` library (cmd3 / cmd4 templates) instead of\n  Jinja, and surfaces grounded-citation metadata on responses.\n- Other custom values can be supported via plugins.\n\nTo swap the Rust BPE backend that powers HF fast tokenizers for the\n[fastokens](https://github.com/crusoecloud/fastokens) implementation, set\n`VLLM_USE_FASTOKENS=1` instead — that override applies to any mode that\nloads an HF fast tokenizer (`hf`, `deepseek_v32`, `deepseek_v4`, …).",
+   "help": "Tokenizer mode:\n\n- \"auto\" will use the tokenizer from `mistral_common` for Mistral models\n  if available, otherwise it will use the \"hf\" tokenizer.\n- \"hf\" will use the fast tokenizer if available.\n- \"mistral\" will always use the tokenizer from `mistral_common`.\n- \"deepseek_v32\" will always use the tokenizer from `deepseek_v32`.\n- \"deepseek_v4\" will always use the tokenizer from `deepseek_v4`.\n- \"deepseek_v41\" will use the DeepSeek V4.1 prompt encoder.\n- \"kimi_k3\" will always use the \"hf\" tokenizer but render chat prompts\n  with Kimi K3's Python XTML encoding instead of a Jinja template.\n- \"cohere\" uses the standard HF tokenizer but renders the chat template\n  via the `cohere_melody` library (cmd3 / cmd4 templates) instead of\n  Jinja, and surfaces grounded-citation metadata on responses.\n- Other custom values can be supported via plugins.\n\nTo swap the Rust BPE backend that powers HF fast tokenizers for the\n[fastokens](https://github.com/crusoecloud/fastokens) implementation, set\n`VLLM_USE_FASTOKENS=1` instead — that override applies to any mode that\nloads an HF fast tokenizer (`hf`, `deepseek_v32`, `deepseek_v4`, …).",
    "choices": [
     "auto",
     "hf",
-    "slow",
     "mistral",
     "deepseek_v32",
     "deepseek_v4",
@@ -5255,6 +5416,27 @@
   },
   {
    "flags": [
+    "--tool-strict-level"
+   ],
+   "group": "Frontend",
+   "help": "Server-side floor for structural-tag based tool calling, applied on top\nof the per-tool `strict` field. `auto` follows the request's tool choice\nand per-tool strictness; `function` constrains the\ntool-call envelope (markup and function name) for every request with\ntools; `parameter` additionally pins argument schemas, as if every tool\nwere `strict: true`.",
+   "choices": [
+    "auto",
+    "function",
+    "parameter"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.tool_strict_level"
+  },
+  {
+   "flags": [
     "--trust-remote-code",
     "--no-trust-remote-code"
    ],
@@ -5288,6 +5470,24 @@
    "action": "argparse.BooleanOptionalAction",
    "hidden": false,
    "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.trust_request_chat_template"
+  },
+  {
+   "flags": [
+    "--trust-request-mm-kwargs",
+    "--no-trust-request-mm-kwargs"
+   ],
+   "group": "Frontend",
+   "help": "Whether to trust per-request multimodal kwargs (`mm_processor_kwargs`\nand `media_io_kwargs`). If False, the server rejects non-empty values\nbecause they can change multimodal preprocessing resource usage. Only\nenable this when API clients are trusted.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": "argparse.BooleanOptionalAction",
+   "hidden": false,
+   "origin": "vllm/entrypoints/launchers/cli_args.py:BaseFrontendArgs.trust_request_mm_kwargs"
   },
   {
    "flags": [

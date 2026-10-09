@@ -10,6 +10,7 @@ related:
   - --max-log-len
   - --disable-log-stats
   - --api-key
+  - --log-level
 ---
 
 # --enable-log-requests
@@ -36,7 +37,7 @@ You can set the minimum log level via `VLLM_LOGGING_LEVEL`.
 - Тип значения: bool, `action=argparse.BooleanOptionalAction` — есть парная отключающая форма
 - Допустимые значения: флаг присутствует, присутствует `--no-` форма, либо не задан
 - Значение по умолчанию: `AsyncEngineArgs.enable_log_requests`, то есть `False` — логирование выключено
-- Эффективное значение: не переопределяется; фактическая подробность определяется `VLLM_LOGGING_LEVEL`
+- Эффективное значение: не переопределяется; фактическая подробность определяется уровнем логирования vLLM — `--log-level` или `--logging-config.log_level`, без них `VLLM_LOGGING_LEVEL`
 - Где объявлен: `vllm/engine/arg_utils.py:add_cli_args`
 - Этап применения: построение состояния приложения (`init_app_state` в `api_server.py`), то есть HTTP-слой
 
@@ -52,7 +53,7 @@ You can set the minimum log level via `VLLM_LOGGING_LEVEL`.
 Конструктор сам предупреждает о рассогласовании с уровнем логирования:
 
 - если минимальный уровень выше INFO — `` `--enable-log-requests` is set but the minimum log level is higher than INFO. No request information will be logged. ``
-- если выше DEBUG (обычный случай) — `` `--enable-log-requests` is set but the minimum log level is higher than DEBUG. Only limited information will be logged to minimize overhead. To view more details, set `VLLM_LOGGING_LEVEL=DEBUG`. ``
+- если выше DEBUG (обычный случай) — `` `--enable-log-requests` is set but the minimum log level is higher than DEBUG. Only limited information will be logged to minimize overhead. To view more details, set `--log-level DEBUG`. ``
 
 Обрезка длины делается через `--max-log-len`: и текст промпта, и список token id усекаются до этого числа элементов; при `None` (дефолт) обрезки нет.
 
@@ -64,12 +65,12 @@ You can set the minimum log level via `VLLM_LOGGING_LEVEL`.
 
 - Голый флаг включает, `--no-enable-log-requests` явно выключает. Наличие обеих форм важно при использовании `--config`: ключ `enable-log-requests: false` в YAML развернется в `--no-enable-log-requests`, потому что такая опция зарегистрирована.
 - «Не задан» здесь означает именно `False`, а не «решит движок».
-- Подробность управляется не аргументом, а переменной окружения `VLLM_LOGGING_LEVEL` (по умолчанию `INFO`).
+- Подробность управляется не этим флагом, а уровнем логирования vLLM: `--log-level` (или `--logging-config.log_level`); без них действует переменная `VLLM_LOGGING_LEVEL`, по умолчанию `INFO`. Оригинальная справка флага упоминает только переменную.
 
 ## Когда использовать
 
 - Разбор конкретного инцидента: нужно увидеть, с какими параметрами сэмплирования пришел запрос и какой LoRA-адаптер был выбран. Уровня INFO для этого достаточно, и промпты в лог не попадут.
-- Отладка обработки промптов и шаблонов чата — только с `VLLM_LOGGING_LEVEL=DEBUG` и только на закрытом стенде.
+- Отладка обработки промптов и шаблонов чата — только с `--log-level DEBUG` и только на закрытом стенде.
 - **Не включайте DEBUG-уровень на сервере, доступном не только с localhost.** Промпты — это пользовательские данные; лог процесса читается всеми, у кого есть доступ к файлам, и переживает перезапуск. Если разбор все же нужен, ограничьте объем через `--max-log-len`.
 - Не используйте как замену метрикам: агрегаты живут в `--disable-log-stats`-подсистеме и в `/metrics`, а не здесь.
 
@@ -85,11 +86,12 @@ You can set the minimum log level via `VLLM_LOGGING_LEVEL`.
 - `--enable-log-outputs`: логирование сгенерированных ответов; требует этого флага, иначе разбор аргументов падает. Отдельно отметьте, что ответы пишутся на INFO, то есть попадают в лог **без** перехода на DEBUG.
 - `--max-log-len`: единственная ручка ограничения объема — обрезает и промпты, и ответы до N символов/элементов. Дефолт `None` означает «без ограничения».
 - `--disable-log-stats`: независимая подсистема (агрегированная статистика), не заменяет и не отменяет этот флаг.
+- `--log-level`: на `DEBUG` в лог попадают промпты, на `INFO` — только идентификатор, параметры и LoRA, выше `INFO` — ничего.
 - `--api-key`: если лог с промптами все же нужен, доступ к серверу разумно закрыть ключом; сам по себе этот аргумент содержимое лога не защищает.
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** флаг включен, но промптов в логе нет. **Причина:** уровень логирования выше DEBUG. **Проверка:** предупреждение `` `--enable-log-requests` is set but the minimum log level is higher than DEBUG. `` **Лечение:** `VLLM_LOGGING_LEVEL=DEBUG`, взвесив риск утечки.
+- **Симптом:** флаг включен, но промптов в логе нет. **Причина:** уровень логирования выше DEBUG. **Проверка:** предупреждение `` `--enable-log-requests` is set but the minimum log level is higher than DEBUG. `` **Лечение:** `--log-level DEBUG`, взвесив риск утечки.
 - **Симптом:** флаг включен, но в логе нет ничего вообще. **Причина:** уровень выше INFO. **Проверка:** предупреждение `No request information will be logged.`
 - **Симптом:** `Error: --enable-log-outputs requires --enable-log-requests`. **Лечение:** добавить этот флаг.
 - **Симптом:** лог растет неконтролируемо. **Причина:** `--max-log-len` не задан. **Лечение:** задать разумное значение (например, 200) — оно применяется и к промптам, и к ответам.
@@ -114,4 +116,5 @@ vllm serve /models/Qwen3-4B --enable-log-requests --enable-log-outputs --max-log
 - `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/grpc_server.py`
 - `vllm/vllm/v1/engine/async_llm.py`
+- `vllm/vllm/config/logging.py`
 - `vllm/vllm/envs.py`

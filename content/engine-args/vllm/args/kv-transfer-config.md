@@ -75,7 +75,7 @@ The configurations for distributed KV cache transfer.
 - **Выгрузка KV за пределы GPU.** Практически всегда правильнее задавать `--kv-offloading-size` и `--kv-offloading-backend` — они соберут этот конфиг сами и корректно.
 - **Общий кэш префиксов между процессами** через LMCache или объектное хранилище.
 - **Не включайте для одного локального инстанса.** Коннектор добавляет сетевой или дисковый компонент в горячий путь и меняет семантику освобождения блоков; выигрыш появляется только при реальном переиспользовании KV между процессами.
-- **Не используйте одновременно с `--enable-return-routed-experts`** — комбинация отвергается явной ошибкой.
+- **Не используйте PD-коннекторы вместе с `--enable-return-routed-experts`** — `NixlConnector`, `NixlPullConnector`, `NixlPushConnector`, `MoRIIOConnector` и `MooncakeConnector` отвергаются явной ошибкой; коннекторы выгрузки KV (`OffloadingConnector`, `SimpleCPUOffloadConnector`, LMCache, `MooncakeStoreConnector`) с ним совместимы.
 
 ## Влияние на производительность и память
 
@@ -93,7 +93,7 @@ The configurations for distributed KV cache transfer.
 - `--enable-cumem-allocator`, `--enable-sleep-mode`: единственное исключение из запрета на `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (см. диагностику).
 - `--disable-hybrid-kv-cache-manager`: гибридный менеджер KV автоматически отключается для части конфигураций с коннектором.
 - `--async-scheduling`: вместе с ролью консьюмера включает отложенное освобождение блоков.
-- `--enable-return-routed-experts`: несовместим с любым KV-коннектором.
+- `--enable-return-routed-experts`: несовместим с PD-коннекторами (NIXL, MoRI-IO, Mooncake), с коннекторами выгрузки KV совместим.
 
 ## Типовые проблемы и диагностика
 
@@ -101,7 +101,7 @@ The configurations for distributed KV cache transfer.
 - **Симптом:** `Unsupported kv_role: X.` **Лечение:** одно из `kv_producer`, `kv_consumer`, `kv_both`.
 - **Симптом:** `Unsupported connector type: X` при старте. **Причина:** коннектора нет в реестре этой сборки. **Лечение:** сверить имя с `vllm/distributed/kv_transfer/kv_connector/factory.py` или задать `kv_connector_module_path`.
 - **Симптом:** `KV connector X is incompatible with PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True unless enable_cumem_allocator is also enabled.` **Причина:** VMM-аллокатор PyTorch может переотобразить виртуальные адреса KV-cache, ломая зарегистрированные RDMA-регионы. **Лечение:** убрать `expandable_segments:True` или включить `--enable-cumem-allocator`.
-- **Симптом:** `--enable-return-routed-experts is incompatible with KV connectors (PD disaggregation, KV cache offload).` **Лечение:** оставить что-то одно.
+- **Симптом:** `--enable-return-routed-experts is incompatible with NixlConnector; PD auxiliary output is not supported.` (вместо `NixlConnector` — имя выбранного PD-коннектора). **Лечение:** оставить что-то одно.
 - **Симптом:** `Encoder-decoder models are not currently supported with KV connectors` (assert в планировщике). **Лечение:** не использовать коннектор с encoder-decoder моделью.
 - **Симптом:** запросы падают при недоступности удаленного KV. **Причина:** `kv_load_failure_policy` по умолчанию `fail`. **Лечение:** `recompute`, если пересчет предпочтительнее ошибки.
 - **Подтверждение принятого значения:** строка `Creating connector with name: X and engine_id: ...` в логе старта.

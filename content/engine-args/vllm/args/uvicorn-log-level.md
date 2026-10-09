@@ -8,14 +8,15 @@ group: Frontend
 related:
   - --disable-uvicorn-access-log
   - --disable-access-log-for-endpoints
-  - --log-config-file
+  - --logging-config
+  - --log-level
 ---
 
 # --uvicorn-log-level
 
 ## Кратко
 
-Значение уходит в `uvicorn.Config(log_level=...)` и относится только к логгерам uvicorn (`uvicorn`, `uvicorn.error`, `uvicorn.access`). Логи vLLM управляются отдельно, переменной окружения `VLLM_LOGGING_LEVEL`.
+Значение уходит в `uvicorn.Config(log_level=...)` и относится только к логгерам uvicorn (`uvicorn`, `uvicorn.error`, `uvicorn.access`). Логи vLLM управляются отдельно — `--log-level` (без него действует `VLLM_LOGGING_LEVEL`).
 
 Практическая ловушка: строки `Started server process [pid]` и `Application startup complete.` печатает именно uvicorn на уровне INFO. Подняв уровень до `warning`, вы теряете основной признак «сервер поднялся» — в том числе тот, по которому arriero строит прогресс запуска инстанса.
 
@@ -32,13 +33,13 @@ Log level for uvicorn.
 - Тип значения: строка из фиксированного перечня (`Literal`)
 - Допустимые значения: `critical`, `error`, `warning`, `info`, `debug`, `trace`
 - Значение по умолчанию: `info`
-- Эффективное значение: не переопределяется, но перекрывается конфигурацией из `--log-config-file`, которая задает уровни логгеров сама; при `--disable-access-log-for-endpoints` то же значение подставляется в сгенерированную конфигурацию (`create_uvicorn_log_config(..., log_level=args.uvicorn_log_level)`)
+- Эффективное значение: не переопределяется, но перекрывается файлом `dictConfig` из `--logging-config.pylogging_config_file` (или устаревшего `--log-config-file`, или `VLLM_LOGGING_CONFIG_PATH`), который задает уровни логгеров сам; при `--disable-access-log-for-endpoints` то же значение подставляется в сгенерированную конфигурацию (`create_uvicorn_log_config(..., log_level=args.uvicorn_log_level)`)
 - Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.uvicorn_log_level`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config`
 
 ## Что меняет в движке
 
-Уровень трех логгеров uvicorn. На объем логов vLLM (загрузка весов, профилирование памяти, статистика планировщика) не влияет вообще — их уровень задается `VLLM_LOGGING_LEVEL`.
+Уровень трех логгеров uvicorn. На объем логов vLLM (загрузка весов, профилирование памяти, статистика планировщика) не влияет вообще — их уровень задается `--log-level` (без него — `VLLM_LOGGING_LEVEL`).
 
 Что теряется при повышении уровня выше `info`:
 
@@ -70,14 +71,15 @@ Log level for uvicorn.
 
 - `--disable-uvicorn-access-log`: отключает access-лог независимо от уровня.
 - `--disable-access-log-for-endpoints`: сгенерированная конфигурация фильтра наследует это значение как уровень всех логгеров uvicorn.
-- `--log-config-file`: имеет приоритет — если файл загружен, уровни берутся из него.
+- `--logging-config`: файл из `pylogging_config_file` (или устаревшего `--log-config-file`) имеет приоритет — если он загружен, уровни берутся из него.
+- `--log-level`: уровень логов самого vLLM; на логгеры uvicorn не влияет.
 
 ## Типовые проблемы и диагностика
 
 - **Симптом:** в логе нет `Application startup complete.`, хотя сервер отвечает. **Причина:** уровень выше `info`. **Лечение:** вернуть `info`.
 - **Симптом (arriero):** индикатор запуска инстанса не доходит до готовности. **Причина:** та же — строка готовности не печатается. **Лечение:** `--uvicorn-log-level info`.
-- **Симптом:** уровень задан, но объем логов не изменился. **Причина:** основной объем дают логи vLLM, а не uvicorn. **Лечение:** `VLLM_LOGGING_LEVEL`.
-- **Симптом:** значение игнорируется. **Причина:** загружена конфигурация из `--log-config-file` или `VLLM_LOGGING_CONFIG_PATH`.
+- **Симптом:** уровень задан, но объем логов не изменился. **Причина:** основной объем дают логи vLLM, а не uvicorn. **Лечение:** `--log-level`.
+- **Симптом:** значение игнорируется. **Причина:** загружен файл конфигурации логирования — `--logging-config.pylogging_config_file`, `--log-config-file` или `VLLM_LOGGING_CONFIG_PATH`.
 
 ## Примеры
 

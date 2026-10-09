@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--gpu-memory-utilization"
 title: "--gpu-memory-utilization"
-summary: Доля полной памяти устройства, которую инстанс vLLM резервирует под веса, активации, CUDA graphs и KV-cache. Единственная ручка, которой регулируется размер KV-cache в штатном режиме, и обязательный аргумент для оценки памяти в arriero.
+summary: Доля полной памяти устройства, которую инстанс vLLM резервирует под веса, активации, CUDA graphs и KV-cache. Единственная ручка, которой регулируется размер KV-cache в штатном режиме, и обязательный аргумент для оценки памяти в arriero; алиас `--device-memory-utilization` оценщик arriero не распознаёт.
 group: CacheConfig
 related:
   - --kv-cache-memory-bytes
@@ -24,6 +24,8 @@ related:
 
 Это лимит **на инстанс и на устройство**: при `--tensor-parallel-size 4` каждый из четырех процессов применяет ту же долю к своей карте, значение не делится между картами.
 
+У флага есть нейтральный к устройству алиас `--device-memory-utilization` (тот же `dest`, то же поле `CacheConfig.gpu_memory_utilization`; в коде к нему ведет и свойство `CacheConfig.device_memory_utilization`). Он появился для не-GPU установок, где доля относится к памяти соответствующего устройства, но разбирается одинаково на любой платформе.
+
 ## Оригинальная справка
 
 ```text
@@ -33,12 +35,13 @@ utilization. If unspecified, will use the default value of 0.92. This is a
 per-instance limit, and only applies to the current vLLM instance. It does
 not matter if you have another vLLM instance running on the same GPU. For
 example, if you have two vLLM instances running on the same GPU, you can
-set the GPU memory utilization to 0.5 for each instance.
+set the GPU memory utilization to 0.5 for each instance. On non-GPU
+installs, this value controls the corresponding device memory utilization.
 ```
 
 ## Паспорт аргумента
 
-- Флаги: `--gpu-memory-utilization`
+- Флаги: `--gpu-memory-utilization`, `--device-memory-utilization` (алиас, `dest="gpu_memory_utilization"`; при обоих в одной команде действует последний)
 - Группа argparse: `CacheConfig`
 - Тип значения: float (доля, не проценты)
 - Допустимые значения: `(0, 1]` — валидация `gt=0, le=1` на уровне pydantic
@@ -70,7 +73,7 @@ set the GPU memory utilization to 0.5 for each instance.
 
 ## Когда использовать
 
-- Всегда задавайте явно на управляемом сервере: дефолт зависит от версии, а arriero-оценка памяти (`vllm-gpu-util`) отказывается считать draw без явного значения — см. `docs/MEMORY_ESTIMATION.md` (документ arriero).
+- Всегда задавайте явно на управляемом сервере: дефолт зависит от версии, а arriero-оценка памяти (`vllm-gpu-util`) отказывается считать draw без явного значения — см. `docs/MEMORY_ESTIMATION.md` (документ arriero). Пишите именно `--gpu-memory-utilization`: оценщик ищет аргумент по этому имени и алиас `--device-memory-utilization` не видит.
 - Повышайте, когда в логе видны вытеснения (preemption) и низкий `Maximum concurrency`: KV-cache — единственное, что растет от повышения.
 - Понижайте, когда на карте живет что-то еще (второй инстанс, дисплей, чужой процесс) или когда старт падает на нехватке свободной памяти.
 - Не используйте как способ «зарезервировать VRAM на будущее»: память резервируется реально и сразу, при `1.0` не остается запаса на фрагментацию аллокатора и внешние аллокации драйвера.
@@ -98,7 +101,7 @@ set the GPU memory utilization to 0.5 for each instance.
 - **Симптом:** `To serve at least one request with the model's max seq len (N), (X GiB KV cache is needed, which is larger than the available KV cache memory (Y GiB). Based on the available memory, the estimated maximum model length is M.` **Причина:** KV-cache не вмещает даже один запрос полной длины. **Лечение:** взять предложенное `M` как `--max-model-len` либо повысить utilization.
 - **Симптом:** частые preemption и просадка throughput. **Проверка:** строка `GPU KV cache size: N tokens, Maximum concurrency for M tokens per request: X.XXx` и `GPU KV cache usage` в периодическом логе. **Лечение:** повысить utilization или снизить `--max-num-seqs`.
 - **Подтверждение принятого значения:** `Available KV cache memory: X GiB` (info) и подробная строка `Free memory on device (...). Desired GPU memory utilization is (0.9, X GiB). Actual usage is ... for consumed memory (weights + non-torch), ... for peak activation, and ... for CUDAGraph memory.` В ней же движок печатает готовое значение для перехода на ручной режим.
-- **Симптом (arriero):** оценка памяти инстанса не считается. **Причина:** `--gpu-memory-utilization` не задан явно — оценщик отказывается угадывать версионно-зависимый дефолт. **Лечение:** задать значение в аргументах инстанса и пересчитать оценку.
+- **Симптом (arriero):** оценка памяти инстанса не считается. **Причина:** `--gpu-memory-utilization` не задан явно — оценщик отказывается угадывать версионно-зависимый дефолт; доля, заданная алиасом `--device-memory-utilization`, для него тоже не существует. **Лечение:** задать значение под основным именем в аргументах инстанса и пересчитать оценку.
 
 ## Примеры
 
@@ -113,6 +116,8 @@ vllm serve /models/Qwen3-4B --gpu-memory-utilization 0.45 --max-num-seqs 4 --enf
 ## Источники
 
 - `vllm/vllm/config/cache.py`
+- `vllm/vllm/engine/arg_utils.py`
+- `vllm/tests/engine/test_arg_utils.py`
 - `vllm/vllm/v1/worker/utils.py`
 - `vllm/vllm/v1/worker/gpu_worker.py`
 - `vllm/vllm/v1/worker/cpu_worker.py`
@@ -120,4 +125,5 @@ vllm serve /models/Qwen3-4B --gpu-memory-utilization 0.45 --max-num-seqs 4 --enf
 - `vllm/docs/configuration/optimization.md`
 - `vllm/docs/configuration/conserving_memory.md`
 - `docs/MEMORY_ESTIMATION.md` (arriero)
+- `apps/api/src/memory-estimate/service.ts` (arriero)
 - `docs/VLLM_OPERATIONS.md` (arriero)

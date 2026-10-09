@@ -28,7 +28,7 @@ related:
 2. **Профилирование памяти.** Из тех же значений строится фиктивный батч, на котором мультимодальный энкодер прогоняется при старте; его пик активаций вычитается из бюджета до KV-cache.
 3. **Загрузка весов.** Если все модальности одной башни энкодера имеют лимит `0`, веса этой башни **не инициализируются вообще** — это экономия VRAM на весах, а не только на активациях.
 
-Дефолт (`{}`) означает 999 на каждую модальность, то есть фактически «сколько выдержит модель»: реальный потолок дополнительно режется тем, что объявила сама модель (`supported_mm_limits`).
+Дефолт (пустой словарь) означает 999 на каждую модальность, то есть фактически «сколько выдержит модель»: реальный потолок дополнительно режется тем, что объявила сама модель (`supported_mm_limits`).
 
 ## Оригинальная справка
 
@@ -54,16 +54,16 @@ Mixed format (combining both):
 
 - Флаги: `--limit-mm-per-prompt`
 - Группа argparse: `MultiModalConfig`
-- Тип значения: JSON-объект `{модальность: count}` либо `{модальность: {count, ...опции}}`
+- Тип значения: JSON-объект `{модальность: count}` либо `{модальность: {count, ...опции}}`. Поле объявлено как `MultiModalDummyOptions` — подкласс `dict[str, BaseDummyOptions]`; `get_kwargs` трактует такие подклассы как словарь, поэтому argparse получает `type=json.loads`, а точечные под-флаги собираются в тот же объект
 - Допустимые значения: ключи — имена модальностей модели (`image`, `video`, `audio` и модель-специфичные); `count` — целое `ge=0`; опции размера — целые `gt=0`
-- Значение по умолчанию: `Field(default_factory=dict)`, то есть пустой словарь; отсутствующая модальность читается как `999`
+- Значение по умолчанию: `Field(default_factory=MultiModalDummyOptions)`, то есть пустой `MultiModalDummyOptions`; отсутствующая модальность читается как `999`
 - Эффективное значение: `min(ваш лимит, supported_mm_limits модели)` в `BaseProcessingInfo.allowed_mm_limits`; `--language-model-only` обнуляет все модальности поверх этого значения
 - Где объявлен: `vllm/config/multimodal.py:MultiModalConfig.limit_per_prompt`
 - Этап применения: сборка `VllmConfig` → загрузка модели (пропуск башен) → профилирование и выделение KV-cache → планировщик (encoder cache) → HTTP-слой (валидация запроса)
 
 ## Что меняет в движке
 
-**Нормализация.** Валидатор `_validate_limit_per_prompt` приводит целое к `{"count": N}` и подставляет типизированный класс опций по имени модальности: `image` → `ImageDummyOptions(count, width, height)`, `video` → `VideoDummyOptions(count, num_frames, width, height)`, `audio` → `AudioDummyOptions(count, length)`, остальные → `BaseDummyOptions(count)`. Первые три объявлены с `extra="forbid"`, поэтому неизвестный ключ (например `fps` для видео) — ошибка валидации конфига, а не молчаливое игнорирование.
+**Нормализация.** Валидатор `_validate_limit_per_prompt` собирает новый `MultiModalDummyOptions`: приводит целое к `{"count": N}` и подставляет типизированный класс опций по имени модальности: `image` → `ImageDummyOptions(count, width, height)`, `video` → `VideoDummyOptions(count, num_frames, width, height)`, `audio` → `AudioDummyOptions(count, length)`, остальные → `BaseDummyOptions(count)`. Первые три объявлены с `extra="forbid"`, поэтому неизвестный ключ (например `fps` для видео) — ошибка валидации конфига, а не молчаливое игнорирование.
 
 **Чтение.** Всё, что спрашивает лимит, идёт через `MultiModalConfig.get_limit_per_prompt(modality)`: `999` для незаданной модальности, `0` при `--language-model-only`.
 
@@ -151,6 +151,7 @@ vllm serve /models/gemma-3-27b-it --limit-mm-per-prompt.image 0 --gpu-memory-uti
 ## Источники
 
 - `vllm/vllm/config/multimodal.py`
+- `vllm/vllm/engine/arg_utils.py`
 - `vllm/vllm/multimodal/encoder_budget.py`
 - `vllm/vllm/multimodal/registry.py`
 - `vllm/vllm/multimodal/processing/context.py`

@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--max-num-seqs"
 title: "--max-num-seqs"
-summary: Максимальное число запросов в running-очереди, то есть ширина батча по последовательностям. Определяет, где проходит граница между «выполняется» и «ждет в очереди», и вместе с `--max-num-batched-tokens` задает размеры буферов и сеток CUDA graphs.
+summary: Максимальное число запросов в running-очереди, то есть ширина батча по последовательностям. По умолчанию определяет, где проходит граница между «выполняется» и «ждет в очереди» (ее можно сузить `--max-num-active-seqs`), и вместе с `--max-num-batched-tokens` задает размеры буферов и сеток CUDA graphs.
 group: SchedulerConfig
 related:
   - --max-num-batched-tokens
@@ -16,13 +16,14 @@ related:
   - --performance-mode
   - --enforce-eager
   - --max-loras
+  - --max-num-active-seqs
 ---
 
 # --max-num-seqs
 
 ## Кратко
 
-`--max-num-seqs` — это `Scheduler.max_num_running_reqs`: сколько запросов одновременно находятся в running-очереди и получают токены на каждом шаге. Все, что сверх, лежит в waiting-очереди и ничего не потребляет, кроме памяти хоста под сам запрос.
+`--max-num-seqs` — это `Scheduler.max_num_running_reqs`: сколько запросов одновременно могут находиться в running-очереди и получать токены на каждом шаге. Все, что сверх, лежит в waiting-очереди и ничего не потребляет, кроме памяти хоста под сам запрос. Лимит впуска в running можно сделать уже отдельным `--max-num-active-seqs`; размеры runner'а и графов при этом все равно считаются по `--max-num-seqs`.
 
 Значение не про KV-cache напрямую: KV ограничен памятью, а `--max-num-seqs` — жесткий счетчик. Но именно оно определяет, сколько запросов будут одновременно претендовать на KV-блоки, то есть насколько часто планировщик дойдет до вытеснения.
 
@@ -48,7 +49,7 @@ In real usage, this should be set in `EngineArgs.create_engine_config`.
 
 ## Что меняет в движке
 
-1. **Граница running/waiting.** В `Scheduler.schedule()` обход waiting-очереди прекращается, как только `len(self.running) + num_waiting_for_streaming_input >= max_num_running_reqs`. Есть и жесткая проверка-инвариант `assert len(self.running) <= self.max_num_running_reqs`.
+1. **Граница running/waiting.** В `Scheduler.schedule()` обход waiting-очереди прекращается, как только `len(self.running) + num_waiting_for_streaming_input >= max_num_active_reqs`; `max_num_active_reqs` равен `--max-num-active-seqs`, а если тот не задан — `max_num_seqs`. Жесткая проверка-инвариант `assert len(self.running) <= self.max_num_running_reqs` по-прежнему идет против `max_num_seqs`.
 2. **Ширина персистентного батча.** `GPUModelRunner.max_num_reqs = scheduler_config.max_num_seqs` — от этого зависят размеры входного батча, таблиц блоков и метаданных внимания.
 3. **CUDA graphs.** `max_cudagraph_capture_size` по умолчанию равен `min(max_num_seqs × (1 + num_speculative_tokens) × 2, 512 или 1024)` и дополнительно зажат `max_num_batched_tokens`.
 4. **Прогрев сэмплера.** `Worker` после захвата графов делает dummy-run на `min(max_num_seqs, max_num_batched_tokens)` запросов, чтобы заранее выделить буферы логитов; именно здесь чаще всего вылезает OOM от завышенного значения.
@@ -84,6 +85,7 @@ In real usage, this should be set in `EngineArgs.create_engine_config`.
 - `--max-cudagraph-capture-size`, `--enforce-eager`: ограничивают или отключают вклад этого аргумента в память графов.
 - `--performance-mode`: `throughput` удваивает автоподобранное значение.
 - `--max-loras`: отдельная квота на число LoRA-адаптеров в шаге; ограничивает состав батча независимо от `--max-num-seqs`.
+- `--max-num-active-seqs`: отдельный лимит впуска в running, не больше `--max-num-seqs` (иначе отказ на старте). Сужает декод-батч без изменения буферов, графов и хеша компиляции; лимит прокси arriero по-прежнему берется из `--max-num-seqs`.
 
 ## Типовые проблемы и диагностика
 
@@ -91,7 +93,7 @@ In real usage, this should be set in `EngineArgs.create_engine_config`.
 - **Симптом:** `CUDA out of memory occurred when warming up sampler with N dummy requests. Please try lowering max_num_seqs or gpu_memory_utilization when initializing the engine.` **Причина:** прогрев сэмплера на полном числе запросов не поместился. **Лечение:** снизить значение.
 - **Симптом:** `Preemptions: N` в периодическом логе и просадка throughput. **Причина:** одновременных запросов больше, чем помещается в KV-cache. **Проверка:** сравните `--max-num-seqs` со значением `Maximum concurrency` из строки `GPU KV cache size: ...`. **Лечение:** снизить `--max-num-seqs`, поднять `--gpu-memory-utilization` или уменьшить `--max-model-len`.
 - **Симптом:** `Waiting: N reqs` стабильно > 0 при `GPU KV cache usage` в единицы процентов. **Причина:** значение занижено. **Лечение:** поднять.
-- **Подтверждение принятого значения:** периодический лог `Running: N reqs, Waiting: M reqs` — `N` никогда не превышает заданное число.
+- **Подтверждение принятого значения:** периодический лог `Running: N reqs, Waiting: M reqs` — `N` никогда не превышает заданное число (или `--max-num-active-seqs`, если он задан).
 - **Симптом (arriero):** прокси-запросы к vLLM-цели ждут вместо выполнения. **Проверка:** `--max-num-seqs`, статус модели (active/queued), приоритет цели и резервирования — порядок разбора описан в `docs/VLLM_OPERATIONS.md` (arriero).
 
 ## Примеры

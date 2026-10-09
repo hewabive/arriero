@@ -8,7 +8,7 @@ group: Frontend
 related:
   - --disable-access-log-for-endpoints
   - --uvicorn-log-level
-  - --log-config-file
+  - --logging-config
   - --enable-log-requests
 ---
 
@@ -33,7 +33,7 @@ Disable uvicorn access log.
 - Тип значения: bool (`argparse.BooleanOptionalAction`)
 - Допустимые значения: флаг без значения либо парная отрицательная форма
 - Значение по умолчанию: `false` — access-лог включен
-- Эффективное значение: не переопределяется, но может быть перекрыто конфигурацией логирования из `--log-config-file`, которая целиком задает набор логгеров и обработчиков
+- Эффективное значение: не переопределяется, но может быть перекрыто файлом конфигурации логирования (`--logging-config.pylogging_config_file`, устаревший `--log-config-file`), который целиком задает набор логгеров и обработчиков
 - Где объявлен: `vllm/entrypoints/launchers/cli_args.py:FrontendArgs.disable_uvicorn_access_log`
 - Этап применения: HTTP-слой, `serve_http()` → `uvicorn.Config(access_log=...)`
 
@@ -61,13 +61,13 @@ Disable uvicorn access log.
 
 - `--disable-access-log-for-endpoints`: точечная альтернатива; при полностью отключенном access-логе фильтр путей теряет смысл.
 - `--uvicorn-log-level`: управляет уровнем логгеров uvicorn; выключенный access-лог не вернется даже на `debug`.
-- `--log-config-file`: пользовательская конфигурация логирования задает обработчики целиком и может перекрыть эффект флага.
+- `--logging-config`: файл из `pylogging_config_file` (или устаревшего `--log-config-file`) задает обработчики целиком и может перекрыть эффект флага.
 - `--enable-log-requests`: логи запросов движка живут отдельно и остаются.
 
 ## Типовые проблемы и диагностика
 
 - **Симптом:** после включения флага не видно, приходят ли запросы вообще. **Причина:** access-лог и был единственным подтверждением. **Лечение:** вернуть access-лог и отфильтровать только пути опроса, либо смотреть счетчики на `/metrics`.
-- **Симптом:** строки доступа остались, хотя флаг задан. **Причина:** активна конфигурация из `--log-config-file` или `VLLM_LOGGING_CONFIG_PATH`. **Проверка:** убрать конфигурацию и повторить.
+- **Симптом:** строки доступа остались, хотя флаг задан. **Причина:** активен файл конфигурации логирования — `--logging-config.pylogging_config_file`, `--log-config-file` или `VLLM_LOGGING_CONFIG_PATH`. **Проверка:** убрать конфигурацию и повторить.
 
 ## Примеры
 
@@ -83,5 +83,5 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --disable-access-log-for-endpoints 
 
 - `vllm/vllm/entrypoints/launchers/cli_args.py`
 - `vllm/vllm/entrypoints/openai/api_server.py`
-- `vllm/vllm/entrypoints/serve/utils/server_utils.py`
+- `vllm/vllm/entrypoints/launchers/utils/server_utils.py`
 - `docs/API_PROXY_FOUNDATION.md` (arriero)

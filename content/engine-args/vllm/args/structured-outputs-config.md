@@ -13,6 +13,7 @@ related:
   - --tokenizer-mode
   - --skip-tokenizer-init
   - --max-num-seqs
+  - --tool-strict-level
 ---
 
 # --structured-outputs-config
@@ -81,7 +82,7 @@ Structured outputs configuration.
 
 - `--reasoning-parser`, `--reasoning-parser-plugin`: верхнеуровневые флаги тех же полей; при заданном значении они **перетирают** содержимое JSON без ошибки.
 - `--reasoning-config`: другой, независимый конфиг — он отвечает за бюджет размышлений (`thinking_token_budget`), а не за грамматики, но `--reasoning-parser` заполняет оба.
-- `--tool-call-parser`: соседний парсер HTTP-слоя, к грамматикам отношения не имеет.
+- `--tool-call-parser`, `--tool-strict-level`: парсеры инструментов со structural tags (`structural_tag_model`) ограничивают вызовы инструментов грамматикой, которую исполняет этот backend; `--tool-strict-level` решает, при каких запросах такой тег строится.
 - `--skip-tokenizer-init`: структурированный вывод без токенизатора невозможен — запрос отвергается с явным сообщением.
 - `--tokenizer-mode`: для токенизаторов Mistral часть backend'ов исключается автоматически.
 - `--max-num-seqs`: чем больше параллельных запросов со структурированным выводом, тем выше CPU-нагрузка на компиляцию и применение масок.

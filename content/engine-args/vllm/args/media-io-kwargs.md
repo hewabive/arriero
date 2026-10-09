@@ -12,6 +12,7 @@ related:
   - --allowed-local-media-path
   - --allowed-media-domains
   - --gpu-memory-utilization
+  - --trust-request-mm-kwargs
 ---
 
 # --media-io-kwargs
@@ -37,7 +38,7 @@ For example, to set num_frames for video, set
 - Тип значения: JSON-объект `{модальность: {ключ: значение}}`
 - Допустимые значения: ключи модальностей и их параметры определяются классами `MediaIO`; движок их не ограничивает
 - Значение по умолчанию: `Field(default_factory=dict)` — пустой словарь
-- Эффективное значение: сливается с per-request `media_io_kwargs` через `merge_media_io_kwargs`; отдельные модели правят словарь сами (например `vllm/model_executor/models/config.py` доопределяет `media_io_kwargs["video"]`)
+- Эффективное значение: при `--trust-request-mm-kwargs` сливается с per-request `media_io_kwargs` через `merge_media_io_kwargs` (без этого флага запрос с непустым `media_io_kwargs` отвергается); отдельные модели правят словарь сами (например `vllm/model_executor/models/config.py` доопределяет `media_io_kwargs["video"]`)
 - Где объявлен: `vllm/config/multimodal.py:MultiModalConfig.media_io_kwargs`
 - Этап применения: расчёт резерва VRAM под GPU-декод (worker) → загрузка каждого медиа-элемента в API-процессе
 
@@ -60,7 +61,7 @@ For example, to set num_frames for video, set
 
 **Резервирование VRAM.** `MultiModalConfig.use_gpu_video_backend()` спрашивает у реестра, требует ли выбранный бэкенд GPU. Если да, `reserve_mm_ipc_gpu_memory()` вычитает из KV-cache `(128 MiB × hw_decoders + 1.8 GiB CUDA-контекста) × api_process_count`, плюс бюджет сырых кадров из `--mm-ipc-gpu-memory-gb`. Это происходит при старте, до того как KV-cache превратится в блоки.
 
-**Слияние с запросом.** Протоколы responses и pooling принимают поле `media_io_kwargs`. `merge_media_io_kwargs` объединяет их с engine-уровнем по модальностям, вызывая `merge_kwargs` конкретного IO-класса. `VideoMediaIO.merge_kwargs` дополнительно защищается:
+**Слияние с запросом.** Протоколы chat completions, responses и pooling объявляют поле `media_io_kwargs`, но по умолчанию непустое значение отвергается с HTTP 400 (`Per-request media_io_kwargs are disabled by default ...`). Только при `--trust-request-mm-kwargs` `merge_media_io_kwargs` объединяет его с engine-уровнем по модальностям, вызывая `merge_kwargs` конкретного IO-класса. `VideoMediaIO.merge_kwargs` дополнительно защищается:
 
 - выкидывает из запроса `hw_decoders` и `pool_size` — VRAM под них зарезервирована на старте;
 - выкидывает `video_backend`/`backend`, если запрошенный требует GPU, а на старте был настроен другой (`Stripping request-level video_backend=...: GPU video backend not configured at startup.`);
@@ -86,7 +87,7 @@ For example, to set num_frames for video, set
 - Аппаратный декод: `{"video": {"video_backend": "pynvvideocodec"}}` снимает декодирование с CPU. Учитывайте резерв VRAM и задавайте `--mm-ipc-gpu-memory-gb`.
 - Прозрачные PNG: `{"image": {"rgba_background_color": [0, 0, 0]}}`, если белая подложка по умолчанию портит вход.
 - Не используйте для параметров HF-процессора (`num_crops`, границы пикселей) — это `--mm-processor-kwargs`.
-- Не рассчитывайте, что клиент не сможет переопределить эти значения: per-request `media_io_kwargs` существуют, и защищены от переопределения только GPU-специфичные ключи.
+- Клиент не может переопределить эти значения, пока не включен `--trust-request-mm-kwargs`. С ним per-request `media_io_kwargs` принимаются, и от переопределения защищены только GPU-специфичные ключи.
 
 ## Влияние на производительность и память
 
@@ -104,12 +105,14 @@ For example, to set num_frames for video, set
 - `--gpu-memory-utilization`: резерв под декодеры вычитается уже из результата профилирования.
 - `--allowed-local-media-path`, `--allowed-media-domains`: определяют, откуда медиа вообще можно загрузить; этот аргумент — что с ним делать после загрузки.
 - `--mm-shm-cache-max-object-size-mb`: число кадров прямо определяет, влезет ли элемент в лимит объекта shm-кэша.
+- `--trust-request-mm-kwargs`: разрешает клиенту присылать свои `media_io_kwargs` поверх серверных; по умолчанию выключен.
 
 ## Типовые проблемы и диагностика
 
 - **Симптом:** KV-cache внезапно уменьшился примерно на 2 GiB. **Причина:** выбран GPU-бэкенд видео, зарезервированы декодерные поверхности и CUDA-контекст. **Проверка:** строка `Reserving X GiB of GPU memory for frontend multimodal decoding (... GiB decoder+CUDA-context across N API server(s) @ Y GiB/server); KV cache memory reduced to Z GiB.`
 - **Симптом:** `frontend multimodal GPU decoding reserves ... but only ... is available for the KV cache.` **Причина:** резерв не помещается. **Лечение:** уменьшить `hw_decoders`, вернуться на CPU-бэкенд, поднять `--gpu-memory-utilization`.
-- **Симптом:** предупреждение `Stripping request-level video_backend=...: GPU video backend not configured at startup.` **Причина:** клиент попросил GPU-декодер, не настроенный на старте. **Лечение:** задать бэкенд в этом аргументе при запуске.
+- **Симптом:** предупреждение `Stripping request-level video_backend=...: GPU video backend not configured at startup.` **Причина:** при включенном `--trust-request-mm-kwargs` клиент попросил GPU-декодер, не настроенный на старте. **Лечение:** задать бэкенд в этом аргументе при запуске.
+- **Симптом:** клиент получает 400 `Per-request media_io_kwargs are disabled by default ...`. **Причина:** per-request `media_io_kwargs` без `--trust-request-mm-kwargs`. **Лечение:** перенести значение в этот флаг или, для доверенных клиентов, включить `--trust-request-mm-kwargs`.
 - **Симптом:** `num_frames must be greater than 0 or -1`. **Причина:** передан `0`. **Лечение:** положительное число или `-1`.
 - **Симптом:** видео сжирает весь контекст. **Причина:** дефолтные 32 кадра при высоком разрешении. **Лечение:** снизить `num_frames` и/или ограничить разрешение через `--mm-processor-kwargs`.
 - **Подтверждение принятого значения:** словарь виден в стартовой строке конфига как `media_io_kwargs={...}`; для GPU-бэкенда — упомянутая строка про резервирование.
@@ -134,3 +137,4 @@ vllm serve /models/Qwen2.5-VL-7B-Instruct --media-io-kwargs '{"video": {"video_b
 - `vllm/vllm/multimodal/video.py`
 - `vllm/vllm/multimodal/gpu_ipc_memory.py`
 - `vllm/vllm/renderers/params.py`
+- `vllm/vllm/entrypoints/generate/base/protocol.py`

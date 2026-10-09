@@ -3,124 +3,143 @@ schema: 1
 engine: vllm
 primaryName: "--enable-return-routed-experts"
 title: "--enable-return-routed-experts"
-summary: Возвращает в ответе, какие эксперты MoE выбрал роутер для каждого токена. Узкоспециальная возможность для RL-пайплайнов, стоящая нескольких гигабайт хостовой RAM и несовместимая с PP и KV-коннекторами.
+summary: Возвращает в ответе, каких экспертов MoE роутер выбрал для каждого токена на каждом слое. Совместимый флаг-переключатель поверх `--aux-output-config`; требует Model Runner V2, MoE-модели и prefix caching, держит в хостовой RAM хранилище, рассчитанное на весь пул KV-cache, и несовместим с PP, context parallel и PD-коннекторами.
 group: ModelConfig
 related:
+  - --aux-output-config
+  - --enable-prefix-caching
   - --pipeline-parallel-size
   - --decode-context-parallel-size
+  - --prefill-context-parallel-size
   - --kv-transfer-config
-  - --enable-prefix-caching
+  - --speculative-config
   - --max-num-batched-tokens
+  - --gpu-memory-utilization
 ---
 
 # --enable-return-routed-experts
 
 ## Кратко
 
-Однострочная справка скрывает довольно тяжёлый механизм. При включении vLLM вешает хуки на MoE-слои, собирает `topk_ids` каждого токена на каждом слое, копирует их на хост и складывает в буфер, проиндексированный слотами KV-cache. По завершении запроса маршрутизация возвращается клиенту полем `routed_experts`.
+При включении vLLM вешает захват на роутеры MoE-слоёв, собирает `topk_ids` каждого токена на каждом слое, копирует их на хост и складывает в хранилище, адресованное хешами блоков prefix cache. Готовая маршрутизация возвращается клиенту полем `routed_experts` в нестриминговом ответе. Это инструмент для RL-пайплайнов и анализа роутера, а не эксплуатационная ручка.
 
-Это инструмент для RL и анализа маршрутизации, а не эксплуатационная ручка. Цена — CPU-буфер, отмасштабированный на **весь** пул KV-блоков, и жёсткие запреты на PP и KV-коннекторы.
+Механизм переписан как часть подсистемы auxiliary outputs: каноническое место настройки теперь `--aux-output-config`, а этот флаг — «публичный аргумент совместимости» (комментарий в `EngineArgs`), который лишь выставляет `aux_output_config.enable_return_routed_experts = True`. Вместе с переписыванием поменялись и условия: нужен Model Runner V2 и включённый prefix caching, а из KV-коннекторов запрещены только PD-коннекторы.
 
 ## Оригинальная справка
 
 ```text
-Whether to return routed experts.
+Capture and return routed-experts auxiliary outputs.
 ```
 
 ## Паспорт аргумента
 
 - Флаги: `--enable-return-routed-experts`, `--no-enable-return-routed-experts`
-- Группа argparse: `ModelConfig`
+- Группа argparse: `ModelConfig` (флаг регистрируется в группе модели, но его kwargs берутся из `AuxOutputConfig`)
 - Тип значения: bool (`argparse.BooleanOptionalAction`)
-- Допустимые значения: флаг ⇒ `True`, `--no-enable-return-routed-experts` ⇒ `False`; не задан ⇒ `False`
+- Допустимые значения: флаг ⇒ `True`; `--no-enable-return-routed-experts` и отсутствие флага ⇒ `False`
 - Значение по умолчанию: `False`
-- Эффективное значение: не переопределяется; вместо этого несовместимые конфигурации приводят к отказу старта
-- Где объявлен: `vllm/config/model.py:ModelConfig.enable_return_routed_experts`
-- Этап применения: сборка `VllmConfig` (проверки совместимости) → инициализация KV-cache в worker'е (создание capturer'а) → каждый шаг планировщика и forward → формирование ответа
+- Эффективное значение: `EngineArgs.__post_init__` при `True` выставляет `aux_output_config.enable_return_routed_experts = True`. При `False` поле не трогается, поэтому `--no-enable-return-routed-experts` **не выключает** захват, включённый через `--aux-output-config`
+- Где объявлен: `vllm/config/aux_output.py:AuxOutputConfig.enable_return_routed_experts`
+- Этап применения: сборка `VllmConfig` (проверки совместимости, хеш компиляции) → инициализация KV-cache в Model Runner V2 (захват и хранилище) → каждый шаг forward и планировщика → формирование ответа
 
 ## Что меняет в движке
 
-**Проверки при сборке конфига** (`VllmConfig.__post_init__`):
+**Проверки при сборке конфига** (`VllmConfig._verify_aux_output_compatibility`). Старт падает с `ValueError`, если:
 
-- `pipeline_parallel_size > 1` ⇒ `ValueError("--enable-return-routed-experts is incompatible with pipeline parallelism (PP > 1).")`;
-- любой KV-коннектор (`kv_transfer_config.is_kv_transfer_instance`) ⇒ `ValueError("--enable-return-routed-experts is incompatible with KV connectors (PD disaggregation, KV cache offload).")` — комментарий в коде объясняет обе причины: при PD-разнесении маршрутизация, снятая на prefill-узле, не доедет до decode-узла, а при offload/sharing меняется семантика `slot_mapping`, на которой держится весь буфер.
+- выбран не Model Runner V2 (кроме TPU и out-of-tree платформ) — `AuxOutput Connector requires Model Runner V2; set VLLM_USE_V2_MODEL_RUNNER=1.`;
+- runner не `generate` — `AuxOutput Connector only supports generate runners.`;
+- модель не MoE — `AuxOutput Connector only supports MoE models.`;
+- prefix caching выключен — `AuxOutput Connector requires prefix caching.`;
+- в `--speculative-config` включён `enable_adaptive_verification`;
+- `--pipeline-parallel-size > 1` или context parallel (`--decode-context-parallel-size`/`--prefill-context-parallel-size > 1`);
+- в `--kv-transfer-config` есть `NixlConnector`, `NixlPullConnector`, `NixlPushConnector`, `MoRIIOConnector` или `MooncakeConnector` — `--enable-return-routed-experts is incompatible with <имя>; PD auxiliary output is not supported.` Коннекторы выгрузки (`OffloadingConnector`, `SimpleCPUOffloadConnector`, `LMCacheConnectorV1`, `LMCacheMPConnector`, `MooncakeStoreConnector`) допускаются.
 
-**Планировщик** (`vllm/v1/core/sched/scheduler.py`) дополнительно требует `dcp_world_size == 1 and pcp_world_size == 1` («enable_return_routed_experts does not support context parallelism») и создаёт `RoutedExpertsManager`.
+Model Runner V2 — выбор по умолчанию, но движок откатывается на V1 при `VLLM_USE_V2_MODEL_RUNNER=0`, без Triton, для части архитектур на ROCm и при функциях, которых V2 не поддерживает (предупреждение `Model Runner V2 does not yet support ...; using the V1 model runner instead.`). Любой такой откат с этим флагом превращается в отказ старта.
 
-**Память менеджера.** `RoutedExpertsManager` выделяет numpy-буфер формы `(num_blocks × block_size, num_layers, num_experts_per_tok)` с типом `uint8`, если экспертов ≤ 256, иначе `uint16`. Это **хостовая** память, отмасштабированная на весь блок-пул, а не на активные запросы. Размер печатается при инициализации:
+**Хеш компиляции.** `AuxOutputConfig.compute_hash()` включает этот флаг: граф forward с захватом другой, и первый старт с флагом не попадёт в кэш компиляции, собранный без него.
 
-```
-RoutedExpertsManager CPU buffer: %.2f GB (slots=%d, layers=%d, top_k=%d, dtype=%s)
-```
+**Worker.** После выделения KV-cache (не во время профилирования) Model Runner V2 создаёт `AuxOutputWorkerConnector`:
 
-Проверяйте эту строку до вывода инстанса в работу: на крупной MoE-модели с большим KV-cache счёт идёт на гигабайты.
+- `RoutedExpertsCapturer` — device-буфер `int32` формы `(max_num_batched_tokens, num_layers, num_experts_per_tok)` и колбэки захвата на роутерах MoE (`bind_routed_experts_capturer`). Монолитные MoE-ядра без поддержки routing replay и нестандартные роутеры отвергаются ошибкой.
+- Только на первом TP-ранге — хранилище `BlockObjectStore`: анонимный `mmap` в хостовой RAM размером `aux_output_config.max_bytes`, по умолчанию `num_blocks × block_size × num_layers × num_experts_per_tok × размер элемента`, то есть ёмкость всего пула KV-cache в токенах. Элемент — `uint8`, если экспертов не больше 256, иначе `uint16`. Запись идёт фоновым потоком `vllm-aux-output-writer`.
+- `RoutedExpertsBuffer` для незавершённых блоков: порядка `max_concurrent_batches × (max_num_batched_tokens / block_size + max_num_seqs) + max_num_seqs` блоков той же формы.
 
-**Worker.** После `initialize_kv_cache` вызывается `model_runner.init_routed_experts_capturer()`, который создаёт `RoutedExpertsCapturer` (device-буфер `max_num_batched_tokens × num_layers × top_k × 4` байт в `int32`), привязывает хуки к MoE-слоям и заводит зеркальный pinned-буфер на CPU для неблокирующего D2H.
+**Поток данных на шаг.** Снимок маршрутизации шага приводится к `uint8`/`uint16` на GPU и асинхронно копируется на хост. Маршрутизация отвергнутых спекулятивных токенов отбрасывается. Полные блоки публикуются в хранилище под ключами из хешей блоков prefix cache, которые присылает `AuxOutputSchedulerConnector` планировщика. При попадании в prefix cache маршрутизация закэшированной части промпта читается из хранилища, поэтому без prefix caching механизм не работает. Сброс prefix cache переводит хранилище на новое поколение ключей.
 
-**Поток данных на шаг.** Worker копирует device-буфер на хост → планировщик в `update_from_output` делает `routed_experts_by_slot[slot_mapping] = data` → при завершении/аборте запроса собирает полную маршрутизацию по снимку block-id, взятому на момент планирования (снимок нужен, потому что асинхронное планирование может освободить блоки раньше).
+**Формат ответа.** Чанки маршрутизации копятся в `OutputProcessor` и прикладываются к `CompletionOutput` только по завершении запроса. В OpenAI-совместимых `/v1/chat/completions` и `/v1/completions` поле `routed_experts` есть только в нестриминговом ответе; token-in-token-out `/inference/v1/generate` отдаёт его и в полном ответе, и в завершающем чанке потока. Формат — base64 от `.npy`, после декодирования — форма `(num_tokens - 1, num_layers, num_experts_per_tok)`, последний сэмплированный токен ещё не прошёл forward. Декодирование: `np.load(io.BytesIO(base64.b64decode(s)))`. `null` означает либо запрос, прерванный до первого forward, либо выключенный захват на сервере.
 
-**Формат ответа.** Поле `routed_experts` в choice-объекте — base64 от `.npy`. После декодирования форма `(num_tokens - 1, num_layers, num_experts_per_tok)`: последний сэмплированный токен ещё не прошёл forward и маршрутизации не имеет. Декодирование: `np.load(io.BytesIO(base64.b64decode(s)))`. Значение `None` означает либо запрос, прерванный до первого forward'а, либо выключенный флаг на сервере.
-
-**Обрезание промпта.** `SamplingParams.routed_experts_prompt_start` позволяет не возвращать маршрутизацию первых N токенов промпта — это per-request параметр, а не аргумент CLI.
+**Обрезание промпта.** Параметр запроса `routed_experts_prompt_start` (в `SamplingParams` и в теле chat/completions) пропускает первые N токенов промпта — например, уже возвращённую часть многоходового диалога. Это параметр запроса, а не CLI.
 
 ## Значения и формат
 
 - Булев флаг без значения. «Не задан» = `False`.
-- Осмысленен только для MoE-моделей: `_get_routed_experts_shape` требует положительных `num_layers`, `num_experts`, `num_experts_per_tok` и иначе поднимает `ValueError("Routed-experts capture requires positive layer, expert, and experts-per-token counts, got ...")`. На плотной модели старт упадёт этой ошибкой.
-- Дополнительных значений или уровней нет.
+- Эквивалентная каноническая запись: `--aux-output-config '{"enable_return_routed_experts": true}'` или `--aux-output-config.enable_return_routed_experts true`. Лимит хранилища `max_bytes` задаётся только там.
+- На не-MoE модели старт падает ещё на сборке конфига.
 
 ## Когда использовать
 
-- RL-пайплайн, которому нужна маршрутизация для расчёта наград или для анализа стабильности роутера. Рабочий пример в апстриме — `examples/rl/routed_experts_e2e.py`.
+- RL-пайплайн, которому нужна маршрутизация для расчёта наград или для routing replay при обучении; рабочий пример в апстриме — `examples/rl/routed_experts_e2e.py`.
 - Исследование распределения нагрузки по экспертам на реальном трафике.
-- **Не включайте на обычном инференс-инстансе.** Это тратит хостовую RAM пропорционально размеру KV-cache, добавляет D2H-копию на каждом шаге и запрещает PP и KV-offload.
-- Проверьте несовместимости до включения: PP > 1, любой KV-коннектор, decode/prefill context parallel — всё это даёт отказ старта, а не деградацию.
+- **Не включайте на обычном инференс-инстансе.** Это хостовая RAM размером с KV-cache, D2H-копия на каждом шаге, отдельная компиляция и запрет на PP, context parallel и PD-разнесение.
+- Проверьте условия до включения: Model Runner V2, prefix caching, MoE, отсутствие PD-коннектора — каждое нарушение даёт отказ старта, а не деградацию.
 
 ## Влияние на производительность и память
 
-- **Хостовая RAM.** Главная статья: `num_blocks × block_size × num_layers × top_k` байт (или ×2 при более чем 256 экспертах). Растёт вместе с KV-cache — то есть повышение `--gpu-memory-utilization` косвенно увеличивает и этот буфер.
-- **VRAM.** Device-буфер capturer'а: `max_num_batched_tokens × num_layers × top_k × 4` байт — по комментарию в исходниках «costs only a few MB per worker».
-- **Пропускная способность PCIe.** Каждый шаг несёт D2H-копию собранной маршрутизации; на крупных батчах это единицы мегабайт за шаг.
-- **CPU планировщика.** `store_batch` — одно numpy fancy-index присваивание на шаг, дешёвое, но не бесплатное.
-- **Trade-off с prefix caching.** Буфер индексируется слотами и переживает вытеснение для кэшированных блоков — это плюс по корректности, но означает, что память под него нельзя уменьшить, не уменьшив KV-cache.
+- **Хостовая RAM.** Главная статья: по умолчанию `ёмкость KV-cache в токенах × num_layers × top_k` байт (×2 при более чем 256 экспертах) на первом TP-ранге. Arena выделяется как анонимный `mmap`, физическая память занимается по мере заполнения хранилища, но предел растёт вместе с KV-cache — повышение `--gpu-memory-utilization` косвенно поднимает и его. Явный предел — `--aux-output-config.max_bytes`.
+- **VRAM.** Device-буфер захвата: `max_num_batched_tokens × num_layers × top_k × 4` байт — единицы мегабайт на worker. Выделяется после профилирования KV-cache.
+- **PCIe и CPU.** Асинхронная D2H-копия снимка на каждом шаге и фоновая запись блоков в хранилище; на крупных батчах — единицы мегабайт за шаг.
+- **Время старта.** Новый хеш компиляции: первый запуск с флагом компилирует граф заново.
 
 ## Взаимодействие с другими аргументами
 
-- `--pipeline-parallel-size`: запрещено больше 1.
-- `--kv-transfer-config`: запрещён любой KV-коннектор.
-- `--decode-context-parallel-size` (и prefill-аналог): планировщик требует ровно 1.
-- `--enable-prefix-caching`: совместим; буфер намеренно привязан к физическим слотам, чтобы попадания в кэш возвращали ту же маршрутизацию.
-- `--max-num-batched-tokens`: задаёт размер device-буфера capturer'а.
-- `--gpu-memory-utilization`: через число KV-блоков определяет размер хостового буфера.
+- `--aux-output-config`: каноническая настройка той же функции и единственное место для `max_bytes`; этот флаг лишь включает захват поверх неё.
+- `--enable-prefix-caching`: обязателен, ключи хранилища — хеши блоков prefix cache.
+- `--pipeline-parallel-size`: больше 1 запрещено.
+- `--decode-context-parallel-size`, `--prefill-context-parallel-size`: больше 1 запрещено.
+- `--kv-transfer-config`: PD-коннекторы (NIXL, MoRI-IO, Mooncake) запрещены, коннекторы выгрузки KV-cache допускаются.
+- `--speculative-config`: совместим, кроме `enable_adaptive_verification`; маршрутизация отвергнутых черновых токенов отбрасывается.
+- `--max-num-batched-tokens`: задаёт размер device-буфера захвата и буфера незавершённых блоков.
+- `--gpu-memory-utilization`: через число KV-блоков определяет предел хостового хранилища по умолчанию.
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** `ValueError: --enable-return-routed-experts is incompatible with pipeline parallelism (PP > 1).` **Лечение:** снять PP или флаг.
-- **Симптом:** `ValueError: --enable-return-routed-experts is incompatible with KV connectors (PD disaggregation, KV cache offload).` **Лечение:** то же — одно из двух.
-- **Симптом:** `AssertionError: enable_return_routed_experts does not support context parallelism (dcp_world_size > 1 or pcp_world_size > 1)`. **Лечение:** вернуть context parallel в 1.
-- **Симптом:** `ValueError: Routed-experts capture requires positive layer, expert, and experts-per-token counts, got num_layers=32, num_experts=0, num_experts_per_tok=0.` **Причина:** модель не MoE. **Лечение:** снять флаг.
-- **Симптом:** хост ушёл в своп после старта. **Причина:** буфер менеджера. **Проверка:** строка `RoutedExpertsManager CPU buffer: X GB (slots=..., layers=..., top_k=..., dtype=...)`. **Лечение:** уменьшить KV-cache (`--gpu-memory-utilization`, `--kv-cache-memory-bytes`) или отказаться от флага.
-- **Симптом:** в ответе `routed_experts: null`. **Причина:** запрос прерван до первого forward'а либо флаг на сервере выключен.
-- **Подтверждение принятого значения:** строки `Initializing routed experts capturer, enable_return_routed_experts: True` и `RoutedExpertsManager CPU buffer: ...`; в стартовой строке конфига есть `enable_return_routed_experts=True`.
+- **Симптом:** `ValueError: AuxOutput Connector requires Model Runner V2; set VLLM_USE_V2_MODEL_RUNNER=1.` **Причина:** движок выбрал V1 — проверьте окружение инстанса и предупреждение `Model Runner V2 does not yet support ...` выше в логе. **Лечение:** убрать причину отката или отказаться от флага.
+- **Симптом:** `ValueError: AuxOutput Connector requires prefix caching.` **Лечение:** `--enable-prefix-caching`.
+- **Симптом:** `ValueError: AuxOutput Connector only supports MoE models.` **Причина:** плотная модель. **Лечение:** снять флаг.
+- **Симптом:** `ValueError: --enable-return-routed-experts is incompatible with pipeline parallelism (PP > 1).` или `... with context parallelism (DCP/PCP > 1).` **Лечение:** вернуть PP/CP в 1 или снять флаг.
+- **Симптом:** `ValueError: --enable-return-routed-experts is incompatible with NixlConnector; PD auxiliary output is not supported.` **Лечение:** PD-разнесение и захват маршрутизации не совмещаются.
+- **Симптом:** `ValueError: Routed-experts capture is not supported with monolithic MoE kernel ...` (или `... with router ...`, `No supported MoE router found for routed-experts capture.`). **Причина:** выбранное MoE-ядро или роутер не умеет отдавать маршрутизацию. **Лечение:** другой `--moe-backend` или отказ от флага.
+- **Симптом:** ошибка `auxiliary output object does not exist; the object may have been evicted (used=..., limit=... objects). Increase aux_output_config.max_bytes when a KV cache hit requires it.` **Причина:** заданный вручную `max_bytes` меньше, чем нужно для попаданий в prefix cache. **Лечение:** увеличить `max_bytes` или вернуть значение по умолчанию.
+- **Симптом:** в ответе `routed_experts: null`. **Причина:** стриминговый запрос к chat/completions, запрос прерван до первого forward или захват на сервере выключен.
+- **Подтверждение принятого значения:** строка `RoutedExpertsCapturer: allocating buffer with max_tokens=..., num_layers=..., num_experts_per_tok=... (hf_config.model_type=...)` после инициализации KV-cache; в стартовой строке конфига `aux_output_config=AuxOutputConfig(enable_return_routed_experts=True, ...)`.
 
 ## Примеры
 
 ```bash
-vllm serve /models/Qwen3-30B-A3B --enable-return-routed-experts --tensor-parallel-size 2 --attention-backend FLASH_ATTN
+vllm serve /models/Qwen3-30B-A3B --enable-return-routed-experts --enable-prefix-caching --tensor-parallel-size 2
 ```
 
 ```bash
-vllm serve /models/Qwen3-30B-A3B --enable-return-routed-experts --gpu-memory-utilization 0.7 --max-model-len 4096
+vllm serve /models/Qwen3-30B-A3B --enable-return-routed-experts --enable-prefix-caching --gpu-memory-utilization 0.7 --max-model-len 4096
 ```
 
 ## Источники
 
-- `vllm/vllm/config/model.py`
+- `vllm/vllm/config/aux_output.py`
 - `vllm/vllm/config/vllm.py`
-- `vllm/vllm/v1/core/sched/scheduler.py`
-- `vllm/vllm/v1/worker/gpu_worker.py`
-- `vllm/vllm/v1/worker/gpu_model_runner.py`
+- `vllm/vllm/engine/arg_utils.py`
+- `vllm/vllm/distributed/aux_output_connector/worker.py`
+- `vllm/vllm/distributed/aux_output_connector/store.py`
+- `vllm/vllm/distributed/aux_output_connector/connector.py`
+- `vllm/vllm/distributed/aux_output_connector/routed_experts.py`
 - `vllm/vllm/model_executor/layers/fused_moe/routed_experts_capturer.py`
+- `vllm/vllm/v1/worker/gpu/model_runner.py`
+- `vllm/vllm/v1/core/sched/scheduler.py`
+- `vllm/vllm/v1/engine/output_processor.py`
 - `vllm/vllm/entrypoints/openai/chat_completion/protocol.py`
+- `vllm/vllm/entrypoints/openai/chat_completion/serving.py`
+- `vllm/vllm/entrypoints/scale_out/token_in_token_out/serving.py`
 - `vllm/vllm/sampling_params.py`
+- `vllm/tests/config/test_aux_output_config.py`
 - `vllm/examples/rl/routed_experts_e2e.py`
+- upstream-коммит `0b7f11a1e` «[AuxOutput] Add block-keyed storage for routed-expert outputs (#45635)» в checkout'е
