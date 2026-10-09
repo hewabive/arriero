@@ -101,13 +101,17 @@ export const ApiProxyPublicModelLoadStateSchema = z.enum([
   "disabled",
 ]);
 
+const ApiProxySlotAvailabilitySchema = z.object({
+  availableSlots: z.number().int().nonnegative().nullable().default(null),
+  heldSlots: z.number().int().nonnegative().nullable().default(null),
+  slotPool: z.string().min(1).nullable().default(null),
+});
+
 export const ApiProxyPublicModelStatusSchema = z.object({
   value: ApiProxyPublicModelLoadStateSchema,
   activeRequests: z.number().int().nonnegative(),
   queuedRequests: z.number().int().nonnegative(),
-  availableSlots: z.number().int().nonnegative().nullable().default(null),
-  heldSlots: z.number().int().nonnegative().nullable().default(null),
-  slotPool: z.string().min(1).nullable().default(null),
+  ...ApiProxySlotAvailabilitySchema.shape,
 });
 
 const ApiProxyPipelineConfigBaseSchema = z.object({
@@ -679,9 +683,7 @@ export const ApiProxyTargetRuntimeSchema = z.object({
   state: ApiProxyModelStateSchema.default("unknown"),
   stateDetail: z.string().nullable().default(null),
   activeRequests: z.number().int().min(0).default(0),
-  availableSlots: z.number().int().nonnegative().nullable().default(null),
-  heldSlots: z.number().int().nonnegative().nullable().default(null),
-  slotPool: z.string().min(1).nullable().default(null),
+  ...ApiProxySlotAvailabilitySchema.shape,
   idleSince: z.string().nullable().default(null),
   lastRequestAt: z.string().nullable().default(null),
   savedSlotIds: z.array(z.number().int().min(0)).default([]),
@@ -786,6 +788,9 @@ export type ApiProxyPublicModelLoadState = z.infer<
 >;
 export type ApiProxyPublicModelStatus = z.infer<
   typeof ApiProxyPublicModelStatusSchema
+>;
+export type ApiProxySlotAvailability = z.infer<
+  typeof ApiProxySlotAvailabilitySchema
 >;
 export type ApiProxyConfig = z.infer<typeof ApiProxyConfigSchema>;
 export type ApiProxyQuickRouteCreate = z.infer<

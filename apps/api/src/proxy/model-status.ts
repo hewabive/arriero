@@ -13,6 +13,7 @@ import { apiProxyInflight } from "./inflight.js";
 import { collectApiProxyPipelineRefs } from "./pipeline-validation.js";
 import { listApiProxyModels, listApiProxyPipelines } from "./repository.js";
 import { getCachedApiProxyRuntimeSnapshot } from "./runtime-snapshot.js";
+import { UNKNOWN_SLOT_AVAILABILITY } from "./target-availability.js";
 
 type LeafLoadState = "unloaded" | "loading" | "loaded" | "failed";
 
@@ -117,9 +118,8 @@ export function deriveApiProxyModelStatus(input: {
       value: "disabled",
       activeRequests,
       queuedRequests,
+      ...UNKNOWN_SLOT_AVAILABILITY,
       availableSlots: 0,
-      heldSlots: null,
-      slotPool: null,
     };
   }
 
@@ -128,9 +128,7 @@ export function deriveApiProxyModelStatus(input: {
       value: "loaded",
       activeRequests,
       queuedRequests,
-      availableSlots: null,
-      heldSlots: null,
-      slotPool: null,
+      ...UNKNOWN_SLOT_AVAILABILITY,
     };
   }
 
@@ -153,9 +151,13 @@ export function deriveApiProxyModelStatus(input: {
     value: aggregateApiProxyLoadState(leaves),
     activeRequests,
     queuedRequests,
-    availableSlots: single?.availableSlots ?? null,
-    heldSlots: single?.heldSlots ?? null,
-    slotPool: single?.slotPool ?? null,
+    ...(single
+      ? {
+          availableSlots: single.availableSlots,
+          heldSlots: single.heldSlots,
+          slotPool: single.slotPool,
+        }
+      : UNKNOWN_SLOT_AVAILABILITY),
   };
 }
 

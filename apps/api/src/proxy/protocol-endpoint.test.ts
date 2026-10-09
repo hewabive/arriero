@@ -1103,10 +1103,9 @@ for (const protocol of ["openai", "anthropic"] as const) {
     assert.equal(first.status, 200);
     await first.text();
     await settle();
-    assert.deepEqual(
-      apiProxyInflight.continuationHolds().map((hold) => hold.targetId),
-      [upstream.target.id],
-    );
+    assert.deepEqual(apiProxyInflight.continuationHoldTargetIds(), [
+      upstream.target.id,
+    ]);
 
     const second = await postCapturedRequest(
       app,
@@ -1117,7 +1116,7 @@ for (const protocol of ["openai", "anthropic"] as const) {
     assert.equal(second.status, 200);
     await second.text();
     await settle();
-    assert.equal(apiProxyInflight.continuationHolds().length, 1);
+    assert.equal(apiProxyInflight.continuationHoldTargetIds().length, 1);
   });
 }
 

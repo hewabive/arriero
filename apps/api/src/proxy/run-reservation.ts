@@ -9,12 +9,11 @@ import {
   computeDomainCoordinator,
   type DomainLease,
 } from "./domain-coordinator.js";
-import { externalTargetEndpointId } from "./external-target.js";
 import { apiProxyInflight } from "./inflight.js";
 import type { ApiProxyProtocolDiagnostic } from "./protocol.js";
 import { getApiProxyTarget, listApiProxyTargets } from "./repository.js";
 import { computeDomains } from "./resource-domains.js";
-import { serveTargetInstanceId } from "./serve-target-id.js";
+import { apiProxyTargetInstanceName } from "./target-instance.js";
 
 export type ApiProxyRunReservation = {
   runId: string;
@@ -44,21 +43,6 @@ const reservations = new Map<
   string,
   { reservation: ApiProxyRunReservation; lease: DomainLease | null }
 >();
-
-export function apiProxyTargetInstanceName(
-  targetId: string,
-  target: Pick<ApiProxyTargetRecord, "endpointId"> | null,
-): string | null {
-  if (target) {
-    return instanceIdFromEndpointId(target.endpointId);
-  }
-  const servedInstanceId = serveTargetInstanceId(targetId);
-  if (servedInstanceId !== null) {
-    return servedInstanceId;
-  }
-  const endpointId = externalTargetEndpointId(targetId);
-  return endpointId ? instanceIdFromEndpointId(endpointId) : null;
-}
 
 export function apiProxyReservationScope(
   instanceName: string,

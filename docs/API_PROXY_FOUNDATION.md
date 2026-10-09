@@ -99,7 +99,7 @@ The external protocol surfaces are public and intentionally separate from admin 
 
 ### Operation specs
 
-Every model-based facade route registers an operation `{protocol, endpoint, routePath}`. Everything the proxy decides per operation kind — inbound body mode (`json` today; a multipart operation adds a `bodyMode` variant plus a reader in `protocol-endpoint.ts:operationBodyReaders`, which the compiler then forces complete), upstream path, response shape, prefill-resume eligibility, stream usage metering, prompt-progress injection, Anthropic→OpenAI translatability, count-tokens response scaling, where tool results and tool calls sit for continuation holds (`toolContinuation`) — lives in one declarative table, `apiProxyOperationSpecs` in `proxy/protocol.ts`, read through `apiProxyOperationSpec(operation)`. The lookup is protocol-guarded and returns `null` for an endpoint it does not know (a version-skewed federation peer can send one via `/api/proxy/serve`); an unknown operation keeps flowing down the plain forward path until the missing upstream path answers `501 not_implemented`. Adding an operation kind — a future `images.generations` included — is a table row plus a route registration, never a scattered `operation.endpoint ===` branch.
+Every model-based facade route registers an operation `{protocol, endpoint, routePath}`. Everything the proxy decides per operation kind — inbound body mode (`json` today; a multipart operation adds a `bodyMode` variant plus a reader in `protocol-endpoint.ts:operationBodyReaders`, which the compiler then forces complete), upstream path, response shape, prefill-resume eligibility, stream usage metering, prompt-progress injection, Anthropic→OpenAI translatability, count-tokens response scaling, whether a conversation can continue tool calls for continuation holds (`toolContinuation`, read in the row's response shape) — lives in one declarative table, `apiProxyOperationSpecs` in `proxy/protocol.ts`, read through `apiProxyOperationSpec(operation)`. The lookup is protocol-guarded and returns `null` for an endpoint it does not know (a version-skewed federation peer can send one via `/api/proxy/serve`); an unknown operation keeps flowing down the plain forward path until the missing upstream path answers `501 not_implemented`. Adding an operation kind — a future `images.generations` included — is a table row plus a route registration, never a scattered `operation.endpoint ===` branch.
 
 Model-independent Files operations use `apiProxyFileOperationSpecs` in the same module for their methods, paths, and streaming body mode, with forwarding in `proxy/files.ts`. They share the source gate but bypass model routing and inference telemetry.
 
@@ -155,9 +155,14 @@ Capacity comes first from a valid llama `/slots` response, then `/props.total_sl
 instance's logged slot count, or an explicit engine concurrency argument. Configuration drift
 disables the argument fallback; router presets do not supply a per-model fallback. Occupancy
 uses the larger of observed upstream processing slots and tracked active proxy requests,
-then subtracts queued proxy requests as already committed demand. Requests are grouped across
-all targets and public model names sharing the instance, including pinned/delegated serve
-requests. Two mechanisms keep an agent session's slot counted between its model calls:
+then subtracts queued proxy requests as already committed demand. Requests are grouped by slot
+pool: the instance, across all targets and public model names sharing it, including
+pinned/delegated serve requests. A llama.cpp router instance (`--models-preset`, or `/props`
+`role: "router"`) gives each model child its own slots, so its pool is the instance plus the
+target's upstream model; demand whose model is unknown there — pinned/delegated serve requests,
+endpoint-routed requests, model-less targets — counts against every model pool of the router
+(`proxy/target-availability.ts:targetSlotPools`). Two mechanisms keep an agent session's slot
+counted between its model calls:
 
 - **Tool continuation hold.** A successful response that ends in client tool calls — OpenAI
   `tool_calls`, Anthropic `tool_use`, Responses output items with a `call_id`, streamed or not —
@@ -166,8 +171,8 @@ requests. Two mechanisms keep an agent session's slot counted between its model 
   claimed by that source's next tool-result request), or until `continuationHoldMs` passes
   (`config/proxy/settings.json`, default 60 s, `0` = off). The hold keys on the protocol, not on
   client headers, so rag-manager agents, Claude Code and Codex are covered alike; holds live
-  per node in `proxy/inflight.ts`. The operation-spec column `toolContinuation` says where an
-  operation carries tool results and tool calls (`proxy/tool-calls.ts`);
+  per node in `proxy/inflight.ts`. The operation-spec flag `toolContinuation` marks the operations
+  whose tool results and tool calls are read in the row's `responseShape` (`proxy/tool-calls.ts`);
   `messages.count_tokens` carries a conversation but never continues one. The 60 s default
   covers every tool gap of the rag-manager sessions in the workload index (median 0.2 s, p95
   3.5 s, max 120 s when chosen); a gap after a final answer is a human turn, so nothing is held.
@@ -185,8 +190,8 @@ activity counters and scheduler admission continue to use current requests, whil
 lets continuations go first (`docs/API_PROXY_PREEMPTION.md` § Compute-domain coordinator).
 Ended requests retained for display beyond the cooldown do not consume capacity.
 
-`status.held_slots` counts the holds on the instance, and `status.slot_pool` is an opaque, stable
-key of the instance whose slots are counted — equal for every public model name and target on
+`status.held_slots` counts the holds on the pool, and `status.slot_pool` is an opaque, stable key
+of the pool whose slots are counted — equal for every public model name and target drawing from
 it — so a client choosing several models at once (an arena pair) can tell when they draw from one
 pool. Both are `null` whenever `available_slots` is. Without native slot telemetry, this is an estimate based on
 traffic seen by this manager; remote engines without
@@ -330,7 +335,7 @@ refuses every request, a reservation only those bound for the reserved instances
   (`apiProxyReservationScope`); `GET /api/benchmark/reservation-preview` lists them with the proxy
   targets that will refuse. External endpoints are never reserved. A target maps to its instance
   through its endpoint id, the ephemeral `serve:` and `endpoint:` targets included
-  (`apiProxyTargetInstanceName`).
+  (`proxy/target-instance.ts:apiProxyTargetInstanceName`, shared with the slot estimate).
 - **Admission** — `serveResolvedTarget` checks the resolved target right after routing, before
   autostart and the lease, and `executeApiProxyModelSubRequest` checks every fusion panel. Both
   answer with the `arriero_proxy_instance_reserved` diagnostic: HTTP 503, `Retry-After` from the

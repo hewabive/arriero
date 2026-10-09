@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { ApiProxyInflightRegistry } from "./inflight.js";
 import { responseToolCalls, trailingToolResultIds } from "./tool-calls.js";
 import {
+  isToolContinuation,
   markToolContinuation,
   recordNonStreamToolCalls,
 } from "./tool-continuation.js";
@@ -105,7 +106,7 @@ test("non-stream responses yield their tool calls per protocol", () => {
     }),
     [{ index: 0, id: "call_9", name: "shell" }],
   );
-  assert.equal(responseToolCalls("openai-chat", "not an object"), null);
+  assert.deepEqual(responseToolCalls("openai-chat", "not an object"), []);
 });
 
 test("only conversational operations mark continuations and record non-stream tool calls", () => {
@@ -135,26 +136,34 @@ test("only conversational operations mark continuations and record non-stream to
   recordNonStreamToolCalls(
     answer,
     { protocol: "openai", endpoint: "chat.completions" },
-    JSON.stringify({
-      choices: [{ message: { tool_calls: [{ id: "call_x" }] } }],
-    }),
+    { choices: [{ message: { tool_calls: [{ id: "call_x" }] } }] },
   );
   recordNonStreamToolCalls(
     answer,
     { protocol: "openai", endpoint: "embeddings" },
-    JSON.stringify({
-      choices: [{ message: { tool_calls: [{ id: "call_y" }] } }],
-    }),
+    { choices: [{ message: { tool_calls: [{ id: "call_y" }] } }] },
   );
   answer.end(true, 60_000);
-  assert.deepEqual(
-    registry.continuationHolds().map((hold) => hold.targetId),
-    ["t"],
-  );
+  assert.deepEqual(registry.continuationHoldTargetIds(), ["t"]);
   const next = registry.begin({ modelId: "m", protocol: "openai" });
   next.continueToolCalls(["call_y"]);
-  assert.deepEqual(
-    registry.continuationHolds().map((hold) => hold.targetId),
-    ["t"],
+  assert.deepEqual(registry.continuationHoldTargetIds(), ["t"]);
+});
+
+test("a conversation ending in tool results is a continuation only for conversational operations", () => {
+  const body = {
+    messages: [{ role: "tool", tool_call_id: "call_1", content: "ok" }],
+  };
+  const chat = { protocol: "openai", endpoint: "chat.completions" } as const;
+  assert.equal(isToolContinuation(chat, body), true);
+  assert.equal(
+    isToolContinuation(chat, {
+      messages: [{ role: "user", content: "hi" }],
+    }),
+    false,
+  );
+  assert.equal(
+    isToolContinuation({ protocol: "openai", endpoint: "embeddings" }, body),
+    false,
   );
 });

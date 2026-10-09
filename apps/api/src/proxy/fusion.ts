@@ -59,6 +59,7 @@ import {
 } from "./resumable-forward.js";
 import { applyProxyStreamHealth } from "./stream-health.js";
 import { executeApiProxyTargetReadiness } from "./target-lifecycle.js";
+import { isToolContinuation } from "./tool-continuation.js";
 import { translatedAnthropicResumableCodec } from "./translation.js";
 import { resolveApiProxyUpstreamContext } from "./upstream-context.js";
 import { createApiProxyTokenCounter } from "./token-count.js";
@@ -131,6 +132,7 @@ export async function executeApiProxyModelSubRequest(input: {
         targetId: target.id,
         priority: target.priority,
         preemptible: false,
+        continuation: isToolContinuation(input.operation, input.body),
         ...(input.signal ? { signal: input.signal } : {}),
         decide: buildDomainAdmissionDecider({
           candidateTargetId: target.id,

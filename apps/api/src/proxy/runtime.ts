@@ -1,6 +1,5 @@
 import {
   apiProxyInflightPhaseEnded,
-  instanceEndpointId,
   type ApiEndpointRecord,
   type ApiProxyInflightRequest,
   type ApiProxyModelState,
@@ -14,14 +13,12 @@ import {
 } from "@arriero/core";
 
 import { asObject } from "./json.js";
-import type {
-  ApiProxyContinuationHold,
-  ApiProxySlotActivity,
-} from "./inflight.js";
+import type { ApiProxySlotActivity } from "./inflight.js";
 import {
-  availableApiProxyTargetSlots,
-  instanceRequestDemand,
-  type InstanceRequestDemand,
+  apiProxyTargetSlotAvailability,
+  isRouterUpstream,
+  targetSlotPools,
+  type TargetSlotPool,
 } from "./target-availability.js";
 import { resolveApiProxyTarget } from "./targets.js";
 
@@ -308,8 +305,8 @@ function deriveApiProxyTargetRuntime(input: {
   metadata?: ApiProxyRuntimeMetadataRecord | undefined;
   inFlight?: boolean | undefined;
   inflight?: ApiProxyInflightRequest[] | undefined;
-  instanceDemand?: InstanceRequestDemand | undefined;
-  instanceKey: string;
+  router: boolean;
+  slotPool: TargetSlotPool;
   checkedAt: string;
 }): ApiProxyTargetRuntime {
   const inflight = input.endpointEnabled ? (input.inflight ?? []) : [];
@@ -343,12 +340,13 @@ function deriveApiProxyTargetRuntime(input: {
     checkedAt: input.checkedAt,
     metadata: input.metadata,
   });
-  const availableSlots = availableApiProxyTargetSlots({
+  const slots = apiProxyTargetSlotAvailability({
     state: derived.state,
     instance: input.instance,
     health: input.remoteManaged ? input.remoteHealth : input.health,
     model: input.target.model,
-    demand: input.instanceDemand,
+    router: input.router,
+    pool: input.slotPool,
   });
 
   return {
@@ -361,10 +359,7 @@ function deriveApiProxyTargetRuntime(input: {
     state: derived.state,
     stateDetail: derived.detail,
     activeRequests,
-    availableSlots,
-    heldSlots:
-      availableSlots === null ? null : (input.instanceDemand?.held ?? 0),
-    slotPool: availableSlots === null ? null : input.instanceKey,
+    ...slots,
     idleSince: tracker.idleSince,
     lastRequestAt: tracker.lastRequestAt,
     savedSlotIds: tracker.savedSlotIds,
@@ -384,33 +379,47 @@ export function buildApiProxyRuntimeSnapshot(input: {
   busyTargetIds?: Set<string> | undefined;
   inflightByTargetId?: Map<string, ApiProxyInflightRequest[]> | undefined;
   recentSlotActivity?: ApiProxySlotActivity[] | undefined;
-  continuationHolds?: ApiProxyContinuationHold[] | undefined;
+  continuationHoldTargetIds?: string[] | undefined;
 }): ApiProxyRuntimeSnapshot {
-  const instanceById = new Map(
-    input.instances.map((instance) => [instance.name, instance]),
-  );
-  const resolutionByTargetId = new Map(
-    input.targets.map((target) => [
-      target.id,
-      resolveApiProxyTarget(target, input.instances, input.endpoints),
-    ]),
-  );
-  const activeTargetIds = new Set(input.targets.map((target) => target.id));
-  const instanceKeyByTargetId = new Map(
-    [...resolutionByTargetId].map(([id, resolution]) => [
-      id,
-      resolution.instanceId
-        ? instanceEndpointId(resolution.instanceId)
-        : resolution.endpointId,
-    ]),
-  );
-  const demandByInstance = instanceRequestDemand({
-    instanceKeyByTargetId,
+  const contexts = input.targets.map((target) => {
+    const resolution = resolveApiProxyTarget(
+      target,
+      input.instances,
+      input.endpoints,
+    );
+    const instance = resolution.instance ?? undefined;
+    const health = resolution.instanceId
+      ? input.healthByInstanceId.get(resolution.instanceId)
+      : undefined;
+    const remoteManaged = input.remoteManagedTargetIds?.has(target.id) ?? false;
+    const remoteHealth = input.remoteHealthByTargetId?.get(target.id);
+    const router = isRouterUpstream(
+      instance,
+      remoteManaged ? remoteHealth : health,
+    );
+    return {
+      target,
+      resolution,
+      instance,
+      health,
+      remoteManaged,
+      remoteHealth,
+      router,
+    };
+  });
+  const slotPools = targetSlotPools({
+    members: contexts.map(({ target, router }) => ({
+      targetId: target.id,
+      endpointId: target.endpointId,
+      model: target.model,
+      router,
+    })),
     inflightByTargetId: input.inflightByTargetId ?? new Map(),
     busyTargetIds: input.busyTargetIds ?? new Set(),
     recentSlotActivity: input.recentSlotActivity ?? [],
-    continuationHolds: input.continuationHolds ?? [],
+    continuationHoldTargetIds: input.continuationHoldTargetIds ?? [],
   });
+  const activeTargetIds = new Set(input.targets.map((target) => target.id));
   for (const targetId of runtimeTrackers.keys()) {
     if (!activeTargetIds.has(targetId)) {
       runtimeTrackers.delete(targetId);
@@ -419,34 +428,27 @@ export function buildApiProxyRuntimeSnapshot(input: {
 
   return {
     checkedAt: input.checkedAt,
-    targets: input.targets.map((target) => {
-      const resolution = resolutionByTargetId.get(target.id);
-      const instanceKey =
-        instanceKeyByTargetId.get(target.id) ?? target.endpointId;
-      return deriveApiProxyTargetRuntime({
+    targets: contexts.map(({ target, resolution, ...context }) =>
+      deriveApiProxyTargetRuntime({
         target,
-        kind: resolution?.kind ?? "external-api",
-        endpointId: resolution?.endpointId ?? target.endpointId,
-        baseUrl: resolution?.baseUrl ?? "http://127.0.0.1",
-        endpointEnabled: resolution?.enabled ?? false,
-        resolutionError: resolution?.error,
-        instanceId: resolution?.instanceId ?? null,
-        instance: resolution?.instanceId
-          ? instanceById.get(resolution.instanceId)
-          : undefined,
-        health: resolution?.instanceId
-          ? input.healthByInstanceId.get(resolution.instanceId)
-          : undefined,
-        remoteManaged: input.remoteManagedTargetIds?.has(target.id) ?? false,
-        remoteHealth: input.remoteHealthByTargetId?.get(target.id),
+        kind: resolution.kind,
+        endpointId: resolution.endpointId,
+        baseUrl: resolution.baseUrl,
+        endpointEnabled: resolution.enabled,
+        resolutionError: resolution.error,
+        instanceId: resolution.instanceId,
+        instance: context.instance,
+        health: context.health,
+        remoteManaged: context.remoteManaged,
+        remoteHealth: context.remoteHealth,
         metadata: input.metadataByTargetId?.get(target.id),
         inFlight: input.busyTargetIds?.has(target.id) ?? false,
         inflight: input.inflightByTargetId?.get(target.id),
-        instanceDemand: demandByInstance.get(instanceKey),
-        instanceKey,
+        router: context.router,
+        slotPool: slotPools.get(target.id)!,
         checkedAt: input.checkedAt,
-      });
-    }),
+      }),
+    ),
   };
 }
 

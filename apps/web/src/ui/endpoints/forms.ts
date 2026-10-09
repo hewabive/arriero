@@ -5,10 +5,7 @@ import type {
   ApiProxyReasoningOverride,
 } from "@arriero/core";
 
-import {
-  streamIdleMsFromSeconds,
-  streamIdleSecondsFromMs,
-} from "./stream-idle-input";
+import { msFromSeconds, secondsFromMs } from "./stream-idle-input";
 
 export type EndpointEditor =
   | { mode: "create"; endpoint: null }
@@ -86,9 +83,7 @@ export function endpointDraftFromRecord(
     denyPatterns: formatPatterns(endpoint.modelFilter?.deny),
     reasoning: endpoint.reasoning,
     streamTerminal: endpoint.streamTerminal,
-    streamIdleTimeoutSeconds: streamIdleSecondsFromMs(
-      endpoint.streamIdleTimeoutMs,
-    ),
+    streamIdleTimeoutSeconds: secondsFromMs(endpoint.streamIdleTimeoutMs),
   };
 }
 
@@ -126,9 +121,7 @@ export function endpointPayload(draft: EndpointDraft): ApiEndpointCreate {
     modelFilter,
     reasoning: draft.reasoning,
     streamTerminal: draft.streamTerminal,
-    streamIdleTimeoutMs: streamIdleMsFromSeconds(
-      draft.streamIdleTimeoutSeconds,
-    ),
+    streamIdleTimeoutMs: msFromSeconds(draft.streamIdleTimeoutSeconds),
     ...(apiKey && !envVar
       ? { apiKey }
       : draft.clearApiKey && !envVar

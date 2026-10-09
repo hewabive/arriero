@@ -4,11 +4,11 @@ import { NumberInput } from "@mantine/core";
 export const DEFAULT_STREAM_IDLE_TIMEOUT_SECONDS =
   DEFAULT_STREAM_IDLE_TIMEOUT_MS / 1000;
 
-export function streamIdleSecondsFromMs(ms: number | null): number | null {
+export function secondsFromMs(ms: number | null): number | null {
   return ms === null ? null : Math.round(ms / 1000);
 }
 
-export function streamIdleMsFromSeconds(seconds: number | null): number | null {
+export function msFromSeconds(seconds: number | null): number | null {
   return seconds === null ? null : seconds * 1000;
 }
 

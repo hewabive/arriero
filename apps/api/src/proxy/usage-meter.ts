@@ -90,7 +90,14 @@ export function usageFromNonStreamBody(
   } catch {
     return null;
   }
-  const obj = asObject(parsed);
+  return usageFromNonStreamValue(protocol, parsed);
+}
+
+export function usageFromNonStreamValue(
+  protocol: ApiProxyProtocolId,
+  body: unknown,
+): ProxyUsageCounts | null {
+  const obj = asObject(body);
   const usage = asObject(obj?.usage);
   if (!usage) {
     return null;

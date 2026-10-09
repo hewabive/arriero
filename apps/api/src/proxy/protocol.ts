@@ -212,7 +212,7 @@ type ApiProxyOperationSpec = {
   countTokensResponse: boolean;
   tokenCountRequest: "chat" | null;
   nativeReasoningControl: boolean;
-  toolContinuation: ApiProxyResponseShape | null;
+  toolContinuation: boolean;
 };
 
 const apiProxyOperationSpecs = {
@@ -229,7 +229,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: "chat",
     nativeReasoningControl: true,
-    toolContinuation: "openai-chat",
+    toolContinuation: true,
   },
   completions: {
     protocol: "openai",
@@ -244,7 +244,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
-    toolContinuation: null,
+    toolContinuation: false,
   },
   embeddings: {
     protocol: "openai",
@@ -259,7 +259,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
-    toolContinuation: null,
+    toolContinuation: false,
   },
   rerank: {
     protocol: "openai",
@@ -274,7 +274,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
-    toolContinuation: null,
+    toolContinuation: false,
   },
   responses: {
     protocol: "openai",
@@ -289,7 +289,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: null,
     nativeReasoningControl: false,
-    toolContinuation: "openai-responses",
+    toolContinuation: true,
   },
   messages: {
     protocol: "anthropic",
@@ -304,7 +304,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: false,
     tokenCountRequest: "chat",
     nativeReasoningControl: true,
-    toolContinuation: "anthropic",
+    toolContinuation: true,
   },
   "messages.count_tokens": {
     protocol: "anthropic",
@@ -319,7 +319,7 @@ const apiProxyOperationSpecs = {
     countTokensResponse: true,
     tokenCountRequest: null,
     nativeReasoningControl: false,
-    toolContinuation: null,
+    toolContinuation: false,
   },
 } satisfies Record<string, ApiProxyOperationSpec>;
 

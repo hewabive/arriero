@@ -14,7 +14,7 @@ import {
   type ApiProxyResumableStreamChunk,
   type ApiProxyResumableToolCallDelta,
 } from "./protocol.js";
-import { responseToolCalls } from "./tool-calls.js";
+import { responsesOutputItemToolCall } from "./tool-calls.js";
 import { openaiCachedTokens, upstreamGenerationMs } from "./usage-meter.js";
 
 export type OpenAiErrorType =
@@ -441,17 +441,18 @@ export const openAiResponsesUsageCodec: Pick<
       };
     }
     if (type === "response.output_item.done") {
-      const toolCalls = responseToolCalls("openai-responses", {
-        output: [event.item],
-      })?.map((call) => ({
-        ...call,
-        index:
-          typeof event.output_index === "number"
-            ? event.output_index
-            : call.index,
-      }));
-      return toolCalls && toolCalls.length > 0
-        ? { text: "", finishReason: null, id: null, model: null, toolCalls }
+      const toolCall = responsesOutputItemToolCall(
+        event.item,
+        typeof event.output_index === "number" ? event.output_index : 0,
+      );
+      return toolCall
+        ? {
+            text: "",
+            finishReason: null,
+            id: null,
+            model: null,
+            toolCalls: [toolCall],
+          }
         : null;
     }
     return null;

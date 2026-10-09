@@ -89,7 +89,7 @@ export async function getApiProxyRuntimeSnapshot(options?: {
         delegatedInflight,
       ),
       recentSlotActivity: apiProxyInflight.recentSlotActivity(),
-      continuationHolds: apiProxyInflight.continuationHolds(),
+      continuationHoldTargetIds: apiProxyInflight.continuationHoldTargetIds(),
     }),
   };
 }

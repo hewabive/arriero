@@ -650,7 +650,7 @@ function trackedAvailability() {
         healthByInstanceId: new Map([["instance-a", slotHealth(4)]]),
         inflightByTargetId: registry.snapshotByTarget(),
         recentSlotActivity: registry.recentSlotActivity(),
-        continuationHolds: registry.continuationHolds(),
+        continuationHoldTargetIds: registry.continuationHoldTargetIds(),
         ...overrides,
       }),
   };
@@ -1005,6 +1005,46 @@ test("router-wide arguments and log slots do not invent per-model capacity", () 
     });
     assert.equal(snapshot.targets[0]?.availableSlots, null);
   }
+});
+
+test("router models draw from their own slot pools while unknown-model demand counts against each", () => {
+  const proxyInstance = instance();
+  proxyInstance.args = { "--models-preset": "/tmp/models.ini" };
+  const summary = health();
+  summary.probe.llama!.props = endpoint({ role: "router" });
+  summary.probe.models = endpoint({
+    data: ["chat", "code"].map((id) => ({ id, status: { value: "loaded" } })),
+  });
+  for (const id of ["chat", "code"]) {
+    summary.probe.llama!.modelDiagnostics[id] = {
+      id,
+      props: endpoint({}),
+      slots: slotHealth(4).probe.llama!.slots,
+      metrics: endpoint(null, false),
+      loraAdapters: endpoint(null, false),
+    };
+  }
+  const snapshot = availabilitySnapshot({
+    targets: [
+      target({ id: "chat-a", model: "chat" }),
+      target({ id: "code", model: "code" }),
+      target({ id: "chat-b", model: "chat" }),
+    ],
+    instances: [proxyInstance],
+    healthByInstanceId: new Map([["instance-a", summary]]),
+    inflightByTargetId: new Map([
+      ["chat-a", [pendingRequest("chat-turn")]],
+      ["serve:instance-a", [pendingRequest("pinned")]],
+    ]),
+  });
+  assert.deepEqual(
+    snapshot.targets.map((item) => [item.availableSlots, item.slotPool]),
+    [
+      [2, "instance:instance-a#chat"],
+      [3, "instance:instance-a#code"],
+      [2, "instance:instance-a#chat"],
+    ],
+  );
 });
 
 test("remote target aliases share slots without mixing other nodes or local instances", () => {

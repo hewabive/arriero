@@ -27,33 +27,45 @@ import {
 import { ApiEndpointsSection } from "../endpoints/section";
 import {
   DEFAULT_STREAM_IDLE_TIMEOUT_SECONDS,
+  msFromSeconds,
+  secondsFromMs,
   StreamIdleTimeoutInput,
-  streamIdleMsFromSeconds,
-  streamIdleSecondsFromMs,
 } from "../endpoints/stream-idle-input";
 import { useApiProxySettings } from "../proxy/use-api-proxy-settings";
 import { notifyError } from "../utils/notify";
 
-function StreamIdleTimeoutSetting() {
-  const { query, mutation, settings } = useApiProxySettings(
-    notifyError("Settings update failed"),
-  );
-  const stored = settings?.streamIdleTimeoutMs ?? null;
+function useSecondsDraft(
+  storedMs: number | null,
+  save: (ms: number | null, onSaved: () => void) => void,
+) {
   const [draft, setDraft] = useState<number | null | undefined>(undefined);
   const commit = () => {
     if (draft === undefined) {
       return;
     }
-    const next = streamIdleMsFromSeconds(draft);
-    if (next === stored) {
+    const next = msFromSeconds(draft);
+    if (next === storedMs) {
       setDraft(undefined);
       return;
     }
-    mutation.mutate(
-      { streamIdleTimeoutMs: next },
-      { onSuccess: () => setDraft(undefined) },
-    );
+    save(next, () => setDraft(undefined));
   };
+  return {
+    seconds: draft !== undefined ? draft : secondsFromMs(storedMs),
+    setDraft,
+    commit,
+  };
+}
+
+function StreamIdleTimeoutSetting() {
+  const { query, mutation, settings } = useApiProxySettings(
+    notifyError("Settings update failed"),
+  );
+  const draft = useSecondsDraft(
+    settings?.streamIdleTimeoutMs ?? null,
+    (ms, onSaved) =>
+      mutation.mutate({ streamIdleTimeoutMs: ms }, { onSuccess: onSaved }),
+  );
   return (
     <Paper withBorder p="md" radius="sm">
       <StreamIdleTimeoutInput
@@ -61,9 +73,9 @@ function StreamIdleTimeoutSetting() {
         placeholder={String(DEFAULT_STREAM_IDLE_TIMEOUT_SECONDS)}
         maw={520}
         disabled={query.isPending || mutation.isPending}
-        value={draft !== undefined ? draft : streamIdleSecondsFromMs(stored)}
-        onChange={setDraft}
-        onBlur={commit}
+        value={draft.seconds}
+        onChange={draft.setDraft}
+        onBlur={draft.commit}
       />
     </Paper>
   );
@@ -73,21 +85,13 @@ function ContinuationHoldSetting() {
   const { query, mutation, settings } = useApiProxySettings(
     notifyError("Settings update failed"),
   );
-  const stored = settings?.continuationHoldMs ?? null;
-  const [draft, setDraft] = useState<number | null | undefined>(undefined);
-  const commit = () => {
-    if (draft === undefined) {
-      return;
-    }
-    if (draft === null || draft * 1000 === stored) {
-      setDraft(undefined);
-      return;
-    }
-    mutation.mutate(
-      { continuationHoldMs: draft * 1000 },
-      { onSuccess: () => setDraft(undefined) },
-    );
-  };
+  const draft = useSecondsDraft(
+    settings?.continuationHoldMs ?? null,
+    (ms, onSaved) =>
+      ms === null
+        ? onSaved()
+        : mutation.mutate({ continuationHoldMs: ms }, { onSuccess: onSaved }),
+  );
   return (
     <Paper withBorder p="md" radius="sm">
       <NumberInput
@@ -98,15 +102,11 @@ function ContinuationHoldSetting() {
         max={API_PROXY_CONTINUATION_HOLD_MAX_MS / 1000}
         allowDecimal={false}
         disabled={query.isPending || mutation.isPending}
-        value={
-          draft !== undefined
-            ? (draft ?? "")
-            : stored === null
-              ? ""
-              : Math.round(stored / 1000)
+        value={draft.seconds ?? ""}
+        onChange={(value) =>
+          draft.setDraft(typeof value === "number" ? value : null)
         }
-        onChange={(value) => setDraft(typeof value === "number" ? value : null)}
-        onBlur={commit}
+        onBlur={draft.commit}
       />
     </Paper>
   );

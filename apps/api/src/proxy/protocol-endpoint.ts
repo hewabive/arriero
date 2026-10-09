@@ -3,6 +3,7 @@ import {
   type ApiProxyTargetRecord,
   type FleetNode,
 } from "@arriero/core";
+import { translateOpenAiResponse } from "@arriero/anthropic-openai-bridge";
 import type { Context } from "hono";
 
 import { asObject, withBodyFields } from "./json.js";
@@ -79,6 +80,7 @@ import {
   recordTraceWithDeferredTiming,
   recordUpstreamErrorBody,
   resumableTraceUsage,
+  safeJsonParse,
   traceDiagnosticResponse,
   traceUsageFromCounts,
   translatedUpstreamError,
@@ -152,7 +154,6 @@ import { apiProxyStats } from "./stats.js";
 import { apiProxyStreamSessions } from "./stream-session.js";
 import {
   createAnthropicTranslationStream,
-  translateOpenAiResponseText,
   translatedAnthropicResumableCodec,
 } from "./translation.js";
 import {
@@ -161,6 +162,7 @@ import {
   requestBreaksStreamReconstruction,
   returnProgressRequested,
   usageFromNonStreamBody,
+  usageFromNonStreamValue,
   withIncludeUsage,
   withReturnProgress,
   type ProxyUsageCounts,
@@ -786,11 +788,12 @@ async function delegateRemoteTarget(input: {
 
     if (!request.stream) {
       const text = await upstream.text();
-      const usage = usageFromNonStreamBody(operation.protocol, text);
+      const responseBody = safeJsonParse(text);
+      const usage = usageFromNonStreamValue(operation.protocol, responseBody);
       if (usage) {
         trace.usage = traceUsageFromCounts(usage);
       }
-      recordNonStreamToolCalls(inflight, operation, text);
+      recordNonStreamToolCalls(inflight, operation, responseBody);
       const delivered = applyApiProxyResponsePlanText(responsePlan, text, {
         status: upstream.status,
         contentType: headers.get("content-type") ?? "application/json",
@@ -1382,7 +1385,8 @@ export async function serveResolvedTarget(input: {
           });
         }
         const text = await upstream.text();
-        const usage = usageFromNonStreamBody(forward.protocol, text);
+        const upstreamBody = safeJsonParse(text);
+        const usage = usageFromNonStreamValue(forward.protocol, upstreamBody);
         if (usage) {
           trace.usage = traceUsageFromCounts(
             usage,
@@ -1390,11 +1394,19 @@ export async function serveResolvedTarget(input: {
           );
         }
         const task = resolveSlot();
-        const translatedText = translateAnthropic
-          ? translateOpenAiResponseText(text)
+        const translatedBody =
+          translateAnthropic && upstreamBody !== null
+            ? translateOpenAiResponse(upstreamBody)
+            : null;
+        const translatedText = translatedBody
+          ? JSON.stringify(translatedBody)
           : null;
         const clientText = translatedText ?? text;
-        recordNonStreamToolCalls(inflight, operation, clientText);
+        recordNonStreamToolCalls(
+          inflight,
+          operation,
+          translatedBody ?? upstreamBody,
+        );
         const clientContentType = translatedText
           ? "application/json"
           : (upstream.headers.get("content-type") ?? "application/json");

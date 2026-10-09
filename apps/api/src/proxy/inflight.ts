@@ -119,19 +119,12 @@ export type ApiProxySlotActivity = {
   endedAt: number;
 };
 
-export type ApiProxyContinuationHold = {
+type ContinuationHold = {
   targetId: string;
-};
-
-type ContinuationHoldEntry = ApiProxyContinuationHold & {
-  sourceKey: string;
+  sourceId: string | null;
   toolCallIds: Set<string>;
   expiresAt: number;
 };
-
-function sourceKeyOf(entry: InflightEntry): string {
-  return entry.sourceId ?? "";
-}
 
 export type ApiProxyInflightHandle = {
   readonly id: string;
@@ -217,7 +210,7 @@ function toView(entry: InflightEntry, at: number): ApiProxyInflightRequest {
 
 export class ApiProxyInflightRegistry {
   private readonly entries = new Map<string, InflightEntry>();
-  private holds: ContinuationHoldEntry[] = [];
+  private holds: ContinuationHold[] = [];
   private readonly clock: () => number;
   private readonly endedRetainMs: number;
 
@@ -392,7 +385,7 @@ export class ApiProxyInflightRegistry {
       },
       continueToolCalls: (toolCallIds) => {
         entry.continuation = true;
-        this.claimHold(sourceKeyOf(entry), toolCallIds);
+        this.claimHold(entry.sourceId, toolCallIds);
       },
       isContinuation: () => entry.continuation,
       end: (ok = true, continuationHoldMs = 0) => {
@@ -402,31 +395,25 @@ export class ApiProxyInflightRegistry {
         entry.endedAt = this.clock();
         entry.phase = ok ? "done" : "failed";
         if (ok && continuationHoldMs > 0) {
-          this.holdForContinuation(entry, continuationHoldMs);
+          this.holdForContinuation(entry, entry.endedAt + continuationHoldMs);
         }
       },
     };
   }
 
-  private holdForContinuation(entry: InflightEntry, holdMs: number): void {
-    const calls = entry.toolCalls.filter(Boolean);
-    if (
-      calls.length === 0 ||
-      entry.targetId === null ||
-      entry.dispatchedAt === null ||
-      entry.endedAt === null
-    ) {
+  private holdForContinuation(entry: InflightEntry, expiresAt: number): void {
+    if (entry.toolCalls.length === 0 || entry.targetId === null) {
       return;
     }
     this.holds.push({
       targetId: entry.targetId,
-      sourceKey: sourceKeyOf(entry),
+      sourceId: entry.sourceId,
       toolCallIds: new Set(
-        calls
+        entry.toolCalls
           .map((call) => call.id)
           .filter((id): id is string => id !== null && id.length > 0),
       ),
-      expiresAt: entry.endedAt + holdMs,
+      expiresAt,
     });
   }
 
@@ -434,20 +421,21 @@ export class ApiProxyInflightRegistry {
     this.holds = this.holds.filter((hold) => hold.expiresAt > at);
   }
 
-  private claimHold(sourceKey: string, toolCallIds: string[]): void {
+  private claimHold(sourceId: string | null, toolCallIds: string[]): void {
     this.sweepHolds(this.clock());
-    const own = this.holds.filter((hold) => hold.sourceKey === sourceKey);
+    const ownHold = (matches: (hold: ContinuationHold) => boolean) =>
+      this.holds.find((hold) => hold.sourceId === sourceId && matches(hold));
     const claimed =
-      own.find((hold) => toolCallIds.some((id) => hold.toolCallIds.has(id))) ??
-      own.find((hold) => hold.toolCallIds.size === 0);
+      ownHold((hold) => toolCallIds.some((id) => hold.toolCallIds.has(id))) ??
+      ownHold((hold) => hold.toolCallIds.size === 0);
     if (claimed) {
       this.holds = this.holds.filter((hold) => hold !== claimed);
     }
   }
 
-  continuationHolds(): ApiProxyContinuationHold[] {
+  continuationHoldTargetIds(): string[] {
     this.sweepHolds(this.clock());
-    return this.holds.map((hold) => ({ targetId: hold.targetId }));
+    return this.holds.map((hold) => hold.targetId);
   }
 
   private sweepEnded(at: number): void {

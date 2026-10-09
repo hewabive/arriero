@@ -528,7 +528,7 @@ function holdRegistry() {
     handle.continueToolCalls(toolCallIds);
     return handle;
   };
-  const held = () => registry.continuationHolds().map((hold) => hold.targetId);
+  const held = () => registry.continuationHoldTargetIds();
   return {
     registry,
     at: (value: number) => {

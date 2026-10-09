@@ -16,10 +16,10 @@ import {
   apiProxyInstanceReservation,
   apiProxyReservationDiagnostic,
   apiProxyReservationScope,
-  apiProxyTargetInstanceName,
   reserveApiProxyInstances,
 } from "./run-reservation.js";
 import { serveTargetId } from "./serve-target-id.js";
+import { apiProxyTargetInstanceName } from "./target-instance.js";
 
 const fixture = instanceTestFixture("run-reservation");
 const created: string[] = [];

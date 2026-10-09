@@ -12,21 +12,29 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function idsOf(items: JsonRecord[], field: string): string[] {
-  return items
-    .map((item) => nonEmptyString(item[field]))
-    .filter((id): id is string => id !== null);
-}
-
-function trailing(
-  items: JsonRecord[],
+function trailingRecords(
+  value: unknown,
   matches: (item: JsonRecord) => boolean,
 ): JsonRecord[] {
-  let start = items.length;
-  while (start > 0 && matches(items[start - 1]!)) {
-    start -= 1;
+  if (!Array.isArray(value)) {
+    return [];
   }
-  return items.slice(start);
+  const trailing: JsonRecord[] = [];
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    const item: unknown = value[index];
+    if (!isRecord(item)) {
+      continue;
+    }
+    if (!matches(item)) {
+      break;
+    }
+    trailing.push(item);
+  }
+  return trailing.reverse();
+}
+
+function lastRecord(value: unknown): JsonRecord | undefined {
+  return Array.isArray(value) ? value.findLast(isRecord) : undefined;
 }
 
 function isClientToolOutput(item: JsonRecord): boolean {
@@ -39,28 +47,25 @@ function isClientToolOutput(item: JsonRecord): boolean {
 
 const trailingToolResultReaders: Record<
   ApiProxyResponseShape,
-  (body: JsonRecord) => string[] | null
+  { results: (body: JsonRecord) => JsonRecord[]; idField: string }
 > = {
-  "openai-chat": (body) => {
-    const results = trailing(
-      records(body.messages),
-      (message) => message.role === "tool",
-    );
-    return results.length > 0 ? idsOf(results, "tool_call_id") : null;
+  "openai-chat": {
+    results: (body) =>
+      trailingRecords(body.messages, (message) => message.role === "tool"),
+    idField: "tool_call_id",
   },
-  "openai-responses": (body) => {
-    const outputs = trailing(records(body.input), isClientToolOutput);
-    return outputs.length > 0 ? idsOf(outputs, "call_id") : null;
+  "openai-responses": {
+    results: (body) => trailingRecords(body.input, isClientToolOutput),
+    idField: "call_id",
   },
-  anthropic: (body) => {
-    const last = records(body.messages).at(-1);
-    if (last?.role !== "user") {
-      return null;
-    }
-    const results = records(last.content).filter(
-      (block) => block.type === "tool_result",
-    );
-    return results.length > 0 ? idsOf(results, "tool_use_id") : null;
+  anthropic: {
+    results: (body) => {
+      const last = lastRecord(body.messages);
+      return last?.role === "user"
+        ? records(last.content).filter((block) => block.type === "tool_result")
+        : [];
+    },
+    idField: "tool_use_id",
   },
 };
 
@@ -69,7 +74,14 @@ export function trailingToolResultIds(
   body: unknown,
 ): string[] | null {
   const record = asObject(body);
-  return record ? trailingToolResultReaders[shape](record) : null;
+  const reader = trailingToolResultReaders[shape];
+  const results = record ? reader.results(record) : [];
+  if (results.length === 0) {
+    return null;
+  }
+  return results
+    .map((result) => nonEmptyString(result[reader.idField]))
+    .filter((id): id is string => id !== null);
 }
 
 function argumentsText(value: unknown): string | undefined {
@@ -96,6 +108,32 @@ function toolCallDelta(
   };
 }
 
+function isResponsesToolCall(item: JsonRecord): boolean {
+  return nonEmptyString(item.call_id) !== null;
+}
+
+function responsesToolCallDelta(
+  item: JsonRecord,
+  index: number,
+): ApiProxyResumableToolCallDelta {
+  return toolCallDelta(
+    index,
+    item.call_id,
+    item.name,
+    item.arguments ?? item.input,
+  );
+}
+
+export function responsesOutputItemToolCall(
+  item: unknown,
+  index: number,
+): ApiProxyResumableToolCallDelta | null {
+  const record = asObject(item);
+  return record && isResponsesToolCall(record)
+    ? responsesToolCallDelta(record, index)
+    : null;
+}
+
 const responseToolCallReaders: Record<
   ApiProxyResponseShape,
   (body: JsonRecord) => ApiProxyResumableToolCallDelta[]
@@ -109,15 +147,8 @@ const responseToolCallReaders: Record<
   },
   "openai-responses": (body) =>
     records(body.output)
-      .filter((item) => nonEmptyString(item.call_id) !== null)
-      .map((item, index) =>
-        toolCallDelta(
-          index,
-          item.call_id,
-          item.name,
-          item.arguments ?? item.input,
-        ),
-      ),
+      .filter(isResponsesToolCall)
+      .map((item, index) => responsesToolCallDelta(item, index)),
   anthropic: (body) =>
     records(body.content)
       .filter((block) => block.type === "tool_use")
@@ -129,7 +160,7 @@ const responseToolCallReaders: Record<
 export function responseToolCalls(
   shape: ApiProxyResponseShape,
   body: unknown,
-): ApiProxyResumableToolCallDelta[] | null {
+): ApiProxyResumableToolCallDelta[] {
   const record = asObject(body);
-  return record ? responseToolCallReaders[shape](record) : null;
+  return record ? responseToolCallReaders[shape](record) : [];
 }
