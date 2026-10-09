@@ -449,3 +449,38 @@ test("priority outranks the continuation preference", async () => {
   await flush();
   assert.equal(continuation.done, true);
 });
+
+test("a fresh waiter starving on another domain keeps the continuation preference", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 0 });
+  const coord = new ComputeDomainCoordinator();
+  const busyElsewhere = await coord.acquire(
+    req({
+      domains: ["gpu1"],
+      targetId: "y",
+      priority: 100,
+      decide: admitIfNoRunning,
+    }),
+  );
+  const starvedElsewhere = track(
+    coord.acquire(
+      req({
+        domains: ["gpu1"],
+        targetId: "y",
+        priority: 100,
+        decide: admitIfNoRunning,
+      }),
+    ),
+  );
+  t.mock.timers.tick(10_000);
+
+  const { fresh, continuation } = await queueBehindHolder(coord);
+  assert.equal(continuation.done, true);
+  assert.equal(fresh.done, false);
+  assert.equal(starvedElsewhere.done, false);
+
+  (continuation.value as DomainLease | undefined)?.release();
+  busyElsewhere.release();
+  await flush();
+  assert.equal(fresh.done, true);
+  assert.equal(starvedElsewhere.done, true);
+});

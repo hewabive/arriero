@@ -78,6 +78,33 @@ function domainsOverlap(left: string[], right: string[]): boolean {
   return left.some((domain) => right.includes(domain));
 }
 
+type WaiterPreference = {
+  prefers: (lease: InternalDomainLease) => boolean;
+  fairnessMs: number;
+};
+
+function preferenceScores(
+  pending: InternalDomainLease[],
+  preferences: WaiterPreference[],
+  now: number,
+): Map<InternalDomainLease, number> {
+  const scores = new Map(pending.map((lease) => [lease, 0]));
+  for (const preference of preferences) {
+    const starved = pending.filter(
+      (lease) =>
+        !preference.prefers(lease) &&
+        now - lease.enqueuedAt >= preference.fairnessMs,
+    );
+    for (const lease of pending) {
+      const applies =
+        preference.prefers(lease) &&
+        !starved.some((other) => domainsOverlap(other.domains, lease.domains));
+      scores.set(lease, (scores.get(lease) ?? 0) * 2 + Number(applies));
+    }
+  }
+  return scores;
+}
+
 export class ComputeDomainCoordinator {
   private holders: InternalDomainLease[] = [];
   private waiters: InternalDomainLease[] = [];
@@ -204,24 +231,21 @@ export class ComputeDomainCoordinator {
       const pending = this.waiters.filter(
         (lease) => lease.status === "waiting" || lease.status === "suspended",
       );
-      const starvedSwapWaiting = pending.some(
-        (lease) =>
-          !isAffine(lease) && now - lease.enqueuedAt >= this.swapFairnessMs,
-      );
-      const starvedFreshWaiting = pending.some(
-        (lease) =>
-          !lease.continuation &&
-          now - lease.enqueuedAt >= this.continuationFairnessMs,
+      const scores = preferenceScores(
+        pending,
+        [
+          { prefers: isAffine, fairnessMs: this.swapFairnessMs },
+          {
+            prefers: (lease) => lease.continuation,
+            fairnessMs: this.continuationFairnessMs,
+          },
+        ],
+        now,
       );
       const candidates = pending.sort(
         (left, right) =>
           right.priority - left.priority ||
-          (starvedSwapWaiting
-            ? 0
-            : Number(isAffine(right)) - Number(isAffine(left))) ||
-          (starvedFreshWaiting
-            ? 0
-            : Number(right.continuation) - Number(left.continuation)) ||
+          (scores.get(right) ?? 0) - (scores.get(left) ?? 0) ||
           left.seq - right.seq,
       );
 
