@@ -13,6 +13,7 @@ related:
   - --enable-hierarchical-cache
   - --hicache-storage-backend
   - --ssl-certfile
+  - --enable-pd-role-switch
 ---
 
 # --admin-api-key
@@ -24,12 +25,12 @@ related:
 Два следствия, которые в справке не написаны и которые определяют, как этим аргументом можно пользоваться:
 
 1. **Admin-ключ сам по себе ничего не закрывает.** Если задан только он, все обычные (NORMAL) маршруты остаются полностью открытыми — включая `/generate`, `/v1/chat/completions`, `/v1/models` и `/server_info`. Разграничение возникает только в паре с `--api-key`.
-2. **`/server_info` относится к обычному уровню и не редактирует ответ.** Он возвращает `dataclasses.asdict(server_args)` целиком, то есть выдает значение `admin_api_key`. Любой, кто прошел проверку `--api-key` (а при отсутствии `--api-key` — вообще любой), может прочитать admin-ключ одним GET-запросом. Апстрим-документация (`server_arguments.mdx`) относит `/server_info` к admin-only, но в коде декоратора `@auth_level` на нем нет — прав код.
+2. **`/server_info` относится к обычному уровню и не редактирует ответ.** Он возвращает `server_args.resolved_dict()` целиком плюс `launch_command` — исходную командную строку запуска, — то есть выдает значение `admin_api_key` дважды. Любой, кто прошел проверку `--api-key` (а при отсутствии `--api-key` — вообще любой), может прочитать admin-ключ одним GET-запросом. Апстрим-документация (`server_arguments.mdx`) относит `/server_info` к admin-only, но в коде декоратора `@auth_level` на нем нет — прав код.
 
 ## Оригинальная справка
 
 ```text
-Set admin API key for sensitive management endpoints (e.g. /clear_hicache_storage_backend). When set, admin endpoints require this key and do NOT accept --api-key.
+Set admin API key for sensitive management endpoints (e.g. /hicache/storage-backend/clear). When set, admin endpoints require this key and do NOT accept --api-key.
 ```
 
 ## Паспорт аргумента
@@ -61,7 +62,7 @@ Set admin API key for sensitive management endpoints (e.g. /clear_hicache_storag
 
 ### Какие маршруты считаются admin
 
-Пометка ставится декоратором `@auth_level(AuthLevel.ADMIN_OPTIONAL)`. В текущем дереве их около сорока: `/flush_cache`, `/set_internal_state`, `/dumper/{method}`, вся группа `/update_weights_from_*` и `/update_weight_version`, `/init_weights_update_group` и `/destroy_weights_update_group`, `/get_weights_by_name`, `/weights_checker`, `/release_memory_occupation`, `/resume_memory_occupation`, `/slow_down`, `/pause_generation`, `/continue_generation`, `/abort_request`, `/load_lora_adapter`, `/unload_lora_adapter`, `/start_profile`, `/stop_profile`, `/freeze_gc`, `/configure_logging`, `/start_expert_distribution_record` и соседи, корпусные `/add_external_corpus`, `/remove_external_corpus`, `/list_external_corpora`, группа `/hicache/storage-backend*` и устаревший `/clear_hicache_storage_backend`, плюс два маршрута elastic-EP.
+Пометка ставится декоратором `@auth_level(AuthLevel.ADMIN_OPTIONAL)`. В текущем дереве их около сорока: `/flush_cache`, `/set_internal_state`, `/dumper/{method}`, вся группа `/update_weights_from_*` и `/update_weight_version`, `/begin_weight_update` и `/end_weight_update`, `/init_weights_update_group` и `/destroy_weights_update_group`, маршруты передачи весов удаленному инстансу (`/send_weights_to_remote_instance`, `/init_weights_send_group_for_remote_instance`, `/remote_instance_transfer_engine_info`), `/get_weights_by_name`, `/weights_checker`, `/release_memory_occupation`, `/resume_memory_occupation`, `/slow_down`, `/pause_generation`, `/continue_generation`, `/abort_request`, `/load_lora_adapter`, `/unload_lora_adapter`, `/start_profile`, `/stop_profile`, `/freeze_gc`, `/configure_logging`, `/start_expert_distribution_record` и соседи, корпусные `/add_external_corpus`, `/remove_external_corpus`, `/list_external_corpora`, группа `/hicache/storage-backend*` (включая `POST /hicache/storage-backend/clear`), `/pd_role_switch`, плюс два маршрута elastic-EP. Прежний алиас `/clear_hicache_storage_backend` из кода удален вместе с другими устаревшими endpoint'ами: такого маршрута больше нет, очистка идет только через `POST /hicache/storage-backend/clear`.
 
 Заметные исключения, которые остаются на обычном уровне: `/server_info`, `/model_info`, `/v1/loads`, `/set_trace_level` и `/load_lora_adapter_from_tensors` — последний позволяет подгрузить LoRA-адаптер из тензоров, но, в отличие от `/load_lora_adapter`, admin-ключом не защищен.
 
@@ -74,7 +75,7 @@ if not _global_state.tokenizer_manager.server_args.admin_api_key:
     return _admin_api_key_missing_response()
 ```
 
-то есть **отказывают вообще всем**, если admin-ключ не задан, с текстом «This endpoint requires admin API key, but this server was started without one (admin-api-key). Restart with --admin-api-key to enable.» и кодом 403. Это единственная группа маршрутов, для которых `--admin-api-key` не «усиление», а обязательное условие работы. В комментарии рядом прямо сказано, что это временная имитация уровня ADMIN_FORCE, который в middleware реализован, но ни на один маршрут пока не навешен.
+то есть **отказывают вообще всем**, если admin-ключ не задан: ответ `400` с JSON `{"error": "This endpoint requires admin API key, but this server was started without one (admin-api-key). Restart with --admin-api-key to enable."}`. `POST /hicache/storage-backend/clear` такой проверки не имеет и подчиняется обычной матрице ADMIN_OPTIONAL. Это единственная группа маршрутов, для которых `--admin-api-key` не «усиление», а обязательное условие работы. В комментарии рядом прямо сказано, что это временная имитация уровня ADMIN_FORCE, который в middleware реализован, но ни на один маршрут пока не навешен.
 
 ## Значения и формат
 
@@ -105,7 +106,7 @@ if not _global_state.tokenizer_manager.server_args.admin_api_key:
 ## Типовые проблемы и диагностика
 
 - **Симптом:** `401` на `/flush_cache` или `/update_weights_from_disk`, хотя `--api-key` передан правильно. **Причина:** задан также `--admin-api-key`, и обычный ключ на этих маршрутах отвергается по определению. **Лечение:** слать admin-ключ.
-- **Симптом:** `403` с текстом «This endpoint requires admin API key, but this server was started without one». **Причина:** запрос к `/hicache/storage-backend` при незаданном `--admin-api-key`. **Лечение:** перезапустить сервер с ключом.
+- **Симптом:** `400` с JSON-полем `error` «This endpoint requires admin API key, but this server was started without one». **Причина:** запрос к `/hicache/storage-backend` при незаданном `--admin-api-key`. **Лечение:** перезапустить сервер с ключом.
 - **Симптом:** admin-ключ задан, а управляющие маршруты открыты без него. **Причина:** `--tokenizer-worker-num > 1`, middleware не подключено. **Проверка:** `curl -i -X POST http://127.0.0.1:30000/flush_cache` без заголовка — 200 вместо 401 подтверждает диагноз. **Лечение:** вернуть `--tokenizer-worker-num 1`.
 - **Симптом:** генерация доступна всем, хотя admin-ключ задан. **Причина:** не задан `--api-key`; NORMAL-маршруты открыты. **Лечение:** задать оба ключа.
 - **Утечка:** `curl -s http://127.0.0.1:30000/server_info | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['api_key'], d['admin_api_key'])"` возвращает оба ключа. Плюс те же значения видны в `/proc/<pid>/cmdline` и в строке `server_args=` лога старта.

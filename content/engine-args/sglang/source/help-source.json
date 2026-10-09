@@ -17,7 +17,7 @@
     "python/sglang/srt/arg_groups/fields/mm.py",
     "python/sglang/srt/arg_groups/fields/serving.py"
   ],
-  "hash": "a75ccb047c599265d2a5fb73c3789944f02114bda4f77cba76c6e6a2e52ffc45",
-  "commit": "94602c9c2b7cbdb8efd5c52802dac6a1c180089e",
-  "updatedAt": "2026-09-28T11:14:52.922Z"
+  "hash": "1f9a2589ea94e7e86fa575e03f6b1260c00ff1337410c22b385624d8e36d15fb",
+  "commit": "e00930c5489053f26d86b179cee0d087f846acbb",
+  "updatedAt": "2026-10-09T22:41:00.745Z"
 }

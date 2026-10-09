@@ -11,6 +11,7 @@ related:
   - --reasoning-parser
   - --enable-strict-thinking
   - --tool-call-parser
+  - --trust-request-chat-template
 ---
 
 # --default-chat-template-kwargs
@@ -92,6 +93,7 @@ if self.default_chat_template_kwargs:
 - `--hf-chat-template-name`: разные именованные шаблоны одной модели могут ждать разные имена переменных; меняя имя шаблона, перепроверьте ключи.
 - `--reasoning-parser`: определяет, как разбирается **вывод** модели с reasoning. Этот аргумент управляет **входом**. Выключив thinking в шаблоне, но оставив парсер, вы получите пустое `reasoning_content` — это норма, а не поломка.
 - `--enable-strict-thinking`: работает поверх включенного reasoning; при `enable_thinking: false` фильтровать будет нечего.
+- `--trust-request-chat-template`: без него запрос с ключом `chat_template` в своих `chat_template_kwargs` получает 400 на `/v1/chat/completions`. Проверка смотрит только на ключи из запроса: серверные значения этого аргумента подмешиваются после валидации и ею не ограничиваются.
 
 ## Типовые проблемы и диагностика
 

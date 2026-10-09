@@ -11,6 +11,7 @@ related:
   - --enable-dense-mlp-attn-tp
   - --tp-size
   - --dp-size
+  - --shared-experts-tp-size
 ---
 
 # --enable-shared-experts-attn-tp
@@ -54,7 +55,7 @@ Shard shared expert weights across the attention TP group when using an expert-p
 
 ## Взаимодействие с другими аргументами
 
-Используется вместе с EP all-to-all через `--moe-a2a-backend`; `--enable-dp-attention`, TP и DP определяют группу. Dense MLP настраивается отдельно.
+Используется вместе с EP all-to-all через `--moe-a2a-backend`; `--enable-dp-attention`, TP и DP определяют группу. Dense MLP настраивается отдельно. Если задан `--shared-experts-tp-size`, ширину шардирования определяет он (подгруппы внутри attention-TP, `1` — репликация), и этот флаг на нее больше не влияет.
 
 ## Типовые проблемы и диагностика
 

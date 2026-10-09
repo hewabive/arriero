@@ -13,6 +13,7 @@ related:
   - --tool-call-parser
   - --model-path
   - --tokenizer-path
+  - --trust-request-chat-template
 ---
 
 # --chat-template
@@ -111,6 +112,7 @@ else:
 
 - `--hf-chat-template-name`: работает **только** на шаге 2 автоподбора. Если `--chat-template` задан, именованный HF-шаблон не читается вообще.
 - `--default-chat-template-kwargs`: kwargs подставляются в `request.chat_template_kwargs`, но доезжают до промпта только в Jinja-ветке. С встроенным conv-шаблоном они молча ничего не делают.
+- `--trust-request-chat-template`: без него клиент не может подменить серверный шаблон ключом `chat_template` в `chat_template_kwargs` — такой чат-запрос получает 400.
 - `--reasoning-parser` / `--tool-call-parser`: автоподсказки для них выводятся из `tokenizer.chat_template`. Загрузив свой `.jinja` без `<think>`-разметки, вы заодно отключите автодетект reasoning.
 - `--tokenizer-path`: HF-шаблон берется из токенизатора/процессора, то есть отсюда, а не из `--model-path`. Разъехавшиеся пути — отдельный источник «не тот шаблон».
 - `--completion-template`: параллельный механизм для `/v1/completions` (FIM), общего кода с чат-шаблоном не имеет.

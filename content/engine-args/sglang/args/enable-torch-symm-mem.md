@@ -90,7 +90,7 @@ Enable using torch symm mem for all-reduce kernel and fall back to NCCL. Only su
 
 - `--enable-symm-mem`: перекрывает этот путь целиком на одноузловой конфигурации. Выбирайте один из двух.
 - `--disable-custom-all-reduce`: снимает конкурента на мелких тензорах и делает torch symm mem основным путем для bf16.
-- `--enable-mscclpp`: проверяется раньше; при world size 8/16/32 подходящие размеры уйдут в mscclpp.
+- `--enable-mscclpp`: проверяется раньше; при размере группы 4/8/16/32/64 оттюнингованные размеры (512 Б – 8 МиБ) уйдут в mscclpp.
 - `--enable-scattered-sconv`: у моделей Inkling reduce-scatter и all-gather по скрытой размерности используют именно этот коммуникатор (`_symm_mem_comm` в `models/inkling_common/kernels/comm.py`); без него они падают обратно на `reduce_scatter_tensor`/`all_gather` NCCL.
 - `--dtype`: путь существует только для bf16.
 - `--tp-size`: определяет и допустимость world size, и выбор multimem против two-shot.

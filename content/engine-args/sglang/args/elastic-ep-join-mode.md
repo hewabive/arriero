@@ -9,7 +9,6 @@ related:
   - --elastic-ep-backend
   - --elastic-ep-join-rank-offset
   - --elastic-ep-initial-size
-  - --elastic-ep-rejoin
   - --elastic-ep-scale-timeout
   - --max-ep-size
   - --node-rank
@@ -37,10 +36,10 @@ Join mode for elastic EP. 'recover' rejoins an existing slot after a fault. 'sca
 - Тип значения: перечисление
 - Допустимые значения: `scale`, `recover`
 - Значение по умолчанию: `null` — процесс не является присоединяющимся
-- Эффективное значение: подставляется `recover`, если задан устаревший `--elastic-ep-rejoin` и режим не указан явно; при явном конфликтующем значении — ассерт
+- Эффективное значение: совпадает с заданным. Прежний устаревший флаг `--elastic-ep-rejoin`, который транслировался в `recover`, из движка удален — режим восстановления задается только этим аргументом
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_join_mode` (имя поля отличается от имени флага: `cli_name="--elastic-ep-join-mode"`)
 - Статус: обычный, часть молодой подсистемы elastic EP
-- Этап применения: `__post_init__` (`_handle_elastic_ep`, `check_server_args`) → выделение портов → инициализация `ElasticEPStateManager` → загрузка весов → HTTP-прогрев
+- Этап применения: `__post_init__` (`handle_elastic_ep`, `check_server_args`) → выделение портов → инициализация `ElasticEPStateManager` → загрузка весов → HTTP-прогрев
 
 ## Что меняет в движке
 
@@ -80,7 +79,6 @@ Join mode for elastic EP. 'recover' rejoins an existing slot after a fault. 'sca
 - `--elastic-ep-initial-size`: обязателен для `scale`-присоединенца при активном расширении.
 - `--max-ep-size`: ограничивает суммарный размер после присоединения.
 - `--node-rank`: для `scale` обязан быть 1.
-- `--elastic-ep-rejoin`: устаревший способ выразить `recover`.
 - `--elastic-ep-scale-timeout`: сколько первичная группа будет ждать присоединенца.
 - `--tp-size`, `--moe-dense-tp-size`: размер присоединяющейся группы и требование к плотным MLP при `--tp-size 1`.
 
@@ -92,7 +90,7 @@ Join mode for elastic EP. 'recover' rejoins an existing slot after a fault. 'sca
 - `AssertionError: Elastic EP scale joiners require --elastic-ep-initial-size set to the primary deployment's launch-time EP size.` — не передан исходный размер.
 - `Requested target EP size N does not match joining cohort target M` в логе первичной группы — `new_ep_size` в HTTP-запросе и фактическая геометрия присоединенца разошлись.
 - `Timed out waiting for ranks to join target EP size N` — присоединенец не успел; см. `--elastic-ep-scale-timeout`.
-- `AssertionError: --elastic-ep-rejoin (deprecated) conflicts with --elastic-ep-join-mode <mode>.` — заданы оба флага с разным смыслом.
+- `error: unrecognized arguments: --elastic-ep-rejoin` — старая строка запуска; устаревший флаг удален, замените его на `--elastic-ep-join-mode recover`.
 - Состояние процесса удобно смотреть по префиксам `[Elastic EP]` и тегам `JOINER`/`PRIMARY` в логе, а состояние группы — через `GET /is_scaling_elastic_ep` на первичном сервере.
 
 ## Примеры

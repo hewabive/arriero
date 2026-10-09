@@ -8,6 +8,7 @@ group: observability
 related:
   - --otlp-traces-endpoint
   - --trace-modules
+  - --otlp-service-name
   - --enable-metrics
   - --enable-request-time-stats-logging
   - --disaggregation-mode
@@ -42,10 +43,10 @@ Enable opentelemetry trace
 
 ### Инициализация
 
-`process_tracing_init(otlp_endpoint, "sglang", trace_modules=…)` (`sglang/python/sglang/srt/observability/trace.py`) вызывается **в каждом** процессе отдельно:
+`process_tracing_init(otlp_endpoint, otlp_service_name, trace_modules=…)` (`sglang/python/sglang/srt/observability/trace.py`) вызывается **в каждом** процессе отдельно:
 
 1. если пакет `opentelemetry` не импортировался, немедленно бросается `RuntimeError("opentelemetry package is not installed!!! Please not enable tracing or install opentelemetry")`;
-2. создается `TracerProvider` с ресурсом `service.name = "sglang"` и собственным генератором идентификаторов;
+2. создается `TracerProvider` с ресурсом `service.name` из `--otlp-service-name`, иначе из `OTEL_SERVICE_NAME`, иначе `"sglang"`, и собственным генератором идентификаторов;
 3. вешается `BatchSpanProcessor` с параметрами из переменных окружения `SGLANG_OTLP_EXPORTER_SCHEDULE_DELAY_MILLIS` (по умолчанию 500 мс) и `SGLANG_OTLP_EXPORTER_MAX_EXPORT_BATCH_SIZE` (64);
 4. выбирается экспортер по `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` — `grpc` (по умолчанию) или `http/protobuf`; любое другое значение дает `ValueError`;
 5. при `SGLANG_TRACE_ASYNC=1` дополнительно поднимается отдельный процесс-экспортер, чтобы убрать создание спанов с горячего пути.
@@ -90,6 +91,7 @@ Enable opentelemetry trace
 ## Взаимодействие с другими аргументами
 
 - `--otlp-traces-endpoint`: адрес коллектора. Значение по умолчанию `localhost:4317` предполагает коллектор на том же хосте.
+- `--otlp-service-name`: `service.name` спанов этого инстанса; без него — `OTEL_SERVICE_NAME`, затем `sglang`.
 - `--trace-modules`: список модулей, которым разрешено эмитить спаны (`request`, `mooncake`); по умолчанию `request`.
 - `--enable-metrics`: независим. Метрики — агрегаты, трассы — отдельные запросы; включаются раздельно.
 - `--enable-request-time-stats-logging`: дешевая альтернатива без внешних зависимостей и без коллектора. Если нужны только `queue_duration` и `forward_duration`, начинайте с него.
@@ -103,7 +105,7 @@ Enable opentelemetry trace
 - `ValueError: Unsupported OTLP protocol '…' configured` — в `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` что-то кроме `grpc` и `http/protobuf`.
 - Сервер стартовал, но в Jaeger пусто — проверьте `SGLANG_TRACE_LEVEL` (при `0` спаны не создаются) и `--trace-modules`; уровень можно поднять на лету через `GET /set_trace_level?level=3`.
 - Throughput просел после включения — снижайте уровень трассировки и включайте `SGLANG_TRACE_ASYNC=1`.
-- Спаны есть, но каждый процесс идет отдельной трассой — не совпадает `service.name` или не пробрасывается `traceparent`; в SGLang имя жестко `"sglang"` во всех процессах, так что причина скорее в конфигурации коллектора.
+- Спаны есть, но каждый процесс идет отдельной трассой — не совпадает `service.name` или не пробрасывается `traceparent`; внутри одного инстанса имя у всех процессов одно (`--otlp-service-name` → `OTEL_SERVICE_NAME` → `"sglang"`), так что причина скорее в конфигурации коллектора. Несколько инстансов в одном коллекторе различайте разными `--otlp-service-name`.
 - **В arriero:** окружение для движка ставится провайдером `KTRANSFORMERS_PROVISIONER` (`apps/api/src/envs/provisioners.ts`) как ровно два требования — `kt-kernel==<version>` и `sglang-kt==<version>`, **без extras**. То есть в штатном окружении arriero `opentelemetry` не установлен, и `--enable-trace` уронит инстанс при старте. Окружения неизменяемы (`docs/ENVIRONMENTS.md`), доставить пакет в существующее нельзя — понадобится окружение, собранное иначе. Перед добавлением флага обязательно проверьте импорт вручную.
 
 ## Примеры

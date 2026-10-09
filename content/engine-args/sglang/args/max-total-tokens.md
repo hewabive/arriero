@@ -103,7 +103,7 @@ if user_limit is not None:
 - `--swa-full-tokens-ratio`: на hybrid-SWA моделях распределяет ограниченное значение между full- и SWA-пулами; слишком маленький потолок дает `SWA pool (N tokens) cannot hold even one request`.
 - `--chunked-prefill-size`: вместе определяют `cuda_graph_config.prefill.max_bs` при автоподборе.
 - `--pp-size`: значения синхронизируются по минимуму между PP-рангами.
-- `--hicache-ratio`: host-пул HiCache считается от размера device-пула, то есть от этого потолка.
+- `--hicache-ratio`: host-пул HiCache считается от размера device-пула, то есть от этого потолка; при не заданном ratio итог дополнительно ограничен `--hicache-host-memory-fraction`.
 
 ## Типовые проблемы и диагностика
 

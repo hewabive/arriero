@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--hicache-ratio"
 title: "--hicache-ratio"
-summary: Кратность host-пула относительно device KV-пула в токенах. Автоматически выбирается 2.0 для cache, 1.2 для buffer_only и 0.2 для отдельного host-pool decode backup; положительный hicache-size перекрывает ratio.
+summary: Кратность host-пула относительно device KV-пула в токенах. Не заданный ratio берется как 2.0 для cache, 1.2 для buffer_only и 0.2 для отдельного host-pool decode backup и затем урезается под `--hicache-host-memory-fraction`; явный ratio выключает это урезание, положительный hicache-size перекрывает ratio.
 group: memory
 related:
   - --enable-hierarchical-cache
@@ -13,6 +13,7 @@ related:
   - --tp-size
   - --disaggregation-decode-enable-offload-kvcache
   - --disaggregation-decode-retraction-backup
+  - --hicache-host-memory-fraction
 ---
 
 # --hicache-ratio
@@ -34,7 +35,7 @@ The ratio of the size of host KV cache memory pool to the size of device pool. D
 - Тип значения: optional float
 - Допустимые значения: дробное число; большой постоянный L2 обычно требует ratio больше 1, но для backup-only пула значение меньше 1 является штатным.
 - Декларативное значение по умолчанию: `null`
-- Эффективное значение: `handle_hicache_ratio_default` в `arg_groups/hicache_hook.py` ставит вне decode `2.0` для cache или `1.2` для buffer_only. На decode `resolve_decode_retraction_backup` выбирает `0.2` только для host_pool без enable_hierarchical_cache, иначе `2.0`. Явный ratio сохраняется; положительный `--hicache-size` перекрывает его.
+- Эффективное значение: `handle_hicache_ratio_default` в `arg_groups/hicache_hook.py` ставит вне decode `2.0` для cache или `1.2` для buffer_only. На decode `resolve_decode_retraction_backup` выбирает `0.2` только для host_pool без enable_hierarchical_cache, иначе `2.0`; при `--hicache-size 0` ratio берется как `max(0.2, доля device-пула под один запрос максимальной длины)` (под два — при `--disaggregation-decode-host-receive-threshold > 0`). Не заданный ratio затем уменьшается auto-sizing'ом (`auto_size_hicache`, `mem_cache/hicache_auto_size.py`), пока host-пулы всех rank'ов машины не уложатся в долю `--hicache-host-memory-fraction` от свободной RAM. Явный ratio сохраняется как есть и выключает auto-sizing; положительный `--hicache-size` перекрывает его.
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_ratio`
 - Статус: обычный
 - Этап применения: конструктор host-пула (`HostKVCache.__init__`) при инициализации дерева кеша, то есть после того, как device-пул уже выделен
@@ -61,16 +62,16 @@ self.size = self.page_num * self.page_size
 ## Значения и формат
 
 - Дробное число; `--hicache-ratio 3` и `--hicache-ratio 3.0` эквивалентны.
-- Не задано — `2.0` для постоянного cache, `1.2` для buffer_only, `0.2` для backup-only host_pool на decode. При совместном использовании с HiCache decode-пул получает `2.0`.
+- Не задано — `2.0` для постоянного cache, `1.2` для buffer_only, `0.2` для backup-only host_pool на decode. При совместном использовании с HiCache decode-пул получает `2.0`. Это стартовые значения: если host-пулы с ними не помещаются в бюджет `--hicache-host-memory-fraction`, ratio уменьшается (в лог — `HiCache auto-sizing: ratio A -> B; …`).
 - Для постоянного L2 значение ≤ 1 снижает эффективность; host pool может вывести предупреждение «HiCache … host pool (N tokens) is smaller than the device pool (M tokens); L2 cache effectiveness is reduced.» — L2 не сможет удержать даже то, что вытесняется из L1.
 - `0` не «отключает» host-пул: это не тот же ноль, что у `--hicache-size`. Ноль в ratio даст `size = 0`, после выравнивания — одну страницу, то есть фактически неработающий L2.
-- Верхней границы нет; ограничитель — проверка доступной RAM с резервом 10 ГиБ.
+- Верхней границы нет; явное значение ограничивает только проверка доступной RAM: `(min(MemAvailable, остаток memory cgroup) − 10 ГиБ) / число rank'ов на узле` на каждый rank.
 
 ## Когда использовать
 
 - Когда объем host-пула должен масштабироваться вместе с device-пулом: изменили `--mem-fraction-static` или модель — L2 подстроился сам.
 - Когда host-пулов несколько (hybrid-модель, несколько rank'ов) и считать точные гигабайты на каждый неудобно.
-- Для backup-only decode default `0.2` намеренно меньше device pool: при переполнении backup запрос прерывается, поэтому для более крупных retraction нужен больший ratio.
+- Для backup-only decode default `0.2` намеренно меньше device pool, но не меньше одного запроса максимальной длины: при переполнении backup запрос прерывается, поэтому при частых одновременных retraction нужен больший ratio.
 - Переключитесь на `--hicache-size`, когда важен абсолютный потолок по RAM хоста (типичный случай для arriero: host-пул делится с memory draw других инстансов, `docs/RESOURCE_MANAGEMENT.md`).
 
 ## Влияние на производительность и память
@@ -84,17 +85,19 @@ self.size = self.page_num * self.page_size
 ## Взаимодействие с другими аргументами
 
 - `--enable-hierarchical-cache`: основной способ активировать L2 HiCache, но не единственный — decode offload и host-pool retraction тоже строят host pool.
-- `--hicache-size`: любой `> 0` полностью перекрывает ratio. Для DeepSeek V4 `--hicache-size` запрещен — там управлять размером можно только через ratio.
+- `--hicache-size`: любой `> 0` полностью перекрывает ratio. Для DeepSeek V4 `--hicache-size` запрещен — там управлять размером можно только через ratio, причем явным: auto-sizing пул DeepSeek V4 не поддерживает, и без `--hicache-ratio` старт падает с `HiCache auto-sizing does not support DeepSeekV4TokenToKVPool`.
+- `--hicache-host-memory-fraction`: бюджет auto-sizing'а для не заданного ratio; при явном `--hicache-ratio` не действует.
 - `--mem-fraction-static`, `--max-total-tokens`, `--context-length`: определяют `device_pool.size`, то есть базу, на которую умножается ratio. Увеличили KV-пул на GPU — автоматически выросло и потребление RAM.
 - `--page-size`: размер выравнивается вверх до целого числа страниц.
 - `--tp-size`: host-пул создается на каждом rank; для MHA-моделей каждый rank хранит свою долю голов, для MLA — реплику. Общий расход RAM хоста считайте по всем rank'ам процесса.
 - `--disaggregation-mode decode` + `--disaggregation-decode-enable-offload-kvcache`: асинхронный KV-оффлоад decode-узла строит свой host-пул тем же конструктором и с тем же ratio (`disaggregation/decode_kvcache_offload_manager.py`) — RAM под него считайте по той же формуле.
-- `--disaggregation-decode-retraction-backup host_pool`: при незаданном ratio выбирает `0.2` без HiCache либо `2.0` с HiCache; явное значение имеет приоритет.
+- `--disaggregation-decode-retraction-backup host_pool`: при незаданном ratio выбирает `0.2` без HiCache (при `--hicache-size 0` — не меньше одного запроса максимальной длины) либо `2.0` с HiCache; явное значение имеет приоритет.
+- `--disaggregation-decode-host-receive-threshold > 0`: принудительно включает `host_pool` и удваивает этот минимум — один запрос принимается в host-пул, пока другой вытеснен.
 - `--hicache-host-memory-mode buffer_only`: вне decode выбирает `1.2`, требует storage; это staging, а не постоянный L2.
 
 ## Типовые проблемы и диагностика
 
-- «Not enough host memory available. Requesting X GB but only have Y GB free.» — ratio слишком большой для текущей RAM; уменьшите его или уменьшите device-пул. Порог = `MemAvailable − 10 ГиБ`.
+- «Not enough host memory available. Requesting X GB but only have Y GB free.» — явный ratio слишком большой для текущей RAM; уменьшите его, уменьшите device-пул или уберите ratio и доверьте размер auto-sizing'у. Порог на rank = `(min(MemAvailable, остаток memory cgroup) − 10 ГиБ) / число rank'ов на узле`.
 - Предупреждение «L2 cache effectiveness is reduced» относится к ёмкости постоянного L2; малый backup-only пул выбран намеренно.
 - Фактически выделенный объем печатает сам пул: «Allocating kv hierarchical KV host pool: N tokens, X.XX GB host memory.» — это и есть единственная надежная проверка, во что превратился ваш ratio.
 - Значение, как его принял движок, — в дампе `server_args=` при старте.
@@ -120,6 +123,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/python/sglang/srt/disaggregation/decode_kvcache_offload_manager.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
-- arriero: `docs/RESOURCE_MANAGEMENT.md`
-
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
+- `sglang/python/sglang/srt/mem_cache/hicache_auto_size.py`
+- `sglang/python/sglang/srt/mem_cache/host_memory.py`
+- arriero: `docs/RESOURCE_MANAGEMENT.md`

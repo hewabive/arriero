@@ -10,7 +10,6 @@ related:
   - --elastic-ep-join-rank-offset
   - --elastic-ep-initial-size
   - --elastic-ep-scale-timeout
-  - --elastic-ep-rejoin
   - --enable-elastic-expert-backup
   - --mooncake-ib-device
   - --max-ep-size
@@ -79,7 +78,6 @@ Specify the collective communication backend for elastic EP. Supports 'mooncake'
 ## Взаимодействие с другими аргументами
 
 - `--elastic-ep-join-mode`: требует заданного бэкенда; выбирает роль процесса (восстановление слота или присоединение нового).
-- `--elastic-ep-rejoin`: устаревший псевдоним `--elastic-ep-join-mode recover`.
 - `--max-ep-size`, `--elastic-ep-initial-size`, `--elastic-ep-join-rank-offset`: геометрия расширяемой группы; первый требует заданного бэкенда, остальные — активного расширения.
 - `--elastic-ep-scale-timeout`: срок ожидания присоединяющейся группы.
 - `--enable-elastic-expert-backup`: DRAM-бэкап весов экспертов; несовместим с рантайм-расширением.

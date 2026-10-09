@@ -11,6 +11,7 @@ related:
   - --tp-size
   - --pp-size
   - --page-size
+  - --hicache-host-memory-fraction
 ---
 
 # --hicache-size
@@ -32,7 +33,7 @@ The size of host KV cache memory pool in gigabytes. Overrides --hicache-ratio in
 - Тип значения: целое (гигабайты)
 - Допустимые значения: не ограничены argparse; `0` означает «не задан»
 - Значение по умолчанию: `0`
-- Эффективное значение: при `> 0` перекрывает `--hicache-ratio`; при `--pp-size > 1` итоговая емкость в токенах синхронизируется по минимуму между PP-стадиями (`sync_fixed_hicache_size`); для DeepSeek V4 аргумент вообще запрещен
+- Эффективное значение: при `> 0` перекрывает `--hicache-ratio` и выключает auto-sizing host-пула (`--hicache-host-memory-fraction` разрешается в `None`); при `--pp-size > 1` итоговая емкость в токенах синхронизируется по минимуму между PP-стадиями (`sync_fixed_hicache_size`); для DeepSeek V4 аргумент вообще запрещен
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_size`
 - Статус: обычный
 - Этап применения: конструктор host-пула (`HostKVCache.__init__`) при инициализации дерева кеша
@@ -60,7 +61,7 @@ self.size = sync_fixed_hicache_size(int(host_size * 1e9 // self.size_per_token),
 - Целое число гигабайт. `--hicache-size 100` → 100 × 10⁹ байт на rank, а не 100 ГиБ.
 - `0` — специальное значение «не задан», управление возвращается `--hicache-ratio`.
 - Отрицательные значения argparse примет, но ветка `host_size > 0` не сработает, и размер снова посчитается по ratio — то есть отрицательное значение эквивалентно нулю. Не полагайтесь на это.
-- Аргумент не гарантирует, что столько памяти есть: перед аллокацией проверяется `psutil.virtual_memory().available` с резервом 10 ГиБ, и при нехватке старт падает.
+- Аргумент не гарантирует, что столько памяти есть: перед аллокацией каждый rank сверяет запрос с `(min(MemAvailable, остаток memory cgroup) − 10 ГиБ) / число rank'ов на узле`, и при нехватке старт падает. Урезать заданный размер под свободную RAM движок не будет — это делает только auto-sizing, а он при `--hicache-size > 0` выключен.
 
 ## Когда использовать
 
@@ -81,6 +82,7 @@ self.size = sync_fixed_hicache_size(int(host_size * 1e9 // self.size_per_token),
 
 - `--enable-hierarchical-cache`: без него значение не читается.
 - `--hicache-ratio`: перекрывается этим аргументом при любом `> 0`.
+- `--hicache-host-memory-fraction`: при любом `> 0` не действует — размер берется как задан, без урезания под свободную RAM.
 - `--tp-size`: величина — на rank. Суммарный расход = `hicache_size × tp_size` (для MLA-моделей это реплики одних и тех же данных).
 - `--pp-size` > 1: емкость в токенах приводится к минимуму по стадиям, то есть фактический объем на «толстых» стадиях будет меньше заданного.
 - `--page-size`: округление вверх до целой страницы.
@@ -88,7 +90,7 @@ self.size = sync_fixed_hicache_size(int(host_size * 1e9 // self.size_per_token),
 
 ## Типовые проблемы и диагностика
 
-- «Not enough host memory available. Requesting X GB but only have Y GB free.» — заданный объем не помещается с учетом резерва 10 ГиБ. Учтите, что при TP > 1 запрос делает каждый rank.
+- «Not enough host memory available. Requesting X GB but only have Y GB free.» — заданный объем не помещается с учетом резерва 10 ГиБ и лимита memory cgroup процесса. «Free» здесь — уже доля одного rank'а: свободная память делится поровну между rank'ами узла.
 - `ValueError: DeepSeek V4 HiCache currently does not support --hicache-size` — переключитесь на `--hicache-ratio`.
 - «Sync fixed-size HiCache host token capacity from N to M.» — сработало PP-выравнивание, реальная емкость меньше заданной.
 - Фактический объем печатает пул: «Allocating kv hierarchical KV host pool: N tokens, X.XX GB host memory.» — сверяйте именно с ним, а не с аргументом.
@@ -112,6 +114,6 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 - `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
 - `sglang/docs/docs/advanced_features/hicache_best_practices.mdx`
-- arriero: `docs/RESOURCE_MANAGEMENT.md`
-
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
+- `sglang/python/sglang/srt/mem_cache/host_memory.py`
+- arriero: `docs/RESOURCE_MANAGEMENT.md`

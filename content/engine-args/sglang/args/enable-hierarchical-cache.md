@@ -8,6 +8,7 @@ group: memory
 related:
   - --hicache-ratio
   - --hicache-size
+  - --hicache-host-memory-fraction
   - --hicache-write-policy
   - --hicache-io-backend
   - --hicache-mem-layout
@@ -66,7 +67,7 @@ Enable hierarchical cache
 ## Значения и формат
 
 - Флаг без аргумента.
-- Размер L2 задается двумя другими аргументами: `--hicache-ratio` (`2.0` для постоянного cache, `1.2` для buffer_only; отдельный host-pool decode backup без HiCache получает `0.2`) либо `--hicache-size` в гигабайтах, который перекрывает ratio.
+- Размер L2 задается двумя другими аргументами: `--hicache-ratio` (`2.0` для постоянного cache, `1.2` для buffer_only; отдельный host-pool decode backup без HiCache получает `0.2`) либо `--hicache-size` в гигабайтах, который перекрывает ratio. Если не задан ни один, ratio по умолчанию урезается auto-sizing'ом под долю `--hicache-host-memory-fraction` (по умолчанию `0.8`) от свободной RAM после резерва 10 ГиБ.
 - L3 подключается только явным `--hicache-storage-backend`; без него HiCache двухуровневый (L1+L2).
 - `--page-size` — общая для L1/L2/L3 гранулярность. Для storage-backend'ов практический ориентир из апстрим-документации — `--page-size 64`; при `page_size 1` метаданных и IO-операций на тот же объем кратно больше.
 
@@ -74,7 +75,7 @@ Enable hierarchical cache
 
 - Многотуровые диалоги, агентные цепочки и длинный общий системный промпт: префикс, вытесненный из VRAM, остается в RAM и переиспользуется вместо повторного prefill.
 - Модель занимает почти всю VRAM, и на KV-пул остается мало: L2 расширяет эффективную емкость кеша за счет хоста.
-- **Не** включайте, если хост уже близок к пределу по RAM: host-пул выделяется закрепленной (pinned) памятью на старте, и `HostKVCache.__init__` откажет со «Not enough host memory available…», оставив меньше 10 ГиБ запаса.
+- **Не** включайте, если хост уже близок к пределу по RAM: host-пул выделяется закрепленной (pinned) памятью на старте. При явном размере `HostKVCache.__init__` откажет со «Not enough host memory available…», если после резерва 10 ГиБ места нет; при размере по умолчанию auto-sizing урежет L2 до малого, а без свободной памяти сверх резерва старт упадет с `No host memory is left for HiCache after the 10 GiB reserve`.
 - **Не** включайте ради одиночных непохожих запросов: без переиспользуемых префиксов HiCache добавляет только накладные расходы на write-back.
 - Не сочетайте с моделями/режимами, где вы уже отключили дерево префиксов — это ошибка старта, а не деградация.
 
@@ -91,17 +92,18 @@ Enable hierarchical cache
 - `--disable-radix-cache`: взаимоисключающие, `_handle_cache_compatibility` бросает `ValueError`.
 - `--hicache-ratio` / `--hicache-size` / layout и I/O-настройки также могут читаться host tier'ом decode-offload или retraction; prefix write/prefetch policies относятся к обычному HiCache.
 - `--enable-lmcache` и `--enable-flexkv`: в цепочке выбора кеша ветка HiCache стоит **раньше**, поэтому при одновременном включении LMCache и FlexKV молча игнорируются.
-- `--enable-unified-memory`: жестко несовместимы, ассерт «--enable-unified-memory is not yet compatible with hierarchical / host-tiered KV cache…».
+- `--enable-unified-memory`: совместимы — HiCache поддержан для всех форм unified-пула (несовместимым с unified-пулом остается только `--enable-lmcache`).
 - `--enable-int8-mamba-checkpoint`: несовместим, `_handle_int8_mamba_checkpoint` бросает `ValueError` (host-offload путь не понимает int8-чекпойнты).
 - `--dcp-size` > 1: разрешено только для MLA-моделей и только L1/L2 — `--hicache-storage-backend`, спекулятивное декодирование, `--enable-lmcache` и `--enable-hisparse` в этой комбинации отвергаются `NotImplementedError`.
 - `--disaggregation-decode-enable-offload-kvcache`: включает те же нормализации `_handle_hicache` и требует заданного `--hicache-storage-backend`.
-- `--disaggregation-decode-retraction-backup host_pool`: строит зарезервированный HiCache L2 для KV вытесненных decode-запросов даже без этого флага; при незаданном ratio использует `0.2` без HiCache, либо `2.0` с HiCache.
+- `--disaggregation-decode-retraction-backup host_pool`: строит зарезервированный HiCache L2 для KV вытесненных decode-запросов даже без этого флага; при незаданном ratio использует `0.2` без HiCache (при `--hicache-size 0` — не меньше одного запроса максимальной длины, двух при `--disaggregation-decode-host-receive-threshold > 0`), либо `2.0` с HiCache.
 - `--optimistic-prefill-attempts`: на prefill-узле PD работает только с L2 и политикой `write_back`; иначе значение молча сбрасывается в 0 с предупреждением.
 - `--dllm-algorithm`: при включенном radix cache гасит HiCache с предупреждением.
 
 ## Типовые проблемы и диагностика
 
-- Старт падает с «Not enough host memory available. Requesting X GB but only have Y GB free.» — L2 не помещается: уменьшите `--hicache-ratio` или задайте меньший `--hicache-size`. Порог считается как `MemAvailable − 10 ГиБ`.
+- Старт падает с «Not enough host memory available. Requesting X GB but only have Y GB free.» — явно заданный L2 не помещается: уменьшите `--hicache-ratio` или задайте меньший `--hicache-size` (либо уберите оба и доверьте размер auto-sizing'у). Порог на rank считается как `(min(MemAvailable, остаток memory cgroup) − 10 ГиБ) / число rank'ов на узле`.
+- L2 меньше ожидаемого при не заданном размере — сработал auto-sizing: ищите в логе `HiCache auto-sizing: ratio A -> B; …` и см. `--hicache-host-memory-fraction`.
 - Предупреждение «HiCache … host pool (N tokens) is smaller than the device pool (M tokens); L2 cache effectiveness is reduced.» — host-пул меньше device-пула, толку от L2 почти нет: поднимите ratio выше 1.
 - Старт падает с «The arguments enable-hierarchical-cache and disable-radix-cache are mutually exclusive…» — конфликт флагов.
 - Ветка кеша подтверждается строкой «Tree cache initialized: source=default impl=HiRadixCache … hierarchical=True» (`mem_cache/registry.py`), фактический размер L2 — строкой «Allocating kv hierarchical KV host pool: N tokens, X.XX GB host memory.» (`mem_cache/pool_host/base.py`).
@@ -125,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/base.py`
+- `sglang/python/sglang/srt/mem_cache/hicache_auto_size.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
 - `sglang/docs/docs/advanced_features/hicache_best_practices.mdx`

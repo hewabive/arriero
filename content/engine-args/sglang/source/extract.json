@@ -40,7 +40,7 @@
     "--admin-api-key"
    ],
    "group": "serving",
-   "help": "Set admin API key for sensitive management endpoints (e.g. /clear_hicache_storage_backend). When set, admin endpoints require this key and do NOT accept --api-key.",
+   "help": "Set admin API key for sensitive management endpoints (e.g. /hicache/storage-backend/clear). When set, admin endpoints require this key and do NOT accept --api-key.",
    "choices": null,
    "type": "str",
    "optional": true,
@@ -255,6 +255,29 @@
   },
   {
    "flags": [
+    "--boundary-reduction"
+   ],
+   "group": "exec.comm",
+   "help": "Select FFN boundary reduction: ar uses all-reduce then token redistribution; rs and rsv permit fixed-size and variable-size reduce-scatter respectively; rs+rsv permits both (RSv first). Unsupported paths fall back to ar. The option applies to the FFN stages of decoders built with stage boundaries, where auto resolves the model default; other models ignore it. Required attention and MoE collectives and all-reduce fusion are unaffected.",
+   "choices": [
+    "auto",
+    "ar",
+    "rs",
+    "rsv",
+    "rs+rsv"
+   ],
+   "type": "enum",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.boundary_reduction"
+  },
+  {
+   "flags": [
     "--bucket-e2e-request-latency"
    ],
    "group": "observability",
@@ -419,6 +442,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.constrained_json_disable_any_whitespace"
+  },
+  {
+   "flags": [
+    "--constrained-json-max-whitespace-cnt"
+   ],
+   "group": "serving",
+   "help": "(xgrammar backend only) Max consecutive whitespace chars allowed in JSON constrained output. None means unbounded.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.constrained_json_max_whitespace_cnt"
   },
   {
    "flags": [
@@ -636,6 +676,41 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_max_bs_prefill"
+  },
+  {
+   "flags": [
+    "--cuda-graph-max-seq-len-prefill"
+   ],
+   "group": "exec.graph",
+   "help": "Longest sequence a prefill cuda graph replay admits; longer batches run eager prefill. Folds into cuda_graph_config[prefill].max_seq_len.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_max_seq_len_prefill"
+  },
+  {
+   "flags": [
+    "--cuda-graph-prefill-max-context",
+    "--context-bucket"
+   ],
+   "group": "exec.graph",
+   "help": "Maximum context length supported by DeepSeek-V4 breakable/full prefill CUDA graphs. Context-shaped attention metadata and indexer logits are allocated at this fixed size instead of the model maximum. Larger live contexts fall back to eager.\n\nSupports standard SI suffixes (k, M, G, T) and IEC suffixes\n(Ki, Mi, Gi, Ti). Suffixes are case-sensitive.\n\nDecimals are allowed for SI suffixes only.\n\nExamples:\n    '1k' -> 1000      '1M' -> 1000000    '25.6k' -> 25600\n    '1Ki' -> 1024     '1Mi' -> 1048576",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_prefill_max_context"
   },
   {
    "flags": [
@@ -1132,6 +1207,40 @@
   },
   {
    "flags": [
+    "--disable-aiter-allreduce-fusion-in-decode"
+   ],
+   "group": "exec.comm",
+   "help": "Disable Aiter AllReduce Fusion for decode batches (DECODE / TARGET_VERIFY / draft-extend / IDLE) while keeping it for prefill. Only meaningful with --enable-aiter-allreduce-fusion.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.disable_aiter_allreduce_fusion_in_decode"
+  },
+  {
+   "flags": [
+    "--disable-aiter-allreduce-fusion-in-prefill"
+   ],
+   "group": "exec.comm",
+   "help": "Disable Aiter AllReduce Fusion for prefill batches (EXTEND / MIXED / SPLIT_PREFILL) while keeping it for decode. Only meaningful with --enable-aiter-allreduce-fusion.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.disable_aiter_allreduce_fusion_in_prefill"
+  },
+  {
+   "flags": [
     "--disable-attn-tp-gather"
    ],
    "group": "parallel",
@@ -1486,6 +1595,23 @@
   },
   {
    "flags": [
+    "--disaggregation-decode-host-receive-threshold"
+   ],
+   "group": "disagg",
+   "help": "Device token usage fraction at which incoming KV is received in the decode retraction host pool, excluding evictable cache pages. Range [0, 1]; 0 disables host receive. Size with --hicache-size or --hicache-ratio; requires dense MHA and a transfer backend that supports host destinations. No built-in backend currently supports this.",
+   "choices": null,
+   "type": "float",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 0.0
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_host_receive_threshold"
+  },
+  {
+   "flags": [
     "--disaggregation-decode-polling-interval"
    ],
    "group": "disagg",
@@ -1506,10 +1632,11 @@
     "--disaggregation-decode-retraction-backup"
    ],
    "group": "disagg",
-   "help": "Storage backend for KV preserved across PD decode retraction. 'cpu_tensor' uses per-request CPU tensors. 'host_pool' uses a reserved HiCache pool and does not fall back on exhaustion. If omitted, the backend is inferred from the decode KV pool.",
+   "help": "Storage backend for KV preserved across PD decode retraction. 'cpu_tensor' uses per-request CPU tensors. 'host_pool' uses a reserved HiCache pool and does not fall back on exhaustion. 'none' keeps no backup: a retracted request is aborted with 503 for the client to retry. If omitted, the backend is inferred from the decode KV pool.",
    "choices": [
     "cpu_tensor",
-    "host_pool"
+    "host_pool",
+    "none"
    ],
    "type": "str",
    "optional": true,
@@ -1520,6 +1647,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_retraction_backup"
+  },
+  {
+   "flags": [
+    "--disaggregation-enable-kv-checksum"
+   ],
+   "group": "disagg",
+   "help": "Compute an Adler-32 checksum over each request's KV pages on prefill and verify it on decode. Enable on both prefill and decode engines. A mismatch aborts the request, or raises in CI. Disabled by default.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_enable_kv_checksum"
   },
   {
    "flags": [
@@ -1998,23 +2142,6 @@
   },
   {
    "flags": [
-    "--elastic-ep-rejoin"
-   ],
-   "group": "exec.moe",
-   "help": "[Deprecated] Alias for --elastic-ep-join-mode recover.",
-   "choices": null,
-   "type": "bool",
-   "optional": false,
-   "default": {
-    "kind": "literal",
-    "value": false
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_rejoin"
-  },
-  {
-   "flags": [
     "--elastic-ep-scale-timeout"
    ],
    "group": "exec.moe",
@@ -2165,6 +2292,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_custom_logit_processor"
+  },
+  {
+   "flags": [
+    "--enable-decoder-swa-bounded-replay"
+   ],
+   "group": "exec.features",
+   "help": "DeepSeek-V4.1 decoder SWA bounded replay: after the last kv_source layer, run the remaining layers over only the last window_size tokens of a prefill. Main and indexer KV stay exact; nothing is replayed. Deterministic for a fixed prompt and chunk size.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_decoder_swa_bounded_replay"
   },
   {
    "flags": [
@@ -2352,6 +2496,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_elastic_expert_backup"
+  },
+  {
+   "flags": [
+    "--enable-encoder-swa-bounded-replay"
+   ],
+   "group": "exec.features",
+   "help": "DeepSeek-V4.1 encoder SWA bounded replay: cache Main KV and Indexer keys only, rebuild request-owned SWA windows on prefix hits. Experimental; CUDA only.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_encoder_swa_bounded_replay"
   },
   {
    "flags": [
@@ -2624,6 +2785,23 @@
   },
   {
    "flags": [
+    "--enable-linker-mla-dedup"
+   ],
+   "group": "memory",
+   "help": "Load replicated MLA KV on rank 0 and broadcast each layer with the Mooncake linker.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_linker_mla_dedup"
+  },
+  {
+   "flags": [
     "--enable-lmcache"
    ],
    "group": "memory",
@@ -2814,7 +2992,7 @@
     "--enable-mscclpp"
    ],
    "group": "exec.comm",
-   "help": "Enable using mscclpp for small messages for all-reduce kernel and fall back to NCCL.",
+   "help": "Enable MSCCL++ for tuned AllReduce and AllGather messages, with NCCL fallback.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -2910,6 +3088,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_page_major_kv_layout"
+  },
+  {
+   "flags": [
+    "--enable-pd-role-switch"
+   ],
+   "group": "disagg",
+   "help": "Allow runtime prefill<->decode role switch via /pd_role_switch (PD mode).",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_pd_role_switch"
   },
   {
    "flags": [
@@ -3427,7 +3622,7 @@
     "--enable-unified-memory"
    ],
    "group": "memory",
-   "help": "Replace the statically-partitioned hybrid-model pools (full-attn KV + SWA/Mamba state) with one byte buffer split dynamically between sub-pools. Requires the Triton attention / linear-attn / Mamba backends. PD disaggregation is supported over mooncake at equal attention TP with pp=1; not yet compatible with hierarchical / host-tiered KV cache, prefill cuda-graph capture, or speculative decoding other than DSPARK.",
+   "help": "Replace the statically-partitioned hybrid-model pools (full-attn KV + SWA/Mamba state) with one byte buffer split dynamically between sub-pools. Requires the Triton attention / linear-attn / Mamba backends. Supported PD-disaggregation and speculative-decoding configurations are validated at startup.",
    "choices": null,
    "type": "bool",
    "optional": false,
@@ -3948,11 +4143,12 @@
     "--flashinfer-allreduce-fusion-backend"
    ],
    "group": "exec.comm",
-   "help": "Enable FlashInfer allreduce fusion and choose backend. Requires SM90 or SM10X NVIDIA GPUs. Defaults to auto. 'auto': choose mnnvl on Blackwell (SM100/SM103) systems (single- and multi-node) and trtllm on SM90 single-node systems. 'trtllm': available on single-node systems only. 'mnnvl': available on SM90 single-node systems and SM100/SM103 single-node or multi-node systems via MNNVL fabric. Fuses allreduce with Residual + RMSNorm for supported MoE models.",
+   "help": "Enable FlashInfer allreduce fusion and choose backend. Requires SM90 or SM10X NVIDIA GPUs. Defaults to auto. 'auto': choose mnnvl on Blackwell (SM100/SM103) systems (single- and multi-node) and trtllm on SM90 single-node systems. 'trtllm': available on single-node systems only. 'mnnvl': available on SM90 single-node systems and SM100/SM103 single-node or multi-node systems via MNNVL fabric. 'cutedsl': Blackwell-only bf16 MNNVL CuTe DSL backend; also fuses the MoE finalize and the shared-expert add into the collective when the MoE runner can defer them. Fuses allreduce with Residual + RMSNorm for supported MoE models.",
    "choices": [
     "auto",
     "trtllm",
-    "mnnvl"
+    "mnnvl",
+    "cutedsl"
    ],
    "type": "enum",
    "optional": true,
@@ -4301,6 +4497,23 @@
   },
   {
    "flags": [
+    "--grpc-response-timeout-secs"
+   ],
+   "group": "serving",
+   "help": "Timeout in seconds waiting for each native gRPC response chunk, including the first. Must be positive. Defaults to 300.",
+   "choices": null,
+   "type": "int",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": 300
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_response_timeout_secs"
+  },
+  {
+   "flags": [
     "--hf-chat-template-name"
    ],
    "group": "serving",
@@ -4315,6 +4528,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.hf_chat_template_name"
+  },
+  {
+   "flags": [
+    "--hicache-host-memory-fraction"
+   ],
+   "group": "memory",
+   "help": "Fraction of the available host memory, bounded by visible cgroup memory.max/memory.high or v1 memory limits (after a 10 GiB reserve) that the HiCache host pools of all ranks on this machine may use. Applies only when neither --hicache-ratio nor --hicache-size is set: the default ratio is then reduced until the pools fit. Lower it when several engines share a memory cgroup.",
+   "choices": null,
+   "type": "float",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": 0.8
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_host_memory_fraction"
   },
   {
    "flags": [
@@ -4419,7 +4649,7 @@
     "--hicache-storage-backend"
    ],
    "group": "memory",
-   "help": "The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, npu_memcache, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).",
+   "help": "The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, npu_memcache, hf3fs, nixl, aibrix, tensorcast. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).",
    "choices": [
     "file",
     "sim",
@@ -4432,7 +4662,8 @@
     "eic",
     "simm",
     "mori",
-    "shm"
+    "shm",
+    "tensorcast"
    ],
    "type": "str",
    "optional": true,
@@ -4714,23 +4945,6 @@
   },
   {
    "flags": [
-    "--keep-mm-feature-on-device"
-   ],
-   "group": "mm",
-   "help": "Deprecated. Use --mm-feature-transport=cuda_ipc for bounded GPU-resident multimodal feature transport.",
-   "choices": null,
-   "type": "bool",
-   "optional": false,
-   "default": {
-    "kind": "literal",
-    "value": false
-   },
-   "action": null,
-   "hidden": false,
-   "origin": "python/sglang/srt/arg_groups/fields/mm.py:Mm.keep_mm_feature_on_device"
-  },
-  {
-   "flags": [
     "--kt-cpuinfer"
    ],
    "group": "exec.moe",
@@ -4845,8 +5059,7 @@
     "bf16",
     "bfloat16",
     "nvfp4",
-    "fp4_mx_block16",
-    "fp4_e2m1"
+    "fp4_mx_block16"
    ],
    "type": "str",
    "optional": false,
@@ -6470,6 +6683,23 @@
   },
   {
    "flags": [
+    "--otlp-service-name"
+   ],
+   "group": "observability",
+   "help": "Service name for OTLP traces (displayed as 'service.name' in trace backends). If unset, falls back to the OTEL_SERVICE_NAME env var, then to 'sglang'.",
+   "choices": null,
+   "type": "str",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/observability.py:Observability.otlp_service_name"
+  },
+  {
+   "flags": [
     "--otlp-traces-endpoint"
    ],
    "group": "observability",
@@ -6840,6 +7070,27 @@
   },
   {
    "flags": [
+    "--prefill-kv-cache-dequant-dtype"
+   ],
+   "group": "exec.kernel",
+   "help": "Online dequantization dtype used by prefill attention when --kv-cache-dtype=nvfp4. 'nvfp4' reads the packed cache directly without additional dequantization; 'fp8_e4m3' dequantizes it into a temporary FP8 workspace. This does not change the stored KV-cache dtype. 'auto' selects NVFP4 without additional dequantization on SM100 and FP8 E4M3 otherwise.",
+   "choices": [
+    "auto",
+    "nvfp4",
+    "fp8_e4m3"
+   ],
+   "type": "str",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": "auto"
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.prefill_kv_cache_dequant_dtype"
+  },
+  {
+   "flags": [
     "--prefill-max-requests"
    ],
    "group": "schedule",
@@ -7011,12 +7262,13 @@
     "--radix-eviction-policy"
    ],
    "group": "memory",
-   "help": "The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' stands for Least Frequently Used, 'slru' stands for Segmented Least Recently Used, and 'priority' evicts lower-priority requests first. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy for what each policy optimizes for.",
+   "help": "The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' stands for Least Frequently Used, 'slru' stands for Segmented Least Recently Used, 'priority' evicts lower-priority requests first, and 'tlru' stands for Tail-Optimized LRU (arXiv:2510.15152), which evicts the part of a conversation that cannot affect tail TTFT before falling back to LRU. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy for what each policy optimizes for.",
    "choices": [
     "lru",
     "lfu",
     "slru",
-    "priority"
+    "priority",
+    "tlru"
    ],
    "type": "str",
    "optional": false,
@@ -7033,7 +7285,7 @@
     "--radix-eviction-policy-config"
    ],
    "group": "memory",
-   "help": "Tuning parameters for --radix-eviction-policy, as a json object passed to the policy as keyword arguments. Only 'slru' takes any today: protected_threshold (int, default 2), e.g. '{\"protected_threshold\": 4}'. An unrecognized key fails at startup, naming the key and the policy. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy#policy-parameters for the full parameter list.",
+   "help": "Tuning parameters for --radix-eviction-policy, as a json object passed to the policy as keyword arguments. 'slru' takes protected_threshold (int, default 2), e.g. '{\"protected_threshold\": 4}'; 'tlru' takes threshold and next_prompt_estimate (ints, tokens), e.g. '{\"threshold\": 4096, \"next_prompt_estimate\": 512}'. An unrecognized key fails at startup, naming the key and the policy. See https://docs.sglang.io/docs/advanced_features/radix_eviction_policy#policy-parameters for the full parameter list.",
    "choices": null,
    "type": "json",
    "optional": true,
@@ -7397,7 +7649,8 @@
     "lof",
     "priority",
     "routing-key",
-    "hrrn"
+    "hrrn",
+    "shortest-prefill-first"
    ],
    "type": "str",
    "optional": false,
@@ -7442,6 +7695,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.served_model_name"
+  },
+  {
+   "flags": [
+    "--shared-experts-tp-size"
+   ],
+   "group": "parallel",
+   "help": "Shared-expert TP size for Kimi-K3 with an expert-parallel all-to-all backend. Must divide attention TP size. Overrides --enable-shared-experts-attn-tp when set; 1 replicates the weights.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/parallel.py:Parallel.shared_experts_tp_size"
   },
   {
    "flags": [
@@ -7932,10 +8202,27 @@
   },
   {
    "flags": [
+    "--speculative-draft-sink-size"
+   ],
+   "group": "spec",
+   "help": "Number of leading 'attention sink' tokens the draft always attends to, in addition to the --speculative-draft-window-size recent window (StreamingLLM-style). Honored only by the built-in EAGLE/MTP draft-decode path on the Triton and FlashInfer draft backends; the Llama EAGLE-3 and DFLASH windows ignore it. 0/unset => pure recent window. Requires --speculative-draft-window-size.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_sink_size"
+  },
+  {
+   "flags": [
     "--speculative-draft-window-size"
    ],
    "group": "spec",
-   "help": "Sliding window size for the draft model. Honored by Llama EAGLE-3 (`LlamaForCausalLMEagle3`) and DFLASH only; other EAGLE-3 backends (e.g. MLA-based drafters) silently ignore it. For Llama EAGLE-3, the drafter only attends to the most recent N keys (verifier hidden states + its own outputs); the verifier is unaffected. For DFLASH, the draft worker keeps a recent target-token window in its local KV cache (paged backends may retain up to one extra page on the left for alignment). Default is full attention/context.",
+   "help": "Sliding window size for the draft model. Honored by Llama EAGLE-3 (`LlamaForCausalLMEagle3`), DFLASH, and the built-in EAGLE/MTP draft-decode path on the Triton and FlashInfer draft backends; other EAGLE-3 backends (e.g. MLA-based drafters) silently ignore it. For Llama EAGLE-3, the drafter only attends to the most recent N keys (verifier hidden states + its own outputs); the verifier is unaffected. For DFLASH, the draft worker keeps a recent target-token window in its local KV cache (paged backends may retain up to one extra page on the left for alignment). For the built-in EAGLE/MTP draft, each draft-decode step attends to a --speculative-draft-sink-size sink plus the most recent N tokens, leaving the target verify pass unchanged; it is ignored (with a warning) if the draft model has a native sliding window of its own. Default is full attention/context.",
    "choices": null,
    "type": "int",
    "optional": true,
@@ -8501,6 +8788,23 @@
   },
   {
    "flags": [
+    "--swa-prefix-tails"
+   ],
+   "group": "schedule",
+   "help": "When the SWA KV pool is sized from the request cap (DeepSeek-V4 family), how many radix-cached prefix tails it keeps room for. Each tail is one sliding window plus one page. Default: 4 x max_running_requests per attention-DP rank, 0 when the radix cache is disabled.",
+   "choices": null,
+   "type": "int",
+   "optional": true,
+   "default": {
+    "kind": "literal",
+    "value": null
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/schedule.py:Schedule.swa_prefix_tails"
+  },
+  {
+   "flags": [
     "--tbo-token-distribution-threshold"
    ],
    "group": "exec.overlap",
@@ -8794,6 +9098,23 @@
    "action": null,
    "hidden": false,
    "origin": "python/sglang/srt/arg_groups/fields/model.py:Model.trust_remote_code"
+  },
+  {
+   "flags": [
+    "--trust-request-chat-template"
+   ],
+   "group": "serving",
+   "help": "Allow a request to override the server chat template via its chat_template_kwargs. Off by default for safety.",
+   "choices": null,
+   "type": "bool",
+   "optional": false,
+   "default": {
+    "kind": "literal",
+    "value": false
+   },
+   "action": null,
+   "hidden": false,
+   "origin": "python/sglang/srt/arg_groups/fields/serving.py:Serving.trust_request_chat_template"
   },
   {
    "flags": [

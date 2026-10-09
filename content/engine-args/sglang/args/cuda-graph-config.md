@@ -13,6 +13,8 @@ related:
   - --cuda-graph-bs-decode
   - --cuda-graph-bs-prefill
   - --cuda-graph-tc-compiler
+  - --cuda-graph-max-seq-len-prefill
+  - --cuda-graph-prefill-max-context
   - --disable-decode-cuda-graph
   - --disable-prefill-cuda-graph
   - --disable-cuda-graph
@@ -52,7 +54,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 ### Схема объекта
 
 `decode` принимает ключи `backend`, `max_bs`, `bs`, `tc_compiler`.
-`prefill` принимает `backend`, `max_bs`, `bs`, `tc_compiler`, `full_prefill_max_req`, `full_prefill_prefix_chunk_tokens`.
+`prefill` принимает `backend`, `max_bs`, `bs`, `tc_compiler`, `max_context_size`, `full_prefill_max_req`, `full_prefill_prefix_chunk_tokens`, `max_seq_len`.
 
 - `backend` — один из `full`, `breakable`, `tc_piecewise`, `disabled`.
 - `max_bs` — целое. Для decode это максимальный размер батча (число запросов), для prefill — максимальное **число токенов** в захваченной форме, несмотря на имя.
@@ -60,6 +62,8 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 - `tc_compiler` — `eager` или `inductor`, читает только backend `tc_piecewise`, и сегодня только в фазе prefill.
 - `full_prefill_max_req` — только для prefill с `backend: "full"`: число слотов запросов, зашитых в каждый захваченный граф. `null` (по умолчанию) → `max(chunked_prefill_size // 512, 1)`, дополнительно ограничивается размером `req_to_token_pool`. Батч с числом запросов больше этого значения уходит в eager.
 - `full_prefill_prefix_chunk_tokens` — только для prefill с `backend: "full"`: размер одного фиксированного чанка кешированного префикса. `null` → бюджет `chunked_prefill_size`. FullCG захватывает варианты на 1/2/4/8/16 чанков и выбирает наименьший подходящий.
+- `max_context_size` — только prefill, backend'ы `breakable` и `full`: фиксированная длина контекста для контекстных метаданных графа; батчи длиннее идут eager. Поддерживает только backend внимания DeepSeek-V4. Отдельный флаг — `--cuda-graph-prefill-max-context`.
+- `max_seq_len` — только prefill: самая длинная последовательность, которую допускает replay prefill-графа. В checkout'е ее читает только backend внимания DeepSeek-V4; для DeepSeek-V4.1 с включенным prefill-графом движок подставляет `16384`. Отдельный флаг — `--cuda-graph-max-seq-len-prefill`.
 
 Неизвестная фаза и неизвестный ключ отвергаются на разборе CLI сообщениями `--cuda-graph-config: unknown phase '<x>', expected one of ('decode', 'prefill')` и `--cuda-graph-config['decode']: unknown key '<x>', expected one of (…)`.
 
@@ -70,7 +74,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 1. Дефолты `default_cuda_graph_config()`.
 2. Legacy `--disable-cuda-graph` → `disabled` в обеих фазах.
 3. `--disable-prefill-cuda-graph`, `--disable-decode-cuda-graph`.
-4. Точечные флаги: `--cuda-graph-backend-*`, `--cuda-graph-max-bs-*`, `--cuda-graph-bs-*`, `--cuda-graph-tc-compiler`.
+4. Точечные флаги: `--cuda-graph-backend-*`, `--cuda-graph-max-bs-*`, `--cuda-graph-bs-*`, `--cuda-graph-tc-compiler`, `--cuda-graph-max-seq-len-prefill`, `--cuda-graph-prefill-max-context`.
 5. **JSON из `--cuda-graph-config` — последним.**
 
 ### Побочный эффект: «замок» на ключе
@@ -111,7 +115,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 
 ## Взаимодействие с другими аргументами
 
-- `--cuda-graph-backend-decode` / `--cuda-graph-backend-prefill` / `--cuda-graph-max-bs-decode` / `--cuda-graph-max-bs-prefill` / `--cuda-graph-bs-decode` / `--cuda-graph-bs-prefill` / `--cuda-graph-tc-compiler`: те же поля, ниже по приоритету.
+- `--cuda-graph-backend-decode` / `--cuda-graph-backend-prefill` / `--cuda-graph-max-bs-decode` / `--cuda-graph-max-bs-prefill` / `--cuda-graph-bs-decode` / `--cuda-graph-bs-prefill` / `--cuda-graph-tc-compiler` / `--cuda-graph-max-seq-len-prefill` / `--cuda-graph-prefill-max-context`: те же поля, ниже по приоритету.
 - `--disable-decode-cuda-graph` / `--disable-prefill-cuda-graph` / legacy `--disable-cuda-graph`: то же, что `backend: "disabled"` в соответствующей фазе.
 - `--mem-fraction-static`: `reserve_for_graph_mb()` читает `decode.max_bs`, `decode.backend`, `prefill.backend` и длину `prefill.bs`.
 - `--chunked-prefill-size`: дефолт `prefill.max_bs` для не-MLA моделей и делитель для `full_prefill_max_req`.

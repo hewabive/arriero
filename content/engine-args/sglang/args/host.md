@@ -58,7 +58,7 @@ The host of the HTTP server.
 Auth-middleware подключается **только** если задан `--api-key` или `--admin-api-key` (`http_server.py:_setup_and_run_http_server`). Без них на открытом интерфейсе доступны без всякой проверки, кроме прочего:
 
 - генерация: `/generate`, `/v1/chat/completions`, `/v1/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, ollama-совместимые `/api/chat` и `/api/generate`;
-- **`/server_info`** — отдает `dataclasses.asdict(server_args)` без какой-либо редакции, то есть выдает `api_key`, `admin_api_key` и `ssl_keyfile_password` открытым текстом;
+- **`/server_info`** — отдает `server_args.resolved_dict()` и исходную командную строку `launch_command` без какой-либо редакции, то есть выдает `api_key`, `admin_api_key` и `ssl_keyfile_password` открытым текстом;
 - управление весами: `/update_weights_from_disk`, `/update_weights_from_tensor`, `/update_weights_from_distributed`, `/init_weights_update_group`;
 - управление ресурсами: `/release_memory_occupation`, `/resume_memory_occupation`, `/flush_cache`, `/pause_generation`, `/slow_down`, `/freeze_gc`;
 - LoRA: `/load_lora_adapter`, `/unload_lora_adapter`;

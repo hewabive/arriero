@@ -11,6 +11,7 @@ related:
   - --speculative-draft-attention-backend
   - --page-size
   - --kv-cache-dtype
+  - --prefill-kv-cache-dequant-dtype
   - --disable-chunked-prefix-cache
   - --flashinfer-mla-disable-ragged
   - --prefill-only-disable-kv-cache
@@ -57,7 +58,8 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - `cutedsl_mla` в prefill запрещен: `CuteDSL MLA only supports decoding for now`.
 - `intel_xpu` в prefill для MLA-модели — `ValueError` с прямой рекомендацией задать его только через `--decode-attention-backend`, а prefill оставить на `triton`.
 - `--prefill-only-disable-kv-cache` требует, чтобы разрешенный prefill-backend был `fa3` или `fa4`.
-- FP4 KV (`--kv-cache-dtype nvfp4`/`fp4_mx_block16`): если prefill — `fa4`, набор допустимых decode-backend'ов жестко ограничен (`flashinfer`/`trtllm_mla` для MLA, `triton`/`torch_native`/`flex_attention` для MHA); если prefill не `fa4` и отличается от decode, печатается предупреждение «Compatibility issues are unlikely, but may occur in rare edge cases».
+- FP4 KV `--kv-cache-dtype nvfp4`: prefill-backend выбирает `--prefill-kv-cache-dequant-dtype` (`trtllm_mha` для `nvfp4`, `flashinfer` для `fp8_e4m3`), decode — всегда `trtllm_mha`; любой другой явно заданный prefill-backend, в том числе `fa4`, дает `ValueError` на старте.
+- FP4 KV `--kv-cache-dtype fp4_mx_block16`: если prefill — `fa4`, набор допустимых decode-backend'ов жестко ограничен (`flashinfer`/`trtllm_mla` для MLA, `triton`/`torch_native`/`flex_attention` для MHA); если prefill не `fa4` и отличается от decode, печатается предупреждение «Compatibility issues are unlikely, but may occur in rare edge cases».
 - `_mla_backend_page_constraints` учитывает prefill-сторону для `cutedsl_mla`, `trtllm_mha` и `hpc_ops`, `_fa4_page_constraint` — для `fa4`.
 - Chunked prefix cache проверяется по общему `attention_backend`, а не по prefill-полю: гибридная пара не расширяет список поддерживаемых backend'ов.
 

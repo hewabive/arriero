@@ -11,6 +11,7 @@ related:
   - --speculative-draft-attention-backend
   - --page-size
   - --kv-cache-dtype
+  - --prefill-kv-cache-dequant-dtype
   - --enable-deterministic-inference
   - --disable-chunked-prefix-cache
   - --triton-attention-num-kv-splits
@@ -47,11 +48,12 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - `_attention_backend_default` записывает значение в общее поле `attention_backend` только тогда, когда prefill и decode заданы одинаково. Если задан только decode, prefill получит автоподбор `_get_default_attn_backend`, и конфигурация станет гибридной.
 - При разных backend'ах создается `HybridAttnBackend` (`sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`) с двумя вложенными backend'ами; он же решает, какая половина обслуживает спекулятивный verify — по `--speculative-attention-mode`.
 - Привязки `--page-size`, которые проверяют именно decode-поле (`_mla_backend_page_constraints`): `flashmla` → 64, `trtllm_mla` → 32/64 (иначе 64), `tokenspeed_mla` → 32/64, `cutedsl_mla` → 32/64, `trtllm_mha` → 16/32/64/128, `hpc_ops` → 64. Полная картина — в справке `--page-size`.
-- Проверки KV-dtype `_mla_kv_cache_dtype_checks` тоже смотрят на decode-поле: `trtllm_mla` требует Blackwell и `fp8_e4m3`/`fp4_e2m1`/`bf16`/`auto`, `tokenspeed_mla` — Blackwell и строго `fp8_e4m3`.
+- Проверки KV-dtype `_mla_kv_cache_dtype_checks` тоже смотрят на decode-поле: `trtllm_mla` требует Blackwell и `fp8_e4m3`/`bf16`/`auto`, `tokenspeed_mla` — Blackwell и строго `fp8_e4m3`.
 - `trtllm_mha` в decode допускается на SM90/SM100/SM120 — шире, чем в prefill (только SM100).
 - `cutedsl_mla` в decode при незаданном prefill автоматически подставляет `trtllm_mla` в prefill; требует SM100 и KV-dtype из `fp8_e4m3`/`bf16`/`bfloat16`/`auto`.
 - `_intel_xpu_page_constraint` читает разрешенный decode-backend: `intel_xpu` требует 64/128 (для MLA-декода 16/32/64/128), иначе принудительно 128.
-- FP4 KV (`--kv-cache-dtype nvfp4`/`fp4_mx_block16`) при prefill=`fa4` ограничивает набор decode-backend'ов ассертом `KV4 FA4 MLA/MHA expects decode_attention_backend to be one of […]`.
+- FP4 KV `--kv-cache-dtype nvfp4` закрепляет decode за `trtllm_mha` (другое явное значение — `ValueError: NVFP4 decode requires --decode-attention-backend=trtllm_mha`), prefill-путь выбирает `--prefill-kv-cache-dequant-dtype`.
+- FP4 KV `--kv-cache-dtype fp4_mx_block16` при prefill=`fa4` ограничивает набор decode-backend'ов ассертом `KV4 FA4 MLA/MHA expects decode_attention_backend to be one of […]`.
 
 ## Значения и формат
 

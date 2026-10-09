@@ -6,7 +6,6 @@ title: "--mm-feature-transport"
 summary: Выбирает перенос мультимодальных признаков через CPU, одноузловой CUDA IPC или CUDA VMM с локальными/FABRIC-хендлами. По умолчанию используется `cpu`; `cuda_vmm` автоматически включается только для проверенной многоузловой конфигурации GB200/GB300 MNNVL с IMEX.
 group: mm
 related:
-  - --keep-mm-feature-on-device
   - --tokenizer-worker-num
   - --base-gpu-id
   - --nnodes
@@ -43,7 +42,7 @@ Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a 
 
 ## Что меняет в движке
 
-`_handle_multimodal_feature_transport` сначала переводит устаревший `--keep-mm-feature-on-device` и `SGLANG_USE_CUDA_IPC_TRANSPORT` в новую политику. Явный CLI-флаг имеет приоритет над конфликтующей переменной окружения. В `--encoder-only` оба GPU-варианта принудительно становятся `cpu`, потому что выход энкодера управляется `--encoder-transfer-backend`.
+`_handle_multimodal_feature_transport` сначала переводит устаревшую переменную `SGLANG_USE_CUDA_IPC_TRANSPORT` в новую политику (прежний флаг `--keep-mm-feature-on-device` из движка удален). Явный CLI-флаг имеет приоритет над конфликтующей переменной окружения. В `--encoder-only` оба GPU-варианта принудительно становятся `cpu`, потому что выход энкодера управляется `--encoder-transfer-backend`.
 
 При незаданном значении движок выбирает:
 
@@ -78,7 +77,6 @@ Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a 
 
 ## Взаимодействие с другими аргументами
 
-- `--keep-mm-feature-on-device` — deprecated-предшественник `cuda_ipc`; конфликтует с явными `cpu` и `cuda_vmm`.
 - `--nnodes`: `cuda_ipc` требует одного узла; многоузловой `cuda_vmm` требует MNNVL/FABRIC и IMEX.
 - `--pp-size`: для `cuda_vmm` допустимо только `1`.
 - `--tokenizer-worker-num` делит общий GPU-бюджет, `--base-gpu-id` выбирает карту-публикатор.

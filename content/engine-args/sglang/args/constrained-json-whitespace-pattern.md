@@ -7,6 +7,7 @@ summary: Регулярка, задающая, какие пробельные �
 group: serving
 related:
   - --constrained-json-disable-any-whitespace
+  - --constrained-json-max-whitespace-cnt
   - --grammar-backend
 ---
 
@@ -58,7 +59,7 @@ elif name == "llguidance":
 
 - **outlines**: `OutlinesGrammarBackend.dispatch_json` строит из схемы регулярку — `build_regex_from_schema(schema, whitespace_pattern)` — и компилирует её в `RegexGuide`. То есть паттерн буквально подставляется в места пробельных заполнителей итогового регулярного выражения.
 - **llguidance**: значение кладется в `defaults` вызова `LLMatcher.grammar_from_json_schema` под ключом `"whitespace_pattern"`, рядом с `"whitespace_flexible"`.
-- **xgrammar** конструируется без этого параметра — только с `any_whitespace`.
+- **xgrammar** конструируется без этого параметра — только с `any_whitespace` и `max_whitespace_cnt`.
 
 Влияние ограничено путем JSON-схемы; `regex`, `ebnf` и `structural_tag` компилируются отдельно и паттерн не используют.
 
@@ -75,7 +76,7 @@ elif name == "llguidance":
 - Выбран `outlines` или `llguidance` (обычно из-за особенностей токенизатора или требований к совместимости), и нужно точнее контролировать форматирование JSON.
 - Нужно разрешить именно многострочный отступ (например для читаемого вывода в UI) — тогда `[\n\t ]*`.
 - Нужен максимально компактный вывод — пустой паттерн.
-- **Не используйте** на xgrammar: там инструмент называется `--constrained-json-disable-any-whitespace`.
+- **Не используйте** на xgrammar: там инструменты называются `--constrained-json-disable-any-whitespace` (компактный JSON) и `--constrained-json-max-whitespace-cnt` (лимит длины серии пробелов).
 - **Не используйте** для форматирования ответа вообще: это ограничение грамматики, а не форматтер; postprocessing на стороне клиента дешевле и надежнее.
 
 ## Влияние на производительность и память
@@ -93,7 +94,7 @@ elif name == "llguidance":
 
 - **Значение задано, ничего не изменилось** — почти всегда работает дефолтный `xgrammar`. Проверьте `grammar_backend` в дампе `server_args=`.
 - `Hit invalid json_schema: key_string=…` в логе с текстом про регулярку — на `outlines` паттерн вошел в итоговое выражение и сломал его компиляцию.
-- **Ответ обрывается на середине JSON** — слишком свободный паттерн, модель тратит токены на пробелы; ужесточите паттерн или переключитесь на xgrammar с `--constrained-json-disable-any-whitespace`.
+- **Ответ обрывается на середине JSON** — слишком свободный паттерн, модель тратит токены на пробелы; ужесточите паттерн или переключитесь на xgrammar с `--constrained-json-disable-any-whitespace` либо `--constrained-json-max-whitespace-cnt`.
 - **Экранирование съело символы** — сверьте фактически принятое значение в дампе `server_args=`: там видно, что реально дошло до процесса.
 
 ## Примеры

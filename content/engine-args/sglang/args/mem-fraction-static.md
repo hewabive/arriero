@@ -112,7 +112,7 @@ return int(rest_memory * (1 << 30))                      # бюджет KV-пу�
 - `--context-length`: определяет `cell_size`-независимую часть — размер `req_to_token`-пула и оценку числа запросов; длинный контекст при том же `mem_fraction_static` дает меньшую конкурентность.
 - `--tp-size` / `--pp-size`: входят в резерв (`tp*pp/8*1024` МиБ) и делят `cell_size` между rank'ами.
 - `--attention-backend aiter` при `context_len > 8192` умножает **итоговое** значение на 0.85 — единственный случай, когда явно заданное значение молча уменьшается.
-- `--enable-hierarchical-cache` / `--hicache-ratio`: host-пул считается от `device_pool.size`, то есть растет вместе с `mem_fraction_static`.
+- `--enable-hierarchical-cache` / `--hicache-ratio`: host-пул считается от `device_pool.size`, то есть растет вместе с `mem_fraction_static` — при не заданных `--hicache-ratio`/`--hicache-size` только до потолка `--hicache-host-memory-fraction`, после которого ratio урезается.
 - `--max-mamba-cache-size` / `--mamba-full-memory-ratio`: для гибридных моделей mamba-состояния вычитаются из того же бюджета до расчета KV-пула.
 
 ## Типовые проблемы и диагностика

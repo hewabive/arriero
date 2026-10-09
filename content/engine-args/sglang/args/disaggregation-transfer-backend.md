@@ -85,7 +85,7 @@ The backend for disaggregation transfer. Default is mooncake.
 - `--dcp-size > 1` на decode: требует `mooncake` или `nixl`, иначе `PD decode DCP requires --disaggregation-transfer-backend mooncake or nixl`.
 - `--disaggregation-decode-enable-radix-cache`: несовместим с `fake`.
 - `--enable-dsa-cache-layer-split`: требует mooncake-семейство (`mooncake` / `mooncake_tcp`), для mori/nixl явно не реализовано.
-- `--enable-unified-memory` при ненулевом режиме: только `mooncake`, только `--pp-size 1`, требует ленивую компакцию и несовместим с `--enable-hisparse`.
+- `--enable-unified-memory` при ненулевом режиме: только `mooncake`, только `--pp-size 1`, без спекулятивного декодирования, требует ленивую компакцию, несовместим с `--enable-hisparse` и требует одинакового attention TP на prefill- и decode-узлах (проверяется при первой передаче).
 - `SGLANG_DISAGG_STAGING_BUFFER` (переменная окружения): требует `mooncake` или `nixl`.
 - `--device npu` фактически предполагает `ascend` (или `mooncake` с `ENABLE_ASCEND_TRANSFER_WITH_MOONCAKE=true`).
 

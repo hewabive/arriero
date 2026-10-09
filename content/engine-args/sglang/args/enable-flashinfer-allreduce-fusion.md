@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--enable-flashinfer-allreduce-fusion"
 title: "--enable-flashinfer-allreduce-fusion"
-summary: Устаревший включатель слияния allreduce с Residual+RMSNorm через FlashInfer. Заменен на `--flashinfer-allreduce-fusion-backend`, где вместо булева «включить» выбирается конкретный backend (`auto`, `trtllm`, `mnnvl`).
+summary: Устаревший включатель слияния allreduce с Residual+RMSNorm через FlashInfer. Заменен на `--flashinfer-allreduce-fusion-backend`, где вместо булева «включить» выбирается конкретный backend (`auto`, `trtllm`, `mnnvl`, `cutedsl`).
 group: null
 related:
   - --flashinfer-allreduce-fusion-backend
@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-При тензорном параллелизме после каждого блока внимания и MLP выполняется allreduce, а следом — сложение с residual и RMSNorm. FlashInfer умеет слить эти три операции в одно ядро, что убирает лишние проходы по памяти. Раньше это включалось булевым флагом; теперь backend слияния выбирается явно через `--flashinfer-allreduce-fusion-backend` (`auto`, `trtllm`, `mnnvl`), потому что доступность зависит от поколения карт и от топологии узлов.
+При тензорном параллелизме после каждого блока внимания и MLP выполняется allreduce, а следом — сложение с residual и RMSNorm. FlashInfer умеет слить эти три операции в одно ядро, что убирает лишние проходы по памяти. Раньше это включалось булевым флагом; теперь backend слияния выбирается явно через `--flashinfer-allreduce-fusion-backend` (`auto`, `trtllm`, `mnnvl`, `cutedsl`), потому что доступность зависит от поколения карт и от топологии узлов.
 
 Флаг устарел «мягко»: он объявлен обычным `store_true`, а не через семейство `Deprecated*Action`, поэтому предупреждение печатает не argparse, а `_handle_deprecated_args` — и только если новый аргумент не задан.
 
@@ -71,7 +71,7 @@ Auto-enabling FlashInfer AllReduce Fusion on SM90/SM10X for <архитекту�
 ## Значения и формат
 
 - Булев флаг без значения.
-- Работает только как «включить с backend'ом `auto`». Выбрать `trtllm` или `mnnvl` им нельзя — для этого нужен новый аргумент.
+- Работает только как «включить с backend'ом `auto`». Выбрать `trtllm`, `mnnvl` или `cutedsl` им нельзя — для этого нужен новый аргумент.
 - Задать его вместе с `--flashinfer-allreduce-fusion-backend` можно, но старый флаг в этом случае не делает ничего и даже не предупреждает.
 - Требует SM90 или SM10x — это ограничение самого механизма, а не аргумента.
 - В YAML через `--config` ключ `enable-flashinfer-allreduce-fusion` задается нормально: это `store_true`, а не Deprecated-действие. А вот `flashinfer-allreduce-fusion-backend` в YAML работает, потому что на его `dest` устаревших алиасов нет.
@@ -93,7 +93,7 @@ Auto-enabling FlashInfer AllReduce Fusion on SM90/SM10X for <архитекту�
 
 ## Взаимодействие с другими аргументами
 
-- `--flashinfer-allreduce-fusion-backend`: актуальная замена; `auto`, `trtllm`, `mnnvl`.
+- `--flashinfer-allreduce-fusion-backend`: актуальная замена; `auto`, `trtllm`, `mnnvl`, `cutedsl`.
 - `--enforce-disable-flashinfer-allreduce-fusion`: жестко снимает слияние поверх любых авто-включений.
 - `--enable-aiter-allreduce-fusion`: аналог для ROCm; несовместим с context parallelism.
 - `--tp-size`: слияние имеет смысл только при значении больше 1.

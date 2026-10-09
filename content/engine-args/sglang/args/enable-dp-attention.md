@@ -117,7 +117,7 @@ attn_dp_rank = tp_rank // (attn_tp_size * attn_cp_size)
 - `--attn-cp-size`: делит ту же группу дальше — `attn_tp_size = tp_size // dp_size // attn_cp_size`, требуется `tp_size % (dp_size * attn_cp_size) == 0`.
 - `--enable-attn-tp-input-scattered`: взаимоисключающе — scatter-путь включается только при выключенном DP-attention.
 - `--dwdp-size`, MLA CP, zigzag DSA CP, DeepSeek-V4 CP: включают этот флаг за вас.
-- `--enable-aiter-allreduce-fusion` на DeepSeek/GPT-OSS: соответствующая ветка в `_handle_model_specific_adjustments` срабатывает только при **выключенном** DP-attention и `nnodes == 1`.
+- `--enable-aiter-allreduce-fusion`: при DP-attention слитый путь не применяется вовсе. Автоматическое включение для GLM-5 (`GlmMoeDsaForCausalLM`) на ROCm в `handle_model_specific_adjustments` — только для decode-фазы, вместе с `--disable-aiter-allreduce-fusion-in-prefill` — срабатывает лишь при **выключенном** DP-attention и `nnodes == 1`; для DeepSeek и GPT-OSS эта ветка в checkout'е ничего не включает.
 
 ## Типовые проблемы и диагностика
 

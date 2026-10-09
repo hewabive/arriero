@@ -8,6 +8,7 @@ group: exec.kernel
 related:
   - --constrained-json-whitespace-pattern
   - --constrained-json-disable-any-whitespace
+  - --constrained-json-max-whitespace-cnt
   - --enable-strict-thinking
   - --reasoning-parser
   - --tool-call-parser
@@ -57,7 +58,7 @@ Choose the backend for grammar-guided decoding.
 
 - Если задан `--reasoning-parser` и у модели известны `think_end_ids`, выбранный backend заворачивается в `ReasonerGrammarBackend`: грамматика начинает применяться только после закрытия блока рассуждений.
 - `--enable-strict-thinking` требует token filtering. С `--grammar-backend none` это `ValueError` на старте; с `outlines`/`llguidance` — `ValueError` из `ReasonerGrammarBackend` («Strict reasoning format requested but the grammar backend does not support token filtering»); если XGrammar не смог инициализироваться на этом токенизаторе, тихий откат на `none` заменяется явной ошибкой.
-- `--constrained-json-whitespace-pattern` читают только `outlines` и `llguidance`; `--constrained-json-disable-any-whitespace` — только `xgrammar` и `llguidance`.
+- `--constrained-json-whitespace-pattern` читают только `outlines` и `llguidance`; `--constrained-json-disable-any-whitespace` — только `xgrammar` и `llguidance`; `--constrained-json-max-whitespace-cnt` — только `xgrammar`.
 
 Компиляция грамматики асинхронна: она уходит в `ThreadPoolExecutor`, запрос ждет в `grammar_queue`, планировщик опрашивает его с интервалом `SGLANG_GRAMMAR_POLL_INTERVAL` (0.005 с) и после `SGLANG_GRAMMAR_MAX_POLL_ITERATIONS` (10000) итераций отменяет задачу с ошибкой `Grammar preprocessing timed out`. Скомпилированный результат кешируется по ключу `(тип, строка)`, включая отрицательный результат.
 

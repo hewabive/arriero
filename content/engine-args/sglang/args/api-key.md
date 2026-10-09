@@ -25,7 +25,7 @@ related:
 Три факта, которые нужно знать до включения:
 
 1. Пути с префиксами `/health` и `/metrics` **всегда** пропускаются без ключа — это сделано намеренно, ради k8s-проб и Prometheus.
-2. `/server_info` (и его устаревший алиас `/get_server_info`) отдает `dataclasses.asdict(server_args)` **без редакции**, то есть возвращает и `api_key`, и `admin_api_key`, и `ssl_keyfile_password`. Этот endpoint относится к обычному уровню доступа, поэтому его открывает тот же `--api-key`. Разделение прав между обычным и admin-ключом на этом заканчивается.
+2. `/server_info` (и его устаревший алиас `/get_server_info`) отдает `server_args.resolved_dict()` и исходную командную строку `launch_command` **без редакции**, то есть возвращает и `api_key`, и `admin_api_key`, и `ssl_keyfile_password`. Этот endpoint относится к обычному уровню доступа, поэтому его открывает тот же `--api-key`. Разделение прав между обычным и admin-ключом на этом заканчивается.
 3. Middleware вообще не подключается при `--tokenizer-worker-num > 1`; более того, в этом режиме каждый worker-процесс падает на `assert server_args.api_key is None`.
 
 ## Оригинальная справка

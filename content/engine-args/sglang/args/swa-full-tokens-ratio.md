@@ -14,6 +14,7 @@ related:
   - --chunked-prefill-size
   - --enable-hierarchical-cache
   - --context-length
+  - --swa-prefix-tails
 ---
 
 # --swa-full-tokens-ratio
@@ -35,7 +36,7 @@ The ratio of SWA layer KV tokens / full layer KV tokens, regardless of the numbe
 - Тип значения: число с плавающей точкой
 - Допустимые значения: полуинтервал `(0, 1.0]`; проверяется уже **разрешенное** значение, `ValueError: --swa-full-tokens-ratio should be in range (0, 1.0].`
 - Декларативное значение по умолчанию: `null`; обычный fallback `0.8`.
-- Эффективное значение: если флаг не задан, модельные переопределения выбирают DeepSeek V4 → `0.1`, Inkling → `0.1`; для остальных моделей применяется fallback `0.8`. Для `Step3p5ForCausalLM` вместе с `--enable-hierarchical-cache` значение безусловно сбрасывается в `1.0` и одновременно включается `disable_hybrid_swa_memory`. Кроме того, коэффициент полностью игнорируется двумя конфигураторами пулов — см. ниже
+- Эффективное значение: если флаг не задан, модельные переопределения выбирают DeepSeek V4 → `0.1` (кроме DeepSeek-V4.1, где коэффициент остается незаданным ради cap-режима), Inkling → `0.1`; для остальных моделей применяется fallback `0.8`. Для `Step3p5ForCausalLM` вместе с `--enable-hierarchical-cache` значение безусловно сбрасывается в `1.0` и одновременно включается `disable_hybrid_swa_memory`. Кроме того, коэффициент полностью игнорируется двумя конфигураторами пулов — см. ниже
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.swa_full_tokens_ratio`
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: `__post_init__` (переопределения и валидация) → расчет размеров KV-пулов при инициализации model runner
@@ -63,7 +64,7 @@ swa_tokens  = align_page_size(int(full_tokens * ratio))
 
 **`SWAChunkCapPoolConfigurator` — коэффициент игнорируется.** Он выбирается вместо основного, когда одновременно заданы `--max-running-requests`, `--disable-radix-cache`, `--chunked-prefill-size`, у модели есть скользящее окно и есть хотя бы один full-слой. Тогда SWA-пул считается «в обрез» по худшему случаю на запрос (окно + интервал вытеснения + запас на decode), а вся оставшаяся память отдается full-пулу. Ваш `--swa-full-tokens-ratio` в этой конфигурации не влияет ни на что.
 
-**`DSV4PoolConfigurator`** (DeepSeek V4) использует коэффициент в собственной, более сложной раскладке на четыре пула.
+**`DSV4PoolConfigurator`** (DeepSeek V4) применяет коэффициент в собственной раскладке на четыре пула, только если к проверке кеша он задан — пользователем или модельным переопределением (`_swa_full_tokens_ratio_explicitly_set`), — либо cap-режим недоступен (нет `--max-running-requests`, вне decode выключен chunked prefill, ring-режим ROCm). Переопределение ставит `0.1` всем чекпойнтам DeepSeek V4, кроме DeepSeek-V4.1 (`model_type: deepseek_v41`): у V4.1 коэффициент по умолчанию не задан, и SWA-пул считается в cap-режиме — от лимита запросов (`--max-running-requests`, для DeepSeek V4 по умолчанию `256`) плюс запас на хвосты закешированных префиксов `--swa-prefix-tails`. Явный коэффициент возвращает V4.1 к пропорциональной раскладке.
 
 Защита от слишком маленького SWA-пула: если `sliding_window_size + page_size >= swa_tokens`, старт падает с сообщением, что пул не вмещает даже один запрос, и предлагает увеличить `--swa-full-tokens-ratio` или общий бюджет KV.
 
@@ -100,6 +101,7 @@ swa_tokens  = align_page_size(int(full_tokens * ratio))
 - `--page-size`: выравнивание размеров обоих пулов.
 - `--enable-hierarchical-cache`: для `Step3p5ForCausalLM` принудительно выставляет коэффициент в `1.0` и отключает гибридный пул.
 - `--context-length`: определяет, сколько токенов нужно одному запросу, и тем самым — достаточен ли SWA-пул.
+- `--enable-encoder-swa-bounded-replay` (DeepSeek-V4.1): без DSpark-draft `DSV4PoolConfigurator` обнуляет SWA-долю и paged SWA-пул не строит — SWA-окна живут в per-request пуле, и коэффициент, даже явный, не применяется.
 
 ## Типовые проблемы и диагностика
 

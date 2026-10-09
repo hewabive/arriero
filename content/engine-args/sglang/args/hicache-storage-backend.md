@@ -11,6 +11,8 @@ related:
   - --hicache-storage-prefetch-policy
   - --hicache-mem-layout
   - --hicache-write-policy
+  - --hicache-io-backend
+  - --hicache-host-memory-mode
   - --dcp-size
   - --disaggregation-decode-enable-offload-kvcache
   - --admin-api-key
@@ -20,12 +22,12 @@ related:
 
 ## Кратко
 
-`--hicache-storage-backend` добавляет к HiCache уровень L3: общее хранилище, из которого несколько инстансов SGLang могут переиспользовать один и тот же префикс. Ключевая практическая деталь — часть допустимых значений требует внешних пакетов или отдельного сервиса (`mooncake`, `nixl`, `aibrix_kvcache`, `npu_memcache` и другие); отсутствие зависимости проявляется при **создании** backend'а на старте сервера, а не как отказ argparse. Аргумент читается только при `--enable-hierarchical-cache` (либо при `--disaggregation-decode-enable-offload-kvcache`).
+`--hicache-storage-backend` добавляет к HiCache уровень L3: общее хранилище, из которого несколько инстансов SGLang могут переиспользовать один и тот же префикс. Ключевая практическая деталь — часть допустимых значений требует внешних пакетов или отдельного сервиса (`mooncake`, `nixl`, `aibrix_kvcache`, `npu_memcache`, `tensorcast` и другие); отсутствие зависимости проявляется при **создании** backend'а на старте сервера, а не как отказ argparse. Аргумент читается только при `--enable-hierarchical-cache` (либо при `--disaggregation-decode-enable-offload-kvcache`).
 
 ## Оригинальная справка
 
 ```text
-The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, npu_memcache, hf3fs, nixl, aibrix. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).
+The storage backend for hierarchical KV cache. Built-in backends: file, mooncake, npu_memcache, hf3fs, nixl, aibrix, tensorcast. For dynamic backend, use --hicache-storage-backend-extra-config to specify: backend_name (custom name), module_path (Python module path), class_name (backend class name).
 ```
 
 ## Паспорт аргумента
@@ -33,9 +35,9 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 - Флаги: `--hicache-storage-backend`
 - Группа: `memory`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `file`, `sim`, `mooncake`, `npu_memcache`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`
+- Допустимые значения: `file`, `sim`, `mooncake`, `npu_memcache`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`, `tensorcast`
 - Значение по умолчанию: `null` — L3 не подключен, HiCache работает как двухуровневый (L1+L2)
-- Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — `mooncake` переписывает `--hicache-mem-layout layer_first`, а `shm` (и `dynamic` с `"allocator": "shm"`) переключает аллокатор host-пула на shared memory
+- Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — `mooncake` и `npu_memcache` переписывают `--hicache-mem-layout layer_first` в `page_first`/`page_first_direct`, а `shm` (и `dynamic` с `"allocator": "shm"`), `mooncake`, `mori` и `tensorcast` подменяют аллокатор host-пула (`get_allocator_from_storage` в `mem_cache/pool_host/common.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend`
 - Статус: обычный; конкретные backend'ы — сторонние интеграции разной зрелости
 - Этап применения: `__post_init__` (`_handle_hicache`, `_handle_cache_compatibility`) → `HiCacheController.attach_storage_backend` при инициализации дерева кеша
@@ -50,7 +52,7 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 
 - поднимает `enable_storage`, задает порог prefetch (`max(prefetch_threshold, page_size)`, по умолчанию 256 токенов) и лимит спекулятивного prefetch в половину host-пула;
 - создает выделенные gloo-группы для синхронизации prefetch между rank'ами;
-- для backend'ов `hf3fs`, `mooncake`, `eic`, `nixl`, `simm`, `mori` (и `dynamic` с `interface_v1`) переключает чтение/запись страниц на zero-copy пути `_page_get_zero_copy` / `_page_set_zero_copy`;
+- для backend'ов `hf3fs`, `mooncake`, `npu_memcache`, `eic`, `nixl`, `simm`, `mori`, `tensorcast` (и `dynamic` с `interface_v1`) переключает чтение/запись страниц на zero-copy пути `_page_get_zero_copy` / `_page_set_zero_copy`;
 - запускает фоновые потоки prefetch и backup.
 
 Для MLA-моделей запись в L3 делает только rank 0 (`backup_skip` для остальных) — данные на всех rank'ах идентичны.
@@ -65,6 +67,7 @@ L3 не хранит метаданные в дереве: при обращен
 - `hf3fs` — DeepSeek 3FS через usrbio-клиент; конфигурация через `SGLANG_HICACHE_HF3FS_CONFIG_PATH` и extra-config.
 - `nixl` — унифицированный доступ к плагинам (3FS, GDS, S3-совместимые); нужен пакет `nixl`.
 - `aibrix` — `aibrix_kvcache`, импорт жесткий на уровне модуля.
+- `tensorcast` — L3 на распределенном хранилище артефактов TensorCast (`TensorcastStore`); нужен пакет `tensorcast` (модуль `tensorcast.api.store` импортируется при создании backend'а), заранее запущенные Global Store и StoreDaemon на каждом хосте (SGLang их не запускает и не супервизирует) и адрес демона в extra-config: `{"tensorcast": {"daemon_address": "127.0.0.1:50052"}}`. По умолчанию работает allocator-режим: сам TensorCast выделяет CPU-тензоры host-пула, и L2↔L3 идет без промежуточной копии; если TensorCast-аллокатор не импортируется (нужен `tensorcast` ≥ 0.1.1), host-пул с предупреждением строится обычным аллокатором. Альтернатива — `"transfer_mode": "scratch"` с собственными get/put-буферами размера `scratch.capacity_bytes` (по умолчанию 16 МиБ, каждый). Первая версия интеграции поддерживает только FULL-пул (MHA, асимметричный MHA, MLA) с раскладкой `page_first` или `page_first_direct`, `--hicache-host-memory-mode cache`, CUDA; не поддерживает `layer_first`/`page_head`, split heads, DCP и attention CP, упакованные MTP draft-пулы, Mamba/SWA-sidecar'ы и namespace-wide очистку. Для защиты от переиспользования устаревшего KV задавайте `model_version`.
 - `eic`, `simm`, `mori` — интеграции сторонних систем (`eic`, `simm.kv`, UMBP); в `--help` они есть, в тексте справки не перечислены.
 - `dynamic` — загрузка своего класса: обязательные ключи `backend_name`, `module_path`, `class_name` в `--hicache-storage-backend-extra-config`.
 - Значение вне списка отвергает argparse; отсутствие флага означает «L3 нет».
@@ -102,6 +105,8 @@ L3 не хранит метаданные в дереве: при обращен
 - `ValueError: Unknown storage backend '<name>'. Registered backends: [...]` — имя не зарегистрировано; для своего backend'а используйте `dynamic` плюс `backend_name`/`module_path`/`class_name`.
 - `ValueError: Missing required field '<field>' in backend config for 'dynamic' backend` — неполный extra-config.
 - `NotImplementedError` про `--dcp-size > 1` — снимите L3 либо DCP.
+- `NotImplementedError: TensorCast FULL v1 supports only page_first and page_first_direct, got layout=...` (и соседние «TensorCast FULL v1 does not support …») — конфигурация вне первой версии интеграции; в отличие от `mooncake`, раскладку для `tensorcast` движок не переписывает.
+- `POST /hicache/storage-backend/clear` при `tensorcast` возвращает 400, а в логе — `Failed to clear hierarchical cache storage backend: TensorCast has no namespace-wide clear operation`: у backend'а нет очистки namespace.
 - Успешное подключение подтверждает строка «Creating storage backend '<name>' (<module>.<class>)» в логе; состояние в рантайме отдает `GET /hicache/storage-backend`.
 - Backend можно подключить и отключить без перезапуска: `PUT /hicache/storage-backend` и `DELETE /hicache/storage-backend`; очистка — `POST /hicache/storage-backend/clear`. Эти операции требуют отсутствия запросов в полете.
 - L3 доступен всем инстансам, которые видят хранилище: на сервере, открытом не только на localhost, общий namespace L3 — это канал утечки содержимого чужих префиксов. Разделяйте namespace или закрывайте доступ на уровне хранилища.
@@ -120,6 +125,9 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/mem_cache/storage/npu_memcache/README.md`
+- `sglang/python/sglang/srt/mem_cache/storage/tensorcast_store/README.md`
+- `sglang/python/sglang/srt/mem_cache/storage/tensorcast_store/tensorcast_store.py`
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/storage/backend_factory.py`
 - `sglang/python/sglang/srt/mem_cache/hicache_storage.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/common.py`
@@ -128,5 +136,5 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/docs/docs/advanced_features/hicache_design.mdx`
 - `sglang/docs/docs/advanced_features/hicache_best_practices.mdx`
 - `sglang/docs/docs/advanced_features/hicache_storage_runtime_attach_detach.mdx`
-
 - `sglang/python/sglang/srt/mem_cache/storage/sim_storage.py`
+- upstream PR #27265 «Feat: Add TensorCast storage as a new HiCache backend» (коммит `15eba3b464` в checkout)

@@ -16,6 +16,9 @@ related:
   - --enable-dp-attention
   - --disable-custom-all-reduce
   - --tp-size
+  - --disable-aiter-allreduce-fusion-in-prefill
+  - --disable-aiter-allreduce-fusion-in-decode
+  - --nnodes
 ---
 
 # --enable-aiter-allreduce-fusion
@@ -37,10 +40,10 @@ Enable Aiter AllReduce Fusion.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: сбрасывается в `False` при `--enable-deterministic-inference` (`_handle_deterministic_inference`, warning `Disable --enable-aiter-allreduce-fusion because deterministic inference is enabled.`) и реестром переопределений для MiniMax-M3 на ROCm при `ep_size > 1` с `--moe-a2a-backend none` (warning про порчу частичных выходов разреженного MoE). При `attn_cp_size > 1` или `moe_dp_size > 1` значение не сбрасывается, а **отвергается** ассертом `Aiter allreduce fusion is not supported with context parallelism`
+- Эффективное значение: сбрасывается в `False` при `--enable-deterministic-inference` (`_handle_deterministic_inference`, warning `Disable --enable-aiter-allreduce-fusion because deterministic inference is enabled.`) и реестром переопределений для MiniMax-M3 на ROCm при `ep_size > 1` с `--moe-a2a-backend none` (warning про порчу частичных выходов разреженного MoE). При `attn_cp_size > 1` или `moe_dp_size > 1` значение не сбрасывается, а **отвергается** ассертом `Aiter allreduce fusion is not supported with context parallelism`. В обратную сторону: для `GlmMoeDsaForCausalLM` (GLM-5) на HIP при выключенном DP attention и `--nnodes 1` `handle_model_specific_adjustments` сам объявляет `enable_aiter_allreduce_fusion=True` вместе с `disable_aiter_allreduce_fusion_in_prefill=True`, не глядя на CLI (лог `Enable Aiter AllReduce Fusion on decode phase for GlmMoeDsaForCausalLM`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_aiter_allreduce_fusion`; поле помечено `resolvable=True`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (детерминированный сброс, модельные переопределения) → `check_server_args` (ассерты CP) → построение слоев (`layers/communicator.py`) → каждый forward
+- Этап применения: разбор CLI → пайплайн разрешения (модельные объявления, детерминированный сброс, ассерты CP) → построение слоев (`layers/layer_boundary/`) → каждый forward с учетом фазы батча
 
 ## Что меняет в движке
 
@@ -52,9 +55,9 @@ _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and is_hip()
 
 Это ключевой момент: без переменной окружения `SGLANG_USE_AITER=1` флаг не делает ничего даже на ROCm-сборке, и никакого предупреждения об этом не печатается.
 
-- `layers/communicator.py:apply_aiter_all_reduce_fusion(tensor)` — предикат применимости на каждый вызов: `_use_aiter`, флаг включен, последняя размерность ≤ 16384, суммарный размер ≤ 64 МиБ (`8 * 1024 * 8192` байт — в коде это явно приведено к границе `max_size / 2` у aiter-ядра custom all-reduce), `tp_size != 6` и DP-attention выключен. Если предикат истинен и у слоя нормализации есть `forward_with_allreduce_fusion`, вызывается слитый путь вместо пары «all-reduce → layernorm».
+- `layers/layer_boundary/residual/add_norm.py:apply_aiter_all_reduce_fusion(tensor, forward_batch)` — предикат применимости на каждый вызов: `_use_aiter`, последняя размерность ≤ 16384, суммарный размер ≤ 64 МиБ (`8 * 1024 * 8192` байт — в коде это явно приведено к границе `max_size / 2` у aiter-ядра custom all-reduce), `tp_size != 6`, DP-attention выключен и `aiter_all_reduce_fusion_enabled_for(forward_mode)`: флаг включен, и фаза батча не выключена флагами `--disable-aiter-allreduce-fusion-in-prefill` (`EXTEND`/`MIXED`/`SPLIT_PREFILL`) или `--disable-aiter-allreduce-fusion-in-decode` (все остальные режимы). Предикат применяют `layers/layer_boundary/fusions/allreduce.py` (слитые all-reduce + residual + норма на входе внимания и FFN) и `layers/layer_boundary/exit.py` (может ли FFN отложить свой all-reduce до слитого ядра); если он истинен и у слоя нормализации есть `forward_with_allreduce_fusion`, вызывается слитый путь вместо пары «all-reduce → layernorm».
 - `layers/layernorm.py` — страховка корректности: если слитое ядро вернуло `None` (нет подходящей реализации), при `_use_aiter and enable_aiter_allreduce_fusion` выполняется обычный `tensor_model_parallel_all_reduce` и затем обычный `forward` нормализации. То есть отказ здесь мягкий и незаметный.
-- `models/qwen3_5.py` — дополнительная ветка со слиянием квантования в fp8 после фьюжена; отключается отдельно через `SGLANG_DISABLE_FUSED_AR_QUANT=1`.
+- `layers/layer_boundary/fusions/allreduce.py` — дополнительно слияние с FP8 per-group квантованием входа внимания, если слой его читает; отключается отдельно через `SGLANG_DISABLE_FUSED_AR_QUANT=1`.
 
 ### Что заменяет в пути all-reduce
 
@@ -88,7 +91,9 @@ _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and is_hip()
 
 ## Взаимодействие с другими аргументами
 
-- `--flashinfer-allreduce-fusion-backend`: CUDA-аналог. В `layers/communicator.py` оба предиката проверяются в одном `or`, но на конкретной платформе истинным может быть только один.
+- `--flashinfer-allreduce-fusion-backend`: CUDA-аналог. В `layers/layer_boundary/fusions/allreduce.py` оба предиката проверяются в одном `or`, но на конкретной платформе истинным может быть только один.
+- `--disable-aiter-allreduce-fusion-in-prefill` / `--disable-aiter-allreduce-fusion-in-decode`: оставляют слитый путь только в одной фазе батча; без этого флага не действуют. Сам флаг при этом остается `True`, поэтому ассерт CP, детерминированный сброс и решение о custom AR для MiniMax-M3 работают как прежде.
+- `--nnodes`, `--enable-dp-attention`: для GLM-5 на ROCm при `--nnodes 1` и выключенном DP attention флаг включается автоматически, но только для decode-фазы.
 - `--enforce-disable-flashinfer-allreduce-fusion`: выключает только FlashInfer-путь, на aiter не влияет.
 - `--enable-deterministic-inference`: принудительно выключает флаг.
 - `--attn-cp-size`, `--moe-dp-size`: любое значение больше 1 приводит к ассерту на старте.
@@ -104,7 +109,8 @@ _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and is_hip()
 - **Симптом:** предупреждение `Disable --enable-aiter-allreduce-fusion because deterministic inference is enabled.` **Причина:** штатный сброс.
 - **Симптом:** предупреждение про MiniMax-M3 и порчу выходов разреженного MoE. **Причина:** реестр переопределений выключил флаг для этой архитектуры при стандартном EP на ROCm.
 - **Симптом:** странные значения на выходе при спекулятивном декодировании после включения. **Причина:** несовместимость слитого пути с конкретной моделью. **Решение:** выключить флаг и сравнить.
-- **Что смотреть:** итоговый дамп `server_args=` при старте — там видно уже разрешенное значение после всех сбросов.
+- **Симптом:** на GLM-5 (ROCm) фьюжен включен, хотя флаг не задавался, а prefill идет обычным путем. **Причина:** автоматическое объявление `handle_model_specific_adjustments` для `GlmMoeDsaForCausalLM` (лог `Enable Aiter AllReduce Fusion on decode phase for GlmMoeDsaForCausalLM`). **Решение:** если фьюжен мешает и на decode, добавьте `--disable-aiter-allreduce-fusion-in-decode`.
+- **Что смотреть:** итоговый дамп `server_args=` при старте — там видно уже разрешенное значение после всех сбросов, вместе с фазовыми `disable_aiter_allreduce_fusion_in_prefill` / `_in_decode`.
 
 ## Примеры
 
@@ -121,7 +127,9 @@ SGLANG_USE_AITER=1 python -m sglang.launch_server --model-path /models/Qwen3-32B
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/residual/add_norm.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/fusions/allreduce.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/exit.py`
 - `sglang/python/sglang/srt/layers/layernorm.py`
-- `sglang/python/sglang/srt/models/qwen3_5.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

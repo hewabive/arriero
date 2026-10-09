@@ -78,7 +78,7 @@ Using LMCache as an alternative hierarchical cache solution
 - `--enable-hierarchical-cache`: побеждает в цепочке, LMCache игнорируется.
 - `--enable-flexkv`: стоит в цепочке **после** LMCache, то есть при одновременном включении выигрывает LMCache.
 - `--radix-cache-backend`: любое непустое значение полностью обходит цепочку по умолчанию, включая ветку LMCache.
-- `--enable-unified-memory`: жестко несовместим, ассерт «--enable-unified-memory is not yet compatible with hierarchical / host-tiered KV cache (--enable-hierarchical-cache / --enable-lmcache)…».
+- `--enable-unified-memory`: жестко несовместим, ассерт «--enable-unified-memory is not yet compatible with --enable-lmcache: the LMCache offload path indexes the device buffers with the ids it is handed, and under the unified pool those are VIRTUAL.».
 - `--dcp-size` > 1: `NotImplementedError` «--enable-lmcache with --dcp-size > 1 is not supported: LMCache has no DCP-aware index translation.» — но эта проверка выполняется только при включенном `--enable-hierarchical-cache`.
 - `--dllm-algorithm`: гасит флаг с предупреждением.
 - Гибридные модели (SWA, Mamba/SSM) и режим unified radix tree: ветка LMCache недостижима.

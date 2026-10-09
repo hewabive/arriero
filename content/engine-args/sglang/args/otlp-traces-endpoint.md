@@ -8,6 +8,7 @@ group: observability
 related:
   - --enable-trace
   - --trace-modules
+  - --otlp-service-name
   - --enable-metrics
   - --disaggregation-mode
   - --dp-size
@@ -49,7 +50,7 @@ Config opentelemetry collector endpoint if --enable-trace is set. format: <ip>:<
 
 1. разбор `--trace-modules` в глобальный список разрешенных модулей;
 2. проверку, что пакет `opentelemetry` импортировался; иначе — `RuntimeError("opentelemetry package is not installed!!! …")`;
-3. создание `Resource` с `SERVICE_NAME`. Имя сервиса во всех точках вызова захардкожено строкой `"sglang"` — задать его из CLI нельзя, различать инстансы в коллекторе придется по другим атрибутам;
+3. создание `Resource` с `SERVICE_NAME`: имя берется из `--otlp-service-name`, иначе из переменной `OTEL_SERVICE_NAME`, иначе `sglang` — так несколько инстансов в одном коллекторе различаются по `service.name`;
 4. создание `TracerProvider` с собственным генератором идентификаторов и `BatchSpanProcessor` вокруг экспортера. Параметры батчинга — переменные окружения `SGLANG_OTLP_EXPORTER_SCHEDULE_DELAY_MILLIS` (по умолчанию 500 мс) и `SGLANG_OTLP_EXPORTER_MAX_EXPORT_BATCH_SIZE` (по умолчанию 64);
 5. любую ошибку на этом шаге заворачивает в `RuntimeError(f"initialize opentelemetry error:{e}. Please set correct otlp endpoint.")`;
 6. при `SGLANG_TRACE_ASYNC=1` дополнительно поднимает асинхронный экспортер (`observability/trace_async.py`) с тем же адресом.
@@ -90,6 +91,7 @@ protocol = os.environ.get(OTEL_EXPORTER_OTLP_TRACES_PROTOCOL, "grpc")
 
 - `--enable-trace`: единственное условие, при котором адрес вообще читается.
 - `--trace-modules`: разбирается в том же вызове `process_tracing_init` и фильтрует, какие подсистемы порождают спаны.
+- `--otlp-service-name`: имя сервиса, под которым спаны уходят на этот адрес.
 - `--disaggregation-mode`: определяет метку потока (`Prefill Scheduler`, `Decode Tokenizer` и т. д.), с которой спаны попадут в коллектор.
 - `--dp-size` / `--tp-size`: каждый scheduler-ранг инициализирует трассировку отдельно, и все они пишут в один и тот же адрес.
 - `--enable-metrics`: независимый канал; трассы и метрики не заменяют друг друга.

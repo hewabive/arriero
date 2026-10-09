@@ -9,6 +9,7 @@ related:
   - --constrained-json-whitespace-pattern
   - --grammar-backend
   - --enable-strict-thinking
+  - --constrained-json-max-whitespace-cnt
 ---
 
 # --constrained-json-disable-any-whitespace
@@ -44,7 +45,8 @@ related:
 ```python
 grammar_backend = XGrammarGrammarBackend(
     tokenizer, vocab_size=vocab_size, model_eos_token_ids=eos_list,
-    any_whitespace=not server_args.constrained_json_disable_any_whitespace,
+    any_whitespace=not get_serving().constrained_json_disable_any_whitespace,
+    max_whitespace_cnt=get_serving().constrained_json_max_whitespace_cnt,
 )
 ```
 
@@ -52,7 +54,7 @@ grammar_backend = XGrammarGrammarBackend(
 
 Дальше:
 
-- **xgrammar** — `XGrammarGrammarBackend.dispatch_json` вызывает `self.grammar_compiler.compile_json_schema(schema=key_string, any_whitespace=self.any_whitespace)`. Важная деталь: особый ключ `$$ANY$$` (произвольный валидный JSON, используется когда схемы нет) идет через `compile_builtin_json_grammar()` **без** этого параметра, то есть на него флаг не действует.
+- **xgrammar** — `XGrammarGrammarBackend.dispatch_json` вызывает `self.grammar_compiler.compile_json_schema(schema=key_string, any_whitespace=self.any_whitespace, max_whitespace_cnt=self.max_whitespace_cnt)`. Важная деталь: особый ключ `$$ANY$$` (произвольный валидный JSON, используется когда схемы нет) идет через `compile_builtin_json_grammar()` **без** этого параметра, то есть на него флаг не действует.
 - **llguidance** — `GuidanceBackend.dispatch_json` кладет значение в `defaults` как `"whitespace_flexible": self.any_whitespace` вместе с `"whitespace_pattern"`.
 - **outlines** — `OutlinesGrammarBackend` конструируется только с `whitespace_pattern`; этот флаг до него не доходит вовсе.
 
@@ -63,7 +65,7 @@ grammar_backend = XGrammarGrammarBackend(
 - Флаг булев, значения не принимает.
 - «Не задан» — эквивалент `any_whitespace=True`: модель вольна форматировать JSON как угодно, оставаясь валидной по схеме.
 - Задан — компактная форма без необязательных пробелов.
-- Промежуточных вариантов нет; тонкая настройка допустимых пробелов — это `--constrained-json-whitespace-pattern`, и она работает на других backend'ах.
+- Промежуточный вариант на xgrammar — `--constrained-json-max-whitespace-cnt`: пробелы разрешены, но длина каждой серии ограничена. На outlines и llguidance тонкая настройка допустимых пробелов — `--constrained-json-whitespace-pattern`.
 
 ## Когда использовать
 
@@ -81,12 +83,13 @@ grammar_backend = XGrammarGrammarBackend(
 ## Взаимодействие с другими аргументами
 
 - `--grammar-backend`: определяет, дойдет ли значение до backend'а. `xgrammar` (дефолт) и `llguidance` — да; `outlines` — нет; `none` — структурного вывода вообще нет.
-- `--constrained-json-whitespace-pattern`: парный аргумент для `outlines` и `llguidance`. На `llguidance` действуют оба одновременно (`whitespace_flexible` и `whitespace_pattern` идут в один `defaults`); на xgrammar — только этот флаг, на outlines — только тот.
+- `--constrained-json-whitespace-pattern`: парный аргумент для `outlines` и `llguidance`. На `llguidance` действуют оба одновременно (`whitespace_flexible` и `whitespace_pattern` идут в один `defaults`); на xgrammar — только этот флаг (плюс лимит `--constrained-json-max-whitespace-cnt`), на outlines — только тот.
+- `--constrained-json-max-whitespace-cnt`: только xgrammar, уходит в тот же вызов `compile_json_schema`; при заданном этом флаге лимит избыточен — необязательных пробелов и так нет.
 - `--enable-strict-thinking`: тоже опирается на xgrammar, но фильтрует фазу размышления; на JSON-грамматику не влияет.
 
 ## Типовые проблемы и диагностика
 
-- **Флаг задан, а пробелы остались** — три причины: выбран `outlines`; запрос идет через `json_object`/`$$ANY$$` без явной схемы (xgrammar компилирует встроенную грамматику без этого параметра); или JSON генерируется вообще без структурного ограничения (модель просто «пишет JSON текстом»).
+- **Флаг задан, а пробелы остались** — три причины: выбран `outlines`; запрос идет через особый ключ `$$ANY$$` (xgrammar компилирует встроенную грамматику без этого параметра; `response_format: json_object` сюда не относится — OpenAI-слой превращает его в схему `{"type": "object"}`, и флаг на нем действует); или JSON генерируется вообще без структурного ограничения (модель просто «пишет JSON текстом»).
 - `Hit invalid json_schema: key_string=…` в логе — ошибка компиляции самой схемы, к пробелам отношения не имеет; запрос получит `InvalidGrammarObject` и завершится с ошибкой грамматики.
 - **Ответ обрывается на середине JSON** — упёрлись в `max_tokens`; включение флага как раз и уменьшает вероятность этого.
 - Проверка: два одинаковых запроса с одной схемой, с флагом и без, — сравните `completion_tokens` в `usage`.
