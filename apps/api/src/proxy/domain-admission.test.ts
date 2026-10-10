@@ -38,6 +38,20 @@ test("parseInstanceConcurrencyLimit follows the engine descriptor", () => {
   );
   assert.equal(
     parseInstanceConcurrencyLimit({
+      kind: "vllm",
+      args: { "--max-num-seqs": 64, "--max-num-active-seqs": 16 },
+    }),
+    16,
+  );
+  assert.equal(
+    parseInstanceConcurrencyLimit({
+      kind: "vllm",
+      args: { "--max-num-active-seqs": "8" },
+    }),
+    8,
+  );
+  assert.equal(
+    parseInstanceConcurrencyLimit({
       kind: "ktransformers",
       args: { "--max-running-requests": 7, "--parallel": 99 },
     }),

@@ -49,19 +49,22 @@ function positiveIntegerArg(
   return Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
-const CONCURRENCY_KEYS = {
-  "llama-parallel": ["--parallel", "-np"],
-  "vllm-sequences": ["--max-num-seqs"],
-  "sglang-max-running-requests": ["--max-running-requests"],
+const CONCURRENCY_LIMIT_KEYS = {
+  "llama-parallel": [["--parallel", "-np"]],
+  "vllm-sequences": [["--max-num-seqs"], ["--max-num-active-seqs"]],
+  "sglang-max-running-requests": [["--max-running-requests"]],
   none: [],
 } as const;
 
 export function parseInstanceConcurrencyLimit(
   instance: Pick<Instance, "kind" | "args">,
 ): number | undefined {
-  return positiveIntegerArg(instance.args, [
-    ...CONCURRENCY_KEYS[engineDescriptor(instance.kind).concurrency],
-  ]);
+  const limits = CONCURRENCY_LIMIT_KEYS[
+    engineDescriptor(instance.kind).concurrency
+  ]
+    .map((keys) => positiveIntegerArg(instance.args, [...keys]))
+    .filter((limit) => limit !== undefined);
+  return limits.length > 0 ? Math.min(...limits) : undefined;
 }
 
 /** @deprecated Use the descriptor-driven parseInstanceConcurrencyLimit. */

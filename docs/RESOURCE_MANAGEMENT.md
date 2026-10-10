@@ -189,8 +189,8 @@ scheduler + coordinator + swap-lock stack on this scenario.
    swap waiter on an overlapping domain has starved. After affinity, tool continuations of
    running agent sessions go before fresh requests until a fresh waiter on an overlapping
    domain passes `continuationFairnessMs` (default 10 s; `docs/API_PROXY_PREEMPTION.md`). `decide()` caps concurrent same-target holders at the
-   descriptor-selected concurrency argument (`--parallel`/`-np`, vLLM
-   `--max-num-seqs`, or SGLang `--max-running-requests`), so excess queues in
+   descriptor-selected concurrency argument (`--parallel`/`-np`, the smaller of vLLM
+   `--max-num-seqs` and `--max-num-active-seqs`, or SGLang `--max-running-requests`), so excess queues in
    the proxy (priority-ordered, observable) instead of blindly inside the engine.
 
 **Observability.** Each request trace carries `displacedTargetIds` — the targets it
