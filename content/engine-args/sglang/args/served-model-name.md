@@ -48,7 +48,7 @@ Override the model name returned by the v1/models endpoint in OpenAI API server.
 1. **`GET /v1/models`.** Карточка модели собирается как `ModelCard(id=served_model_name, root=served_model_name, max_model_len=<context_len>)`. Если включен `--enable-lora`, к списку добавляются карточки адаптеров с `parent=served_model_name`.
 2. **`GET /v1/models/{model}`.** Здесь имя проверяется: запрос с именем, не равным `served_model_name`, получает `404` с `code: "model_not_found"`.
 3. **Прикладные endpoint'ы генерации — не проверяют имя вовсе.** В `serving_chat.py` поле `request.model` только возвращается обратно в ответе и разбирается функцией `_parse_model_parameter` на пару «базовая модель : адаптер» ради выбора LoRA. Никакого сравнения с `served_model_name` там нет. Практически это значит, что `/v1/chat/completions` с произвольным `model` отработает нормально — рассинхронизация имен молча не проявится в трафике и обнаружится только на `/v1/models`.
-4. **Пространство имен HiCache.** `HiRadixCache` передает `model_name=server_args.served_model_name` в конструктор `cache_controller` и в `attach_storage_backend`. Для внешнего бэкенда хранения префиксного кеша это часть ключа: два сервера с разными `--served-model-name`, но одной и той же моделью, не увидят кеш друг друга; и наоборот, одинаковое имя при разных весах — путь к некорректным попаданиям.
+4. **Пространство имен HiCache.** `attach_hybrid_pool_to_unified_cache` (`mem_cache/hybrid_cache/hybrid_pool_assembler.py`) при `UnifiedRadixCache.init_hicache` передает `model_name=served_model_name` в конструктор `HybridCacheController`, а рантайм-подключение через `PUT /hicache/storage-backend` — в `attach_storage_backend` (scheduler → `StorageAttachment.attach`); оттуда имя попадает в `HiCacheStorageConfig.model_name` для backend'а. Для внешнего бэкенда хранения префиксного кеша это часть ключа: два сервера с разными `--served-model-name`, но одной и той же моделью, не увидят кеш друг друга; и наоборот, одинаковое имя при разных весах — путь к некорректным попаданиям.
 
 Плюс имя используется ollama-совместимыми маршрутами (`entrypoints/ollama/serving.py`), gRPC-мостом (`entrypoints/grpc_bridge.py`) и в VLM-ветке штатного warmup-запроса.
 
@@ -112,6 +112,9 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --served-mod
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_base.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`
-- `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`
+- `sglang/python/sglang/srt/mem_cache/unified_cache/storage_attachment.py`
+- `sglang/python/sglang/srt/managers/cache_controller.py`
+- `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - arriero: `packages/core/src/instance.ts`, `packages/core/src/instance-model.ts`, `docs/KTRANSFORMERS_OPERATIONS.md`, `docs/API_PROXY_FOUNDATION.md`

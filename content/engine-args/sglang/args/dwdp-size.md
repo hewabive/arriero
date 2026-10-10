@@ -40,32 +40,31 @@ DWDP (Distributed Weight Data Parallelism) group size. When > 1, MoE prefill use
 - Тип значения: int
 - Допустимые значения: `1` (выключено) либо ровно `tp_size` (и при этом `>= 2`)
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным, но **сам аргумент переписывает шесть других полей** (`_handle_dwdp`, см. ниже)
+- Эффективное значение: совпадает с заданным, но **сам аргумент переписывает девять других полей** (хук `handle_dwdp`, см. ниже)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dwdp_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_dwdp`) → `ModelRunner.maybe_init_dwdp` (создание `DwdpManager`, раскладка экспертов, обмен хендлами) → префетч первых слоев при прогреве → forward MoE-слоев
+- Этап применения: пайплайн разрешения (`ServerArgs.resolve_once` → `arg_groups/pipeline.py`; хук `handle_dwdp` идет до разбора CUDA graph и до `handle_data_parallelism`) → `ModelRunner.maybe_init_dwdp` (создание `DwdpManager`, раскладка экспертов, обмен хендлами) → префетч первых слоев при прогреве → forward MoE-слоев
 
 ## Что меняет в движке
 
 ### Каскад переопределений
 
-`_handle_dwdp` при `dwdp_size > 1` безусловно выставляет:
+Хук `handle_dwdp` (`arg_groups/parallel_hook.py`) при `dwdp_size > 1` после проверок безусловно объявляет через `declare_resolution` (источник `_handle_dwdp`) значения девяти полей и выставляет переменную окружения:
 
-```python
-self.dp_size = self.dwdp_size
-self.enable_dp_attention = True
-self.enable_dp_attention_local_control_broadcast = True
-self.enable_dp_lm_head = True
-self.moe_dense_tp_size = 1
-self.ep_size = self.dwdp_size
-self.moe_ep_size = self.dwdp_size
-self.moe_dp_size = 1
-self.moe_a2a_backend = "none"
-envs.SGLANG_SCHEDULER_SKIP_ALL_GATHER.set(True)
-self.disable_cuda_graph = True
+```text
+dp_size                                     = dwdp_size
+enable_dp_attention                         = True
+enable_dp_attention_local_control_broadcast = True
+enable_dp_lm_head                           = True
+moe_dense_tp_size                           = 1
+ep_size                                     = dwdp_size
+moe_dp_size                                 = 1
+moe_a2a_backend                             = "none"
+disable_cuda_graph                          = True
+SGLANG_SCHEDULER_SKIP_ALL_GATHER            = True
 ```
 
-и печатает итог одной строкой `DWDP enabled: dwdp_size=…, auto-forced dp_size=…, moe_ep_size=…, moe_dense_tp_size=1, moe_a2a_backend=none, dp_attention_local_control_broadcast=True, enable_dp_lm_head=True, SCHEDULER_SKIP_ALL_GATHER=True, disable_cuda_graph=True`. Задавать эти аргументы вручную рядом с `--dwdp-size` бессмысленно — они будут переписаны.
+`moe_ep_size` отдельно не пишется: это производное поле (`Derived`, `parallel_widths_of` в `runtime_context.py`), и оно просто равно объявленному `ep_size`. Итог печатается одной строкой `DWDP enabled: dwdp_size=…, auto-forced dp_size=…, ep_size=…, moe_dense_tp_size=1, moe_a2a_backend=none, dp_attention_local_control_broadcast=True, enable_dp_lm_head=True, SCHEDULER_SKIP_ALL_GATHER=True, disable_cuda_graph=True`. Задавать эти аргументы вручную рядом с `--dwdp-size` бессмысленно — они будут переписаны.
 
 Обратите особое внимание на `disable_cuda_graph = True`: DWDP полностью отключает захват графов, что само по себе заметно на latency.
 
@@ -109,7 +108,7 @@ DWDP with --disaggregation-mode null: decode steps re-fetch all remote expert we
 - Decode: сильно проигрывает, если воркер вообще делает decode (см. предупреждение) — на каждом шаге веса тянутся заново.
 - VRAM: добавляются буферы префетча и импортированные представления чужих весов. Размер определяется `num_prefetch_experts` и размером экспертных весов слоя; это заметная величина на больших MoE.
 - Latency: растет из-за принудительного `disable_cuda_graph`.
-- Коммуникация: all-to-all токенов исчезает (`moe_a2a_backend = none`), появляется трафик весов; дополнительно `SGLANG_SCHEDULER_SKIP_ALL_GATHER` снимает all-gather в планировщике.
+- Коммуникация: all-to-all токенов исчезает (`moe_a2a_backend = none`), появляется трафик весов; дополнительно `SGLANG_SCHEDULER_SKIP_ALL_GATHER` снимает all-gather в планировщике. Токены по DP-группам перед FFN тоже не собираются: `is_moe_input_scattered_across_dp_ranks()` (`layers/moe/utils.py`) истинно при `dwdp_size > 1`, а для плотных слоев то же дает навязанный `moe_dense_tp_size = 1`, поэтому `_ffn_decl` в `layers/layer_boundary/factories.py` объявляет вход и выход FFN-стадии на локальных строках ранга.
 - Время старта: добавляется обмен CUDA-хендлами по группе и префетч первых слоев на прогреве.
 
 ## Взаимодействие с другими аргументами
@@ -149,10 +148,14 @@ python -m sglang.launch_server --model-path /models/Qwen3-235B-A22B --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/pipeline.py`
+- `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/layers/moe/dwdp/dwdp_manager.py`
 - `sglang/python/sglang/srt/layers/moe/dwdp/layout.py`
 - `sglang/python/sglang/srt/layers/moe/dwdp/transport.py`
 - `sglang/python/sglang/srt/layers/moe/dwdp/weight_manager.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/moe/utils.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/factories.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/dp_attn.py`

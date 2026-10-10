@@ -28,10 +28,10 @@ related:
 - Тип значения: int / float / str / bool / путь / список / JSON
 - Допустимые значения: перечень из `choices`; если `choices: null` — «не ограничены» либо «список собирается в runtime из реестра ...»
 - Значение по умолчанию: из `default`; для `kind: expression` — раскрытое значение
-- Эффективное значение: что и на каком шаге переопределяет дефолт (`ServerArgs.__post_init__`, конкретный `_handle_*`), если это так
+- Эффективное значение: что и на каком шаге переопределяет дефолт (`ServerArgs.resolve_once`, конкретный hook `handle_*` из `arg_groups/`), если это так
 - Где объявлен: `ServerArgs.field_name` (поле `origin` из extract, дословно), файл — `sglang/python/sglang/srt/server_args.py`
 - Статус: обычный / скрытый (`argparse.SUPPRESS`) / устаревший (`Deprecated*Action`, чем заменен)
-- Этап применения: разбор CLI / `__post_init__` / запуск процессов (tokenizer, scheduler, detokenizer, TP/DP-воркеры) / выделение KV-пула / захват CUDA graph / forward / HTTP-слой
+- Этап применения: разбор CLI / `resolve_once` / запуск процессов (tokenizer, scheduler, detokenizer, TP/DP-воркеры) / выделение KV-пула / захват CUDA graph / forward / HTTP-слой
 
 ## Что меняет в движке
 

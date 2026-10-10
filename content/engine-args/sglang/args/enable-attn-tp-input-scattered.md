@@ -34,21 +34,21 @@ Allow input of attention to be scattered when only using tensor parallelism, to 
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: само поле не переписывается ни одним `_handle_*`, но **фактическое включение** решается позже, уже в `AttnTpContext.init_context` по набору runtime-условий (см. ниже). Дамп `server_args=` покажет `True`, даже если оптимизация не активировалась
+- Эффективное значение: поле переписывается только для Nemotron-H (`nemotron_h`, `nemotron_h_puzzle`) и LongCat-Flash (`longcat_flash`): `_boundary_parallelism_overrides` в `arg_groups/parallel_hook.py` (шаг `handle_context_parallelism` пайплайна разрешения) сбрасывает его в `False` с предупреждением, потому что forward этих моделей input-scattered путь не использует. Для остальных моделей **фактическое включение** решается позже, уже в `AttnTpContext.init_context` по набору runtime-условий (см. ниже), и дамп `server_args=` покажет `True`, даже если оптимизация не активировалась
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_attn_tp_input_scattered`
 - Статус: обычный, оптимизационный
-- Этап применения: публикация в `ParallelState` → `AttnTpContext.init_context` при построении модели (там же строка в логе) → `use_input_scattered` на каждом forward
+- Этап применения: пайплайн разрешения (сброс для Nemotron-H и LongCat-Flash) → публикация в `ParallelState` → при построении модели: input-scattered путь границ стадий (`layers/layer_boundary/construction.py`) и `AttnTpContext.init_context` (там же строка в логе) → `use_input_scattered` на каждом forward
 
 ## Что меняет в движке
 
-Единственная точка чтения — `layers/communicator.py`:
+Решение о пути принимает `AttnTpContext.init_context` в `layers/layer_boundary/adapters/attention.py`; в checkout его вызывают `models/deepseek_v2.py`, `models/deepseek_v4.py` и `models/glm5_next.py`:
 
 ```python
 self.allow_input_scattered = (
     get_parallel().enable_attn_tp_input_scattered
     and (_is_cuda or _is_npu)
     and q_lora_rank is not None
-    and not is_dsa
+    and (is_mhc or not is_dsa)
     and get_parallel().tp_size > 1
     and not is_dp_attention_enabled()
     and get_moe_a2a_backend().is_none()
@@ -62,13 +62,15 @@ self.allow_input_scattered = (
 
 - платформа CUDA или NPU;
 - у модели есть `q_lora_rank` (низкоранговая проекция запроса — характерная черта MLA-архитектур);
-- модель не DSA (DeepSeek Sparse Attention);
+- модель не DSA (DeepSeek Sparse Attention) — либо DSA с MHC-residual (`is_mhc`): только MHC-путь сам собирает скрытые состояния до DSA-внимания;
 - `--tp-size > 1`;
 - DP-attention **выключен**;
 - `--moe-a2a-backend none`;
 - `--moe-dense-tp-size` не равен `1` (`enable_moe_dense_fully_dp()` должно быть ложно);
 - prefill CUDA graph не в режиме `TC_PIECEWISE`;
 - `--speculative-algorithm` не `EAGLE3`.
+
+Часть этих условий границы стадий проверяют еще при построении слоя: `_input_can_be_scattered()` в `layers/layer_boundary/construction.py` собирает для стадии input-scattered путь, только если флаг задан, `--tp-size > 1`, DP-attention выключен, prefill CP не делит токены (`--attn-cp-size > 1` вместе с `--enable-prefill-cp`), a2a-backend равен `none` и `enable_moe_dense_fully_dp()` ложно. Остальное (`q_lora_rank`, DSA, режим CUDA graph, EAGLE3) известно только после построения модели и проверяется в `init_context`.
 
 Даже когда `allow_input_scattered` истинно, на конкретном батче путь берется не всегда: `use_input_scattered` дополнительно требует режим extend (prefill), не target-verify, наличие `input_ids` и отсутствие two-batch overlap у этого батча. Сборка обратно делается ленивым `tp_all_gather_hidden_states` при первом обращении к полным скрытым состояниям.
 
@@ -109,7 +111,8 @@ self.allow_input_scattered = (
 - В логе `attn_tp_input_scattered is not enabled while other conditions are not met` — флаг задан, но одно из девяти условий не выполнено. Сообщение не говорит, какое именно: проверяйте по списку выше, начиная с `--enable-dp-attention` и `--moe-a2a-backend`.
 - В логе `attn_tp_input_scattered is enabled` — оптимизация активна.
 - Флаг задан, в логе нет ни одной из двух строк — `AttnTpContext.init_context` для этой модели не вызывался; архитектура не использует этот путь.
-- Ошибок на старте флаг не порождает: `server_args=` покажет `True` независимо от фактической активации, поэтому дамп здесь не доказательство.
+- В логе `Disabling input-scattered attention for nemotron_h: its forward does not enter that scope` (или `nemotron_h_puzzle`, `longcat_flash`) — пайплайн разрешения сбросил флаг; в `server_args=` будет `False`.
+- Ошибок на старте флаг не порождает: для остальных моделей `server_args=` покажет `True` независимо от фактической активации, поэтому дамп здесь не доказательство.
 
 ## Примеры
 
@@ -125,7 +128,10 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V2-Lite --tenso
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/adapters/attention.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/construction.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/prepare.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`
 - `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`

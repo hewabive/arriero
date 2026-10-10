@@ -104,7 +104,7 @@ Runtime-load PUB выключен по умолчанию и является о
 
 - `--page-size`: определяет `block_size` в событиях; без положительного значения `/server_info` не покажет публикатора, а маршрутизатор будет хешировать не с той гранулярностью.
 - `--disable-radix-cache`: дерево префиксов заменяется на `ChunkCache`, у которого `take_events()` из базового класса всегда возвращает пустой список. Публикатор поднимется, но событий не будет.
-- `--enable-hierarchical-cache`: события несут поле `medium` с уровнем хранения (GPU/CPU/DISK/EXTERNAL) — именно для иерархии оно и нужно. Отдельно учтите: экспериментальная C++-реализация радиксного дерева (включается переменной окружения `SGLANG_EXPERIMENTAL_CPP_RADIX_TREE`, а не аргументом) содержит `assert params.enable_kv_cache_events is False` с сообщением `HiRadixCache does not support kv cache events yet` — в этой связке старт упадет.
+- `--enable-hierarchical-cache`: события несут поле `medium` с уровнем хранения — именно для иерархии оно и нужно. HiCache теперь строится поверх `UnifiedRadixCache` (отдельный `HiRadixCache` удален), и его ядро дерева (`mem_cache/unified_cache/unified_tree_core.py`, а также Rust TreeCore) публикует `BlockStored`/`BlockRemoved` с `medium` `GPU` и `CPU_PINNED` для L1 и L2. Экспериментальное C++-дерево с его запретом событий при HiCache из кода удалено, так что эта связка больше не роняет старт.
 - `--dp-size`, `--enable-dp-attention`: определяют, по какому рангу смещается порт публикатора и сколько портов будет занято.
 - `--tp-size`, `--pp-size`: публикует только ранг 0 по attention-TP, CP и PP.
 
@@ -112,7 +112,6 @@ Runtime-load PUB выключен по умолчанию и является о
 
 - **Симптом:** ошибка валидации pydantic при старте планировщика. **Причина:** некорректный JSON или неизвестное поле. **Лечение:** проверить строку, например `python -c "import json,sys;json.loads(sys.argv[1])" '<строка>'`.
 - **Симптом:** публикатор запущен (`Starting ZMQ publisher thread` в логе), а событий нет. **Причина №1:** `publisher` остался `"null"`. **Причина №2:** `--disable-radix-cache`. **Причина №3:** это не тот ранг — публикует только `attn_tp_rank == 0`.
-- **Симптом:** `AssertionError: HiRadixCache does not support kv cache events yet`. **Причина:** включена экспериментальная C++-реализация радиксного дерева. **Лечение:** снять `SGLANG_EXPERIMENTAL_CPP_RADIX_TREE`.
 - **Симптом:** маршрутизатор промахивается по кешу, хотя события идут. **Причина:** несовпадение `block_size` — сверьте `--page-size` с тем, что ждет потребитель, и посмотрите блок публикатора в `GET /server_info`.
 - **Симптом:** порт 5557 занят при `--dp-size > 1`. **Причина:** порт смещается на индекс реплики, занят диапазон.
 - **Проверка принятого значения:** дамп `server_args=` при старте содержит `kv_events_config=`; `GET /server_info` показывает разобранные `publisher`/`endpoint_host`/`endpoint_port_base`.
@@ -143,9 +142,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/mem_cache/events.py`
 - `sglang/python/sglang/srt/mem_cache/base_prefix_cache.py`
-- `sglang/python/sglang/srt/mem_cache/radix_cache_cpp.py`
+- `sglang/python/sglang/srt/mem_cache/unified_cache/unified_tree_core.py`
+- `sglang/python/sglang/srt/mem_cache/rust_tree_core/adapter.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/server_args.py`
-- arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/RESOURCE_MANAGEMENT.md`
-
 - `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/RESOURCE_MANAGEMENT.md`

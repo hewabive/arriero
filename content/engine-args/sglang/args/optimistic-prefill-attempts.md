@@ -11,6 +11,7 @@ related:
   - --enable-hierarchical-cache
   - --hicache-storage-backend
   - --hicache-write-policy
+  - --hicache-host-memory-mode
   - --mamba-radix-cache-strategy
   - --chunked-prefill-size
   - --max-running-requests
@@ -36,16 +37,16 @@ Number of optimistic prefill forward passes that skip the bootstrap wait.
 - Тип значения: int
 - Допустимые значения: `choices` нет; осмысленны целые ≥ 0
 - Значение по умолчанию: `0` (оптимистичный путь выключен)
-- Эффективное значение: при `> 0` и `--disaggregation-mode prefill` `_handle_other_validations` сбрасывает его обратно в `0` с предупреждением в трех случаях: `--pp-size > 1`; `--enable-hierarchical-cache` с непустым `--hicache-storage-backend` **или** `--hicache-write-policy`, отличным от `write_back`; модель использует mamba-radix-кеш. Вне режима `prefill` значение не читается вообще
+- Эффективное значение: при `> 0` и `--disaggregation-mode prefill` `handle_other_validations` (`arg_groups/serving_hook.py`) сбрасывает его обратно в `0` с предупреждением в двух случаях: `--pp-size > 1`; `--enable-hierarchical-cache` в конфигурации, отличной от двух допустимых — L2 без `--hicache-storage-backend` с `--hicache-write-policy` `write_back` или `write_through` либо L3 с `--hicache-host-memory-mode buffer_only` и `write_through`. Mamba-модели значение больше не обнуляют. Вне режима `prefill` значение не читается вообще
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.optimistic_prefill_attempts`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_other_validations` (обнуление при несовместимости) → `PrefillBootstrapQueue.pop_bootstrapped` при каждом опросе очереди → `optimistic_release_and_requeue` при откате
+- Этап применения: разбор CLI → `handle_other_validations` (обнуление при несовместимости) → `PrefillBootstrapQueue.pop_bootstrapped` при каждом опросе очереди → `optimistic_release_and_requeue` при откате
 
 ## Что меняет в движке
 
 ### Пропуск ожидания
 
-`PrefillBootstrapQueue.pop_bootstrapped` (`disaggregation/prefill.py`) при `poll == KVPoll.Bootstrapping` обычно просто оставляет запрос в очереди. При `req.prefill_attempt_count < optimistic_prefill_attempts` и незаретрактованном запросе он вместо этого:
+`PrefillBootstrapQueue.pop_bootstrapped` (`disaggregation/prefill.py`) при `poll == KVPoll.Bootstrapping` обычно просто оставляет запрос в очереди. При `req.prefill_attempt_count < optimistic_prefill_attempts` и незаретрактованном запросе он вместо этого (при HiCache с `write_through` — еще и только если SWA-ветвление запроса не выходит за уже защищенный префикс, `swa_branching_seqlen <= cache_protected_len`):
 
 - захватывает metadata-буфер (`ensure_metadata_buffer`; если буферов нет — остается в очереди);
 - увеличивает `prefill_attempt_count`;
@@ -57,12 +58,12 @@ Number of optimistic prefill forward passes that skip the bootstrap wait.
 
 Если рукопожатие не пришло, а посчитать больше нечего (или подошли запросы с уже завершенным bootstrap'ом), вызывается `optimistic_release_and_requeue`:
 
-- посчитанный KV сохраняется в дерево префиксов (`maybe_cache_unfinished_req`), а слоты освобождаются;
+- посчитанный KV сохраняется в дерево префиксов (`maybe_cache_unfinished_req`), а слоты освобождаются. Исключение — HiCache с `write_through`: там KV оптимистичного запроса до завершения рукопожатия принадлежит самому запросу и в дерево не публикуется (`cache_unfinished_disagg_prefill` → `UnifiedRadixCache.advance_unpublished_req`), поэтому при откате он освобождается без вставки;
 - состояние отправки сбрасывается: `start_send_idx = 0`, `disagg_decode_prefix_len = 0`, очищаются `hidden_states_tensor` и накопленные чанки — при следующей попытке всё пойдет с нуля;
 - если `prefill_attempt_count >= optimistic_prefill_attempts`, запрос возвращается в bootstrap-очередь с сообщением `Req <rid> exhausted optimistic prefill attempts falling back to bootstrap queue`;
 - иначе счетчик увеличивается, в лог идет `Req <rid> optimistic prefill yielded (<n>/<max> attempts used)`, запрос ставится **в начало** очереди ожидания, и при `--enable-metrics` инкрементируется счетчик `prefill_retries`.
 
-Ключевая экономия здесь не в самом форварде, а в том, что результат откатанного прохода не выбрасывается: он лежит в radix-кеше, и повторный проход обычно попадает в него почти целиком.
+Ключевая экономия здесь не в самом форварде, а в том, что результат откатанного прохода не выбрасывается: он лежит в radix-кеше, и повторный проход обычно попадает в него почти целиком. При HiCache с `write_through` это не так — откатанный проход пересчитывается заново.
 
 ## Значения и формат
 
@@ -77,13 +78,13 @@ Number of optimistic prefill forward passes that skip the bootstrap wait.
 - Медленное или нестабильное рукопожатие с decode: decode перегружен, сеть управляющего канала загружена, decode-нод много и они по очереди отвечают. Симптом — заметная доля TTFT приходится на состояние `Bootstrapping`.
 - Длинные промпты, где один проход prefill заведомо дольше рукопожатия: тогда оптимистичный проход почти всегда успевает «поймать» bootstrap по дороге.
 - Не включайте при быстром рукопожатии: вы получите откаты и лишние проходы там, где ожидание стоило миллисекунды.
-- Не включайте при `--pp-size > 1`, с L2-HiCache вне `write_back` и на mamba-моделях: значение все равно обнулится, но в логе останется предупреждение.
+- Не включайте при `--pp-size > 1` и с HiCache вне двух допустимых конфигураций (L2 с `write_back`/`write_through` либо L3 `buffer_only` с `write_through`): значение все равно обнулится, но в логе останется предупреждение.
 - Не включайте, если metadata-буферов и так впритык: оптимистичные запросы занимают их раньше срока.
 
 ## Влияние на производительность и память
 
 - **VRAM.** Оптимистичный запрос занимает KV-слоты и metadata-буфер до того, как рукопожатие подтвердило, что он вообще поедет. При откате слоты освобождаются, но посчитанный префикс остается в radix-дереве и продолжает занимать память до вытеснения.
-- **Compute.** Худший случай — `optimistic_prefill_attempts` лишних проходов на запрос. Практически он мягче: повторный проход в основном попадает в radix-кеш, оставленный предыдущей попыткой.
+- **Compute.** Худший случай — `optimistic_prefill_attempts` лишних проходов на запрос. Практически он мягче: повторный проход в основном попадает в radix-кеш, оставленный предыдущей попыткой (кроме HiCache с `write_through`, где откатанный KV не сохраняется).
 - **TTFT.** Падает при удаче (счет и рукопожатие идут параллельно), растет при систематических откатах.
 - **Пропускная способность.** На насыщенном prefill-сервере оптимистичные проходы конкурируют с обычными за очередь; при `has_bootstrapped_waiting_req()` оптимистичный запрос уступает место готовым — это встроенная защита, но она означает откат.
 - **Хост.** Не влияет.
@@ -92,8 +93,8 @@ Number of optimistic prefill forward passes that skip the bootstrap wait.
 
 - `--disaggregation-mode prefill`: единственный режим, где значение читается.
 - `--pp-size > 1`: обнуляет значение (`Optimistic prefill does not support pp_size > 1`).
-- `--enable-hierarchical-cache` + `--hicache-storage-backend` или `--hicache-write-policy != write_back`: обнуляет значение (`Optimistic prefill only supports L2 hierarchical cache with write-back policy`). Обратите внимание, что умолчание политики — `write_through`, поэтому связка «иерархический кеш + оптимистичный prefill» без явного `--hicache-write-policy write_back` не заработает.
-- `--mamba-radix-cache-strategy` / mamba-модели: обнуляет значение.
+- `--enable-hierarchical-cache`: допустимы только L2 без `--hicache-storage-backend` с `--hicache-write-policy` `write_back` или `write_through` либо L3 с `--hicache-host-memory-mode buffer_only` и `write_through`; иначе значение обнуляется (`Optimistic prefill supports L2 write-back/write-through or L3 buffer-only write-through hierarchical cache`). Умолчание политики — `write_through`, поэтому L2-HiCache с оптимистичным prefill работает без явной смены политики, а `write_through_selective` — нет.
+- `--mamba-radix-cache-strategy` / mamba-модели: значение больше не обнуляется — запрет снят в upstream PR #40184 «Enable optimistic prefill for Mamba radix-cache models» (коммит `d82d653f96` в checkout).
 - `--disable-radix-cache`: не запрещен формально, но лишает механизм смысла — откатанный проход тогда не сохраняется и повтор считает всё заново.
 - `--chunked-prefill-size`: оптимистичный запрос может быть чанкованным; откат сбрасывает прогресс чанков целиком.
 - `--max-running-requests`: определяет размер пула metadata-буферов (`max_running_requests * 2` на prefill), который оптимистичные запросы занимают раньше срока.
@@ -101,7 +102,7 @@ Number of optimistic prefill forward passes that skip the bootstrap wait.
 
 ## Типовые проблемы и диагностика
 
-- `Optimistic prefill does not support pp_size > 1` / `Optimistic prefill only supports L2 hierarchical cache with write-back policy` / `Optimistic prefill does not support models that use mamba radix cache.` — значение обнулено на старте; уберите флаг или устраните конфликт.
+- `Optimistic prefill does not support pp_size > 1` / `Optimistic prefill supports L2 write-back/write-through or L3 buffer-only write-through hierarchical cache` — значение обнулено на старте; уберите флаг или устраните конфликт.
 - Много строк `Req <rid> optimistic prefill yielded (n/N attempts used)` — механизм работает вхолостую: рукопожатие медленнее, чем весь prefill. Уменьшайте число попыток или разбирайтесь с decode-стороной.
 - `Req <rid> exhausted optimistic prefill attempts falling back to bootstrap queue` — лимит исчерпан, запрос вернулся к обычному ожиданию. Единичные строки нормальны, массовые означают, что механизм не подходит нагрузке.
 - Растет доля отказов metadata-буферов (запросы «залипают» в bootstrap-очереди) — оптимистичные запросы держат буферы; поднимайте `--max-running-requests` или снижайте число попыток.
@@ -122,6 +123,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/disaggregation/prefill.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/docs/docs/advanced_features/pd_disaggregation.mdx`

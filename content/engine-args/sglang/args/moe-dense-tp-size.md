@@ -34,19 +34,28 @@ TP size for MoE dense MLP layers. This flag is useful when, with large TP size, 
 - Флаги: `--moe-dense-tp-size`
 - Группа: `parallel`
 - Тип значения: int (`Optional[int]`)
-- Допустимые значения: `None`, `1` или ровно значение `--tp-size`. Проверка в `check_server_args`: `assert self.moe_dense_tp_size in (None, 1, self.tp_size)` с текстом `moe_dense_tp_size only supports None, 1, or tp_size currently`. Любое другое число argparse примет, а старт отвергнет
+- Допустимые значения: `None`, `1` или ровно значение `--tp-size`. Проверка в `check_server_args` (`arg_groups/validation_hook.py`): `assert cfg.moe_dense_tp_size in (None, 1, cfg.tp_size)` с текстом `moe_dense_tp_size only supports None, 1, or tp_size currently`. Любое другое число argparse примет, а старт отвергнет
 - Значение по умолчанию: `null` — «отдельного правила нет, плотные MLP живут по общим правилам TP»
-- Эффективное значение: принудительно `1` в трех местах — `_handle_dwdp` (при `--dwdp-size > 1`), правила MLA CP и zigzag DSA CP в `arg_groups/overrides.py`, и хук DeepSeek-V4 CP (`arg_groups/deepseek_v4_hook.py`). Поле помечено `resolvable=True`
+- Эффективное значение: принудительно `1` в трех местах — хук `handle_dwdp` (`arg_groups/parallel_hook.py`, при `--dwdp-size > 1`), правила MLA CP и zigzag DSA CP в `arg_groups/model_overrides/deepseek_v2.py`, и хук DeepSeek-V4 CP (`arg_groups/deepseek_v4_hook.py`). В обратную сторону для `Qwen4ExpForConditionalGeneration` с MoE-конфигом (`num_experts` задан) значение `1` сбрасывается в `None` (`arg_groups/model_overrides/qwen4_exp.py`). Поле помечено `resolvable=True`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.moe_dense_tp_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (переопределения CP/DWDP) → `check_server_args` (валидация) → публикация в `ParallelState` → выбор режима scatter/gather в `LayerCommunicator` на каждом forward
+- Этап применения: пайплайн разрешения `ServerArgs.resolve_once` (переопределения CP/DWDP) → `check_server_args` (валидация) → публикация в `ParallelState` → раскладка входа и выхода плотных FFN-стадий при построении модели (`layers/layer_boundary/factories.py`) → выбор заранее собранного пути границы по батчу на каждом forward
 
 ## Что меняет в движке
 
 Значение читается двумя предикатами:
 
-- `enable_moe_dense_fully_dp()` в `layers/communicator.py` — это буквально `get_parallel().moe_dense_tp_size == 1`. Когда истинно, плотный MLP не шардируется: скрытые состояния остаются в раскладке attention-DP-группы, и после плотного слоя не нужен all-reduce по всей TP-группе.
-- `require_mlp_tp_gather(server_args)` и `require_attn_tp_gather(server_args)` в `utils/common.py`. Первый решает, приходит ли вход MLP через all-gather вместо all-reduce; при `moe_dense_tp_size is None` он возвращает `True` сразу (в коде рядом стоит пометка, что не у всех MoE-моделей есть плотные слои), при заданном значении сравнивает `moe_dense_tp_size > tp_size // dp_size`. Второй возвращает `True`, если a2a-backend не `none` **или** `moe_dense_tp_size` задан.
+- `enable_moe_dense_fully_dp()` в `layers/layer_boundary/layout.py` — это буквально `get_parallel().moe_dense_tp_size == 1`. Когда истинно, плотный MLP не шардируется: `_ffn_decl` (`layers/layer_boundary/factories.py`) объявляет вход и выход плотной FFN-стадии на локальных строках ранга, токены не собираются по DP-группам, и после плотного слоя не нужен all-reduce по всей TP-группе.
+- `require_mlp_tp_gather(*, moe_a2a_backend=None)` и `require_attn_tp_gather()` в `utils/common.py`. Оба читают опубликованный `ParallelState`, а не `server_args`.
+  - Первый решает, приходит ли вход MLP через all-gather вместо all-reduce, то есть нужен ли батчу глобальный счет токенов по DP-рангам. Без DP-attention он всегда `False`. При DP-attention ветки идут по порядку, и `True` выходит в любом из этих случаев:
+    - elastic EP уже расширил мир;
+    - `moe_dense_tp_size is None` (в коде рядом стоит пометка, что не у всех MoE-моделей есть плотные слои);
+    - не задан `--enable-dp-lm-head`;
+    - a2a-backend равен `none`;
+    - a2a-backend равен `flashinfer` или `mori` при `SGLANG_MORI_RECV_BOUND=1`. Буквального MLP-gather там нет, нужен только синхронный по DP учет токенов и единый размер CUDA-graph-бакета на всех EP-рангах.
+
+    Только в оставшемся случае (`--enable-dp-lm-head` задан, a2a-backend любой другой, например `deepep` или `mori` без этой переменной) он сравнивает `moe_dense_tp_size > tp_size // dp_size`. Ключевой параметр `moe_a2a_backend` по умолчанию берет текущий `--moe-a2a-backend`. При EAGLE- и standalone-спекуляции планировщик (`scheduler_components/dp_attn.py`) передает в него `--speculative-moe-a2a-backend` (или основной backend, если тот не задан), чтобы тем же правилом оценить draft-модель.
+  - Второй возвращает `False` при `--disable-attn-tp-gather`. Иначе он возвращает `True`, если a2a-backend не `none` **или** `moe_dense_tp_size` задан, а при DP-attention — только когда при этом `dp_size < tp_size`.
 
 Практическое следствие второго пункта: **само присутствие значения** (даже равного `tp_size`) включает путь с `gathered_buffer` и padding'ом числа токенов до `attn_tp_size`, чего при `None` не происходит. Отключить это можно `--disable-attn-tp-gather`.
 
@@ -56,7 +65,7 @@ TP size for MoE dense MLP layers. This flag is useful when, with large TP size, 
 
 - `1` — плотные MLP полностью data-параллельны в пределах attention-DP-группы. Веса плотных слоев при этом дублируются на каждой группе.
 - `tp_size` — плотные MLP шардируются так же, как все, но путь gather включается явно.
-- Не задан (`null`) — поведение по умолчанию: `require_mlp_tp_gather` при DP-attention возвращает `True` уже на первом условии.
+- Не задан (`null`) — поведение по умолчанию: `require_mlp_tp_gather` при DP-attention возвращает `True` уже на проверке `moe_dense_tp_size is None`.
 - Любое другое число — `AssertionError` на старте, а не тихая деградация.
 
 ## Когда использовать
@@ -110,7 +119,8 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/layout.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/factories.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/batch_overlap/two_batch_overlap.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/dp_attn.py`

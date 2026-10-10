@@ -40,14 +40,14 @@ If set to True, log the stack trace of error responses
 
 ## Что меняет в движке
 
-Проверка `if req.app.state.args.log_error_stack:` стоит в четырех обработчиках `vllm/entrypoints/serve/utils/server_utils.py`:
+Проверка `if req.app.state.args.log_error_stack:` стоит в четырех обработчиках из `vllm/entrypoints/serve/exception_handling/handlers/`. Регистрирует их `init_exception_handler` (`vllm/entrypoints/serve/exception_handling/register.py`):
 
-- `engine_error_handler` — `logger.exception("Engine Exception caught. Request id: %s", ...)`;
-- `http_exception_handler` — `logger.exception("HTTPException caught. Request id: %s", ...)`;
-- `validation_exception_handler` — `logger.exception("RequestValidationError caught. Request id: %s", ...)`;
-- `exception_handler` — здесь `logger.error(...)`, то есть строка без трассировки, только с идентификатором запроса.
+- `engine_error_handler` (`handlers/vllm_error.py`) — `logger.exception("Engine Exception caught. Request id: %s", ...)`; сюда `EngineGenerateError` и `EngineDeadError` направляет общий обработчик `VLLMError` — `vllm_error_handler`;
+- `http_exception_handler` (`handlers/http.py`) — `logger.exception("HTTPException caught. Request id: %s", ...)`;
+- `validation_exception_handler` (`handlers/validation.py`) — `logger.exception("RequestValidationError caught. Request id: %s", ...)`;
+- `exception_handler` (`handlers/exception.py`) — здесь `logger.error(...)`, то есть строка без трассировки, только с идентификатором запроса. Через него идут прочие подклассы `VLLMError`, сырые `ValueError`, `TypeError`, `OverflowError`, `NotImplementedError`, еще не переведенные на `VLLMError`, и любое другое `Exception`.
 
-`GenerationError` обрабатывается отдельно и трассировку не печатает намеренно: это ожидаемая ошибка, которую не нужно превращать в шум.
+`GenerationError` обрабатывается отдельно (`generation_error_handler` в `handlers/vllm_error.py`) и трассировку не печатает намеренно: это ожидаемая ошибка, которую не нужно превращать в шум.
 
 Обратите внимание на состав вывода: `logger.exception` печатает полную трассировку с путями файлов и внутренними именами. В сообщение клиенту эти детали не попадают — `validation_exception_handler` специально строит текст из `exc.errors()`, потому что `str(exc)` раскрывает путь к файлу обработчика.
 
@@ -93,7 +93,12 @@ vllm serve /models/Qwen3-4B --host 127.0.0.1 --no-log-error-stack
 ## Источники
 
 - `vllm/vllm/entrypoints/launchers/cli_args.py`
-- `vllm/vllm/entrypoints/serve/utils/server_utils.py`
-- `vllm/vllm/entrypoints/serve/utils/error_response.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/register.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/handlers/vllm_error.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/handlers/http.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/handlers/validation.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/handlers/exception.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/error_response.py`
+- `vllm/vllm/entrypoints/serve/exception_handling/utils.py`
 - `vllm/vllm/envs.py`
 - `vllm/docs/usage/security.md`

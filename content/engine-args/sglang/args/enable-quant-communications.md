@@ -34,17 +34,19 @@ Enable INT8 quantization of TP communications (limited support).
 - Тип значения: bool (объявлен как `Optional[bool]`, argparse принимает флаг без значения)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переписывается, но проверяется. `check_server_args` (`sglang/python/sglang/srt/server_args.py`) поднимает `ValueError: Communications quantization is only used with tp_size != 1` при `--tp-size 1` и `ValueError: Communications quantization is only supported for NPU device`, если `--device` не `npu`
+- Эффективное значение: не переписывается, но проверяется. `check_server_args` (метод `ServerArgs.check_server_args` в `sglang/python/sglang/srt/server_args.py` делегирует одноименной функции в `sglang/python/sglang/srt/arg_groups/validation_hook.py`; вызывается после пайплайна разрешения) поднимает `ValueError: Communications quantization is only used with tp_size != 1` при `--tp-size 1` и `ValueError: Communications quantization is only supported for NPU device`, если `--device` не `npu`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_quant_communications`
 - Статус: обычный, но с явной пометкой «limited support» в собственной справке
-- Этап применения: разбор CLI → `check_server_args` (жесткие проверки) → forward: `RowParallelLinear.forward` и `layers/communicator.py` выбирают квантованный коллектив на каждой prefill-итерации
+- Этап применения: разбор CLI → `check_server_args` (жесткие проверки) → forward: `RowParallelLinear.forward` и границы стадий `layers/layer_boundary/` выбирают квантованный коллектив на каждой prefill-итерации
 
 ## Что меняет в движке
 
-Значение читается ровно в двух местах, и оба — на горячем пути:
+Квантованный коллектив подставляется в двух местах, оба на горячем пути:
 
 - `layers/linear.py`, выход `RowParallelLinear`: если `not forward_batch.forward_mode.is_decode_or_idle()` и флаг включен, вместо `tensor_model_parallel_all_reduce(output_parallel)` вызывается `tensor_model_parallel_quant_all_reduce(...)`;
-- `layers/communicator.py`, ветка «all-reduce внимания + RMSNorm»: та же подмена на `attention_tensor_model_parallel_quant_all_reduce(...)`, но только если фьюжен all-reduce (`apply_flashinfer_allreduce_fusion` / `apply_aiter_all_reduce_fusion`) не забрал этот слой раньше.
+- `layers/layer_boundary/ops.py:_mlp_input_reduce_output` — сумма по attention-TP-группе, которую несуммированный выход внимания оставляет входу следующей стадии (как правило, FFN) без DP-attention (`_mlp_input_without_dp` в `layers/layer_boundary/prepare.py`): та же подмена на `attention_tensor_model_parallel_quant_all_reduce(...)`, но только если слитое all-reduce + residual + RMSNorm (`layers/layer_boundary/fusions/allreduce.py`, предикаты `apply_flashinfer_allreduce_fusion` / `apply_aiter_all_reduce_fusion`) не забрало эту сумму раньше, и только при обычном сложении residual: MHC-residual суммирует в полной точности.
+
+Остальные чтения флага не дают увести квантуемые суммы в полноточный путь: `post_experts_sum_is_one_all_reduce` (`layers/moe/utils.py`) и `_can_defer_ffn_reduction` (`layers/layer_boundary/exit.py`) запрещают FFN откладывать свой all-reduce до входа следующего слоя, а CuTe DSL-фьюжен (`layers/layer_boundary/fusions/cutedsl.py`) при включенном флаге не берет на себя ни сумму выхода внимания, ни отложенный all-reduce FFN.
 
 `GroupCoordinator.quant_all_reduce` — тонкий диспетчер: если у группы есть `npu_communicator` и он не выключен, вызывается `NpuCommunicator.quant_all_reduce`, иначе выполняется **обычный** in-place all-reduce. То есть даже если бы проверка на устройство отсутствовала, на CUDA флаг ничего бы не сделал.
 
@@ -62,7 +64,7 @@ return output_tensor.reshape((world_size,) + input_size).sum(dim=0)
 
 ### Что это заменяет и чего требует от топологии
 
-Заменяется коллектив all-reduce на выходе внимания и MLP/MoE в prefill. Никакого специального NVLink/NVSwitch/RDMA не требуется — наоборот, смысл флага в том, чтобы помочь там, где межкарточный канал узкий. Требование одно и жесткое: HCCL-коммуникатор Ascend, то есть `--device npu`.
+Заменяется all-reduce в prefill только в двух местах: собственная редукция `RowParallelLinear` (выход плотного MLP, у моделей без границ стадий также `o_proj` внимания) и сумма выхода внимания на границе стадий. Редукция маршрутизируемых экспертов MoE (`post_experts_all_reduce` в `layers/moe/utils.py`) и коллективы a2a-backend'ов остаются в исходной точности. Никакого специального NVLink/NVSwitch/RDMA не требуется — наоборот, смысл флага в том, чтобы помочь там, где межкарточный канал узкий. Требование одно и жесткое: HCCL-коммуникатор Ascend, то есть `--device npu`.
 
 Заметьте, что `all_gather` переносит `world_size` копий данных, тогда как ring-all-reduce — примерно `2 * (world_size - 1) / world_size` объема. Экономия получается за счет int8, а не за счет алгоритма, и на больших группах преимущество быстро тает.
 
@@ -92,8 +94,8 @@ return output_tensor.reshape((world_size,) + input_size).sum(dim=0)
 
 - `--device`: обязателен `npu`.
 - `--tp-size`: обязателен больше 1; чем больше группа, тем больше промежуточный буфер `all_gather`.
-- `--enable-dp-attention`: редукция внимания идет по attention-TP-группе; квантованный путь применяется там же, где обычный.
-- `--flashinfer-allreduce-fusion-backend` и `--enable-aiter-allreduce-fusion`: эти фьюжен-пути перехватывают слой раньше и отменяют квантованный коллектив для него. На Ascend они и так неприменимы, но в смешанных конфигурациях помните о приоритете.
+- `--enable-dp-attention`: сумму выхода внимания на входе FFN тогда завершают обычный all-reduce по attention-TP-группе или DP-gather (`_mlp_input_dp_replicate` / `_mlp_input_dp_partial` в `layers/layer_boundary/prepare.py`), без квантования; квантованным остается только `RowParallelLinear`, который сам редуцирует по полной TP-группе.
+- `--flashinfer-allreduce-fusion-backend` и `--enable-aiter-allreduce-fusion`: эти фьюжен-пути перехватывают слой раньше и отменяют квантованный коллектив для него; исключение — backend `cutedsl`, который при этом флаге сам уступает. На Ascend они и так неприменимы, но в смешанных конфигурациях помните о приоритете.
 - `--disable-custom-all-reduce`, `--enable-symm-mem`, `--enable-mscclpp`: относятся к CUDA/ROCm-путям и с этим флагом не пересекаются.
 - `--chunked-prefill-size`: определяет размер тензора коллектива и, соответственно, и выигрыш, и пик памяти.
 
@@ -119,8 +121,14 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --device npu --ten
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/npu_communicator.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/layers/linear.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/ops.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/prepare.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/exit.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/fusions/allreduce.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/fusions/cutedsl.py`
+- `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/docs/docs/hardware-platforms/ascend-npus/reference/support_features.mdx`

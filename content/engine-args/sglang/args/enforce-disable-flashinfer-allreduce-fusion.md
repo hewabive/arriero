@@ -33,10 +33,10 @@ Enforce disable FlashInfer allreduce fusion.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: поднимается в `True` автоматически при `--enable-deterministic-inference` — это первая строка `_handle_model_specific_adjustments` (`sglang/python/sglang/srt/server_args.py`). То есть детерминированный режим отменяет фьюжен двумя независимыми путями: через этот флаг и через отдельный проход `_deterministic_allreduce_fusion_disable`
+- Эффективное значение: поднимается в `True` автоматически при `--enable-deterministic-inference` — это первая проверка хука `handle_model_specific_adjustments` (`sglang/python/sglang/srt/arg_groups/model_hook.py`). То есть детерминированный режим отменяет фьюжен двумя независимыми путями: через этот флаг и через отдельный проход `_deterministic_allreduce_fusion_disable`, который позже вызывает `handle_deterministic_inference` (`arg_groups/attention_hook.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enforce_disable_flashinfer_allreduce_fusion`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__`: `_handle_model_specific_adjustments` (взведение в детерминированном режиме) → проход `_enforce_disable_allreduce_fusion` реестра `arg_groups/overrides.py`, сразу после `_flashinfer_allreduce_fusion_auto_enable`
+- Этап применения: разбор CLI → пайплайн разрешения (`ServerArgs.resolve_once` → `arg_groups/pipeline.py`) → хук `handle_model_specific_adjustments` (`arg_groups/model_hook.py`). Хук взводит флаг в детерминированном режиме, а в конце сам вызывает проходы реестра `arg_groups/overrides.py`: `_flashinfer_allreduce_fusion_auto_enable` и сразу за ним `_enforce_disable_allreduce_fusion`
 
 ## Что меняет в движке
 
@@ -54,7 +54,7 @@ def _enforce_disable_allreduce_fusion(view: Any) -> dict:
 
 Комментарий у прохода фиксирует контракт: «the user's enforce-disable switch wins over every model-specific adjustment». Порядок важен — проход стоит **после** авто-включения, поэтому перекрывает и его, и явно заданное значение `--flashinfer-allreduce-fusion-backend`.
 
-Дальше `None` в этом поле выключает всё сразу: `apply_flashinfer_allreduce_fusion` возвращает `False` на каждом вызове, `resolve_flashinfer_allreduce_fusion_backend` возвращает `None`, а `_pre_initialize_flashinfer_allreduce_workspace` выходит без выделения буферов. То есть флаг экономит еще и VRAM под workspace.
+Дальше `None` в этом поле выключает всё сразу: `apply_flashinfer_allreduce_fusion` (`layers/layer_boundary/residual/add_norm.py`) возвращает `False` на каждом вызове, `resolve_flashinfer_allreduce_fusion_backend` возвращает `None`, а `_pre_initialize_flashinfer_allreduce_workspace` выходит без выделения буферов. То есть флаг экономит еще и VRAM под workspace.
 
 Что при этом происходит с редукцией: слои возвращаются к обычной последовательности «all-reduce → residual → RMSNorm», где all-reduce проходит стандартную цепочку выбора (`ca → qr → pymscclpp → torch_symm_mem → pynccl`). Никакой особой топологии флагу не нужно — он ничего не включает, только выключает.
 
@@ -110,7 +110,9 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/layers/flashinfer_comm_fusion.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/residual/add_norm.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

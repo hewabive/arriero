@@ -47,16 +47,15 @@ Enable hierarchical cache
 
 ## Что меняет в движке
 
-Флаг читает `default_radix_cache_factory` (`sglang/python/sglang/srt/mem_cache/registry.py`) и выбирает одну из двух реализаций:
+Отдельной реализации HiCache-дерева больше нет: `HiRadixCache` удален из кода, и HiCache для всех моделей строится поверх `UnifiedRadixCache`. В цепочке `default_radix_cache_factory` (`sglang/python/sglang/srt/mem_cache/registry.py`) обычная модель доходит до последней ветки `create_unified_radix_cache`: создается `UnifiedRadixCache` с компонентом `FULL` (плюс `SWA`/`MAMBA` у гибридных моделей), и при поднятом флаге вызывается `cache.init_hicache(...)`. Тот через `attach_hybrid_pool_to_unified_cache` (`mem_cache/hybrid_cache/hybrid_pool_assembler.py`) выбирает стратегию по типу device-пула (обычный MHA/MLA, SWA, Mamba, DSA, MiniMax sparse, DeepSeek V4) и создает группу host-пулов (`MHATokenToKVPoolHost` / `MLATokenToKVPoolHost` плюс sidecar-пулы) и `HybridCacheController` — наследника `HiCacheController` (`managers/cache_controller.py`).
 
-- для обычных MHA/MLA-моделей — `HiRadixCache` (`mem_cache/hiradix_cache.py`), который создает host-пул (`MHATokenToKVPoolHost` / `MLATokenToKVPoolHost`) и `HiCacheController` (`managers/cache_controller.py`);
-- для hybrid-SWA, hybrid-SSM и DSA-моделей (DeepSeek V3.2, GLM-5.1) — `UnifiedRadixCache` с последующим `init_hicache(...)`.
+Затем `tp_worker.register_hicache_layer_transfer_counter(...)` подключает по-слойный счетчик передачи, за счет которого загрузка KV слоя N+1 из хоста перекрывается со счетом слоя N.
 
-В обоих случаях `tp_worker.register_hicache_layer_transfer_counter(...)` подключает по-слойный счетчик передачи, за счет которого загрузка KV слоя N+1 из хоста перекрывается со счетом слоя N.
+Ветки цепочки, стоящие раньше финальной, HiCache не подключают: pure-SWA модель (без full-слоев) получает `PureSWARadixCache`, `--enable-flexkv` — `FlexKVRadixCache`, а явный `--radix-cache-backend` отдает построение зарегистрированной фабрике.
 
 Далее HiCache добавляет три операции поверх обычного дерева префиксов (`sglang/docs/docs/advanced_features/hicache_design.mdx`):
 
-1. **local match** — поиск по HiRadixTree сразу по L1 и L2, без копирования данных;
+1. **local match** — поиск по дереву `UnifiedRadixCache` (в апстрим-документации оно называется HiRadixTree) сразу по L1 и L2, без копирования данных;
 2. **prefetch** — при заданном `--hicache-storage-backend` подтягивание хвоста префикса из L3 в L2 (порог по умолчанию 256 токенов, политика останова — `--hicache-storage-prefetch-policy`);
 3. **write-back** — перенос KV из L1 в L2 и L3 по политике `--hicache-write-policy`.
 
@@ -91,13 +90,14 @@ Enable hierarchical cache
 
 - `--disable-radix-cache`: взаимоисключающие, `_handle_cache_compatibility` бросает `ValueError`.
 - `--hicache-ratio` / `--hicache-size` / layout и I/O-настройки также могут читаться host tier'ом decode-offload или retraction; prefix write/prefetch policies относятся к обычному HiCache.
-- `--enable-lmcache` и `--enable-flexkv`: в цепочке выбора кеша ветка HiCache стоит **раньше**, поэтому при одновременном включении LMCache и FlexKV молча игнорируются.
+- `--enable-lmcache`: взаимоисключающие, `handle_cache_compatibility` бросает `ValueError` «--enable-lmcache and --enable-hierarchical-cache are mutually exclusive».
+- `--enable-flexkv`: ветка FlexKV в цепочке стоит **раньше** финальной ветки `UnifiedRadixCache`, поэтому строится `FlexKVRadixCache`, и HiCache к нему не подключается (`hicache_attached=False` в строке `Tree cache initialized`). Проверки этой связки при разборе аргументов нет, а scheduler при этом продолжает считать HiCache включенным — не сочетайте флаги.
 - `--enable-unified-memory`: совместимы — HiCache поддержан для всех форм unified-пула (несовместимым с unified-пулом остается только `--enable-lmcache`).
 - `--enable-int8-mamba-checkpoint`: несовместим, `_handle_int8_mamba_checkpoint` бросает `ValueError` (host-offload путь не понимает int8-чекпойнты).
 - `--dcp-size` > 1: разрешено только для MLA-моделей и только L1/L2 — `--hicache-storage-backend`, спекулятивное декодирование, `--enable-lmcache` и `--enable-hisparse` в этой комбинации отвергаются `NotImplementedError`.
 - `--disaggregation-decode-enable-offload-kvcache`: включает те же нормализации `_handle_hicache` и требует заданного `--hicache-storage-backend`.
 - `--disaggregation-decode-retraction-backup host_pool`: строит зарезервированный HiCache L2 для KV вытесненных decode-запросов даже без этого флага; при незаданном ratio использует `0.2` без HiCache (при `--hicache-size 0` — не меньше одного запроса максимальной длины, двух при `--disaggregation-decode-host-receive-threshold > 0`), либо `2.0` с HiCache.
-- `--optimistic-prefill-attempts`: на prefill-узле PD работает только с L2 и политикой `write_back`; иначе значение молча сбрасывается в 0 с предупреждением.
+- `--optimistic-prefill-attempts`: на prefill-узле PD с HiCache работает только в двух конфигурациях — L2 без `--hicache-storage-backend` с политикой `write_back` или `write_through` либо L3 с `--hicache-host-memory-mode buffer_only` и `write_through`; иначе значение молча сбрасывается в 0 с предупреждением.
 - `--dllm-algorithm`: при включенном radix cache гасит HiCache с предупреждением.
 
 ## Типовые проблемы и диагностика
@@ -106,7 +106,7 @@ Enable hierarchical cache
 - L2 меньше ожидаемого при не заданном размере — сработал auto-sizing: ищите в логе `HiCache auto-sizing: ratio A -> B; …` и см. `--hicache-host-memory-fraction`.
 - Предупреждение «HiCache … host pool (N tokens) is smaller than the device pool (M tokens); L2 cache effectiveness is reduced.» — host-пул меньше device-пула, толку от L2 почти нет: поднимите ratio выше 1.
 - Старт падает с «The arguments enable-hierarchical-cache and disable-radix-cache are mutually exclusive…» — конфликт флагов.
-- Ветка кеша подтверждается строкой «Tree cache initialized: source=default impl=HiRadixCache … hierarchical=True» (`mem_cache/registry.py`), фактический размер L2 — строкой «Allocating kv hierarchical KV host pool: N tokens, X.XX GB host memory.» (`mem_cache/pool_host/base.py`).
+- Ветка кеша подтверждается строкой «Tree cache initialized: source=default impl=UnifiedRadixCache … hicache_attached=True …» (`mem_cache/registry.py`); `hicache_attached=False` при поднятом флаге значит, что сработала более ранняя ветка цепочки (pure-SWA, FlexKV, `--radix-cache-backend`). Состав host-стека показывает «Attached hybrid pool stack to UnifiedRadixCache: pools=…», фактический размер L2 — «Allocating kv hierarchical KV host pool: N tokens, X.XX GB host memory.» (`mem_cache/pool_host/base.py`).
 - Значения `--hicache-*`, как их принял движок (уже после нормализации layout/IO), видны в дампе `server_args=` при старте.
 - В arriero расход L2 надо явно заложить в host-пул memory draw инстанса, иначе планировщик посчитает хост свободнее, чем он есть (`docs/RESOURCE_MANAGEMENT.md`).
 
@@ -125,7 +125,11 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
-- `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`
+- `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/base.py`
 - `sglang/python/sglang/srt/mem_cache/hicache_auto_size.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`

@@ -55,7 +55,7 @@ self.size = self.page_num * self.page_size
 
 То есть `--hicache-ratio` используется **только** в ветке `host_size == 0` и работает над числом токенов device-пула. Дальше размер выравнивается вверх на целую страницу (`--page-size`), и по `self.size * self.size_per_token` считается требуемый объем RAM.
 
-Для hybrid-моделей (full + SWA, full + Mamba) тот же ratio передается в каждый под-пул отдельно (`mem_cache/hybrid_cache/hybrid_pool_assembler.py`), то есть суммарный расход RAM — сумма по под-пулам.
+Host-пулы для всех моделей собирает `UnifiedRadixCache.init_hicache` через `mem_cache/hybrid_cache/hybrid_pool_assembler.py` (отдельного `HiRadixCache` больше нет); у hybrid-моделей (full + SWA, full + Mamba) тот же ratio передается в каждый под-пул отдельно, то есть суммарный расход RAM — сумма по под-пулам.
 
 Для DeepSeek V4 расчет идет в страницах: `full_host_pages = int(device_full_pages * ratio)` и аналогично для SWA-части; там же `--hicache-size` явно запрещен.
 
@@ -118,7 +118,9 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/base.py`
-- `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/hicache_auto_size.py`
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`
 - `sglang/python/sglang/srt/disaggregation/decode_kvcache_offload_manager.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`

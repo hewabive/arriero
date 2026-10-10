@@ -38,10 +38,10 @@ The attention context parallelism size.
 - Тип значения: int
 - Допустимые значения: `choices` нет; должно делить `tp_size` и `tp_size / dp_size` (проверяется ассертами)
 - Значение по умолчанию: `1`
-- Эффективное значение: поле объявлено `resolvable=True`, то есть модельные override'ы имеют право его переписать. `_deepseek_family_overrides` при `--enable-prefill-cp` ставит `attn_cp_size = tp_size // dp_size` и для DSA-, и для MLA-ветки; `deepseek_v4_hook` делает то же самое для DeepSeek-V4. Эффективное значение читается через `self._resolved()`, поэтому в ассертах и в расчете рангов участвует именно оно, а не то, что стояло в командной строке
+- Эффективное значение: поле объявлено `resolvable=True`, то есть модельные override'ы имеют право его переписать. `_deepseek_family_overrides` (`arg_groups/model_overrides/deepseek_v2.py`) при `--enable-prefill-cp` ставит `attn_cp_size = tp_size // dp_size` и для DSA-, и для MLA-ветки; `deepseek_v4_hook` делает то же самое для DeepSeek-V4. Эффективное значение читается через `resolved_view(server_args)`, поэтому в ассертах и в расчете рангов участвует именно оно, а не то, что стояло в командной строке
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.attn_cp_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (модельные override'ы → `_handle_context_parallelism` → `init_cp_strategy`) → `initialize_model_parallel` (создание группы `ATTN_CP`) → forward
+- Этап применения: пайплайн разрешения `ServerArgs.resolve_once` (модельные override'ы → хук `handle_context_parallelism` в `arg_groups/parallel_hook.py` → `init_cp_strategy`) → `initialize_model_parallel` (создание группы `ATTN_CP`) → forward
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ attn_tp_size = tensor_model_parallel_size // attn_cp_size // attn_dp_size
 
 ### Проверки делимости
 
-`_handle_context_parallelism`:
+`handle_context_parallelism` (`arg_groups/parallel_hook.py`):
 
 ```text
 assert tp_size % attn_cp_size == 0            -> "tp_size must be divisible by attn_cp_size"
@@ -77,7 +77,7 @@ assert not enable_aiter_allreduce_fusion       -> "Aiter allreduce fusion is not
 
 - KV-кеш: размер ячейки считается от `attn_tp_size` (`model_config.get_num_kv_heads(attn_tp_size, attn_dcp_size)`). Увеличение `attn_cp_size` **уменьшает** `attn_tp_size`, то есть на каждый ранг приходится больше KV-голов и ячейка становится больше. Ожидать от CP уменьшения KV-пула не следует — на фазе prefill K/V к тому же реплицируются all-gather'ом.
 - Захват CUDA graph на prefill отключается: `attn_cp_size > 1` входит в список несовместимостей и для обычного, и для breakable-графа (последний остается доступен только при выполнении условий `supports_prefill_cp_bcg`).
-- Для DSA-путей с включенным CP `attn_tp_size` намеренно удерживается равным 1: `DSACPLayerCommunicator` не делает all-reduce частичных выходов `o_proj` перед реплицированными dense-FFN.
+- Для DSA- и MLA-CP у DeepSeek `attn_tp_size` намеренно удерживается равным 1 (`attn_cp_size = tp_size // dp_size` в `arg_groups/model_overrides/deepseek_v2.py`). На CP-батче граница стадий собирает вход FFN равными шардами по attention-CP-группе (`_mlp_input_gather_attention_cp` в `layers/layer_boundary/prepare.py`), а выход возвращает reduce-scatter'ом по той же группе (`reduce_scatter_over_cp` в `layers/layer_boundary/ops.py`). Оба хелпера, `dsa_cp_gather_hidden_states` и `dsa_cp_reduce_scatter_hidden_states` (`layers/layer_boundary/adapters/context_parallel.py`), проверяют `assert attn_dp_size == 1 and attn_tp_size == 1`.
 
 ## Значения и формат
 
@@ -140,6 +140,11 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/adapters/context_parallel.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/prepare.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/ops.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`
 - `sglang/python/sglang/srt/layers/cp/base.py`

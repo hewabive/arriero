@@ -127,5 +127,6 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-70B-Instruct --tp-
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/flashinfer_comm_fusion.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/residual/add_norm.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/fusions/allreduce.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`

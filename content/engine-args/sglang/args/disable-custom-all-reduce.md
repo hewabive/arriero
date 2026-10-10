@@ -57,7 +57,7 @@ Disable the custom all-reduce kernel and fall back to NCCL.
 
 ### Что заменяет в пути all-reduce
 
-Редукции, о которых идет речь, — это выход `RowParallelLinear` (проекция `o_proj` внимания и выход MLP/MoE, `layers/linear.py`) и слитые пути в `layers/communicator.py`. Именно они на decode дают десятки мелких (сотни килобайт) редукций на токен, где latency ядра важнее пропускной способности. `--disable-custom-all-reduce` отдает их NCCL.
+Редукции, о которых идет речь, — это выход `RowParallelLinear` (`layers/linear.py`: выход MLP/MoE, а у моделей без границ стадий и проекция `o_proj` внимания) и суммы, которые границы стадий `layers/layer_boundary/` завершают на входе следующей стадии (`ops.py`; у моделей на этих границах туда приходит несуммированный выход внимания), если их не забрало слитое all-reduce + residual + RMSNorm (`fusions/allreduce.py`, как оно соотносится с этим флагом — ниже, во «Взаимодействии»). Именно они на decode дают десятки мелких (сотни килобайт) редукций на токен, где latency ядра важнее пропускной способности. `--disable-custom-all-reduce` отдает их NCCL.
 
 ## Значения и формат
 
@@ -86,7 +86,8 @@ Disable the custom all-reduce kernel and fall back to NCCL.
 - `--tp-size`: без него флаг бессмыслен. Полный разбор того, откуда берутся редукции, — в справке `--tp-size`.
 - `--enable-p2p-check`: по умолчанию SGLang патчит проверку P2P-доступа (`monkey_patch_p2p_access_check`); включенная проверка может отбраковать custom AR раньше, чем это сделает флаг.
 - `--enable-mscclpp`, `--enable-torch-symm-mem`, `--enable-symm-mem`: альтернативные пути редукции в той же цепочке выбора. mscclpp имеет приоритет **над** custom AR, symm-mem-пути — после него.
-- `--flashinfer-allreduce-fusion-backend` и `--enable-aiter-allreduce-fusion`: слияние all-reduce с Residual+RMSNorm вообще обходит эту цепочку для поддерживаемых слоев; на ROCm для MiniMax-M3 включенная aiter-фьюжен-ветка как раз и есть причина, по которой custom AR там не выключается принудительно.
+- `--flashinfer-allreduce-fusion-backend`: слияние all-reduce с Residual+RMSNorm идет через собственный workspace FlashInfer и обходит эту цепочку для поддерживаемых слоев.
+- `--enable-aiter-allreduce-fusion`: слитое ядро на ROCm вызывается через тот же объект custom AR (`GroupCoordinator.fused_allreduce_rmsnorm` в `distributed/parallel_state.py`), поэтому при `--disable-custom-all-reduce` оно молча откатывается к обычным all-reduce и RMSNorm. На ROCm для MiniMax-M3 включенная aiter-фьюжен-ветка как раз и есть причина, по которой custom AR там не выключается принудительно.
 - `--enable-deterministic-inference`: на CUDA при `tp_size > 1` сам ставит `disable_custom_all_reduce = True` и `enable_torch_symm_mem = False`, задавать флаг руками не нужно.
 - `--device npu`: значение принудительно `True`, custom AR на Ascend не поддерживается.
 - `--nnodes`: многоузловая группа отбрасывает custom AR с предупреждением `… is disabled because this process group spans across nodes.` вне MNNVL-опции.
@@ -122,5 +123,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --tensor-parallel-
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/hardware_backend/npu/utils.py`
 - `sglang/python/sglang/srt/layers/linear.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/ops.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/fusions/allreduce.py`
+- `sglang/python/sglang/srt/layers/layernorm.py`
 - `sglang/docs/cookbook/autoregressive/GLM/GLM-5.1.mdx`
 - `sglang/docs/cookbook/autoregressive/Xiaomi/MiMo-V2-Flash.mdx`

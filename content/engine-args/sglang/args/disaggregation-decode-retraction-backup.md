@@ -12,6 +12,7 @@ related:
   - --disaggregation-decode-host-receive-threshold
   - --hicache-ratio
   - --hicache-size
+  - --hicache-host-memory-fraction
   - --dcp-size
   - --enable-priority-scheduling
   - --disable-priority-preemption
@@ -67,7 +68,7 @@ Retraction идет в `ScheduleBatch.retract_decode`: запросы снима
 
 ## Влияние на производительность и память
 
-`cpu_tensor` и `host_pool` копируют KV между GPU и host и увеличивают latency retraction/resume. `host_pool` заранее резервирует pinned RAM: при незаданном `--hicache-ratio` отдельный backup-only пул получает `0.2` от device pool (при `--hicache-size 0` — не меньше, чем нужно одному запросу максимальной длины, а при `--disaggregation-decode-host-receive-threshold > 0` — двум); при включённом HiCache — `2.0`. Переполнение малого backup-пула прерывает запрос. `cpu_tensor` расходует RAM по мере числа и длины вытесненных запросов и сильнее зависит от поведения allocator'а. `none` не тратит ни RAM, ни PCIe, но вся уже выполненная работа над вытесненным запросом (prefill на prefill-узле, передача KV, сгенерированные токены) теряется.
+`cpu_tensor` и `host_pool` копируют KV между GPU и host и увеличивают latency retraction/resume. `host_pool` заранее резервирует pinned RAM: при незаданном `--hicache-ratio` отдельный backup-only пул получает `0.2` от device pool (при `--hicache-size 0` — не меньше, чем нужно одному запросу максимальной длины, а при `--disaggregation-decode-host-receive-threshold > 0` — двум); при включённом HiCache — `2.0`. Если не заданы ни `--hicache-ratio`, ни `--hicache-size`, этот ratio затем может дополнительно урезать `auto_size_hicache` (`mem_cache/hicache_auto_size.py`) — и для `host_pool` retraction тоже — под долю `--hicache-host-memory-fraction` (по умолчанию `0.8`) свободной RAM после резерва 10 ГиБ; урезание берет минимум и нижнюю границу «один запрос максимальной длины» не сохраняет, а в логе видно строкой `HiCache auto-sizing: ratio A -> B; …`. Переполнение малого backup-пула прерывает запрос. `cpu_tensor` расходует RAM по мере числа и длины вытесненных запросов и сильнее зависит от поведения allocator'а. `none` не тратит ни RAM, ни PCIe, но вся уже выполненная работа над вытесненным запросом (prefill на prefill-узле, передача KV, сгенерированные токены) теряется.
 
 ## Взаимодействие с другими аргументами
 
@@ -108,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B --disaggregatio
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`
+- `sglang/python/sglang/srt/mem_cache/hicache_auto_size.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/common.py`
 - `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`

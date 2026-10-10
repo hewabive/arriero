@@ -60,7 +60,7 @@ Enable log prometheus metrics.
 
 Из scheduler-процесса (`SchedulerMetricsCollector`) — состояние очереди и пулов: `sglang:num_running_reqs`, `sglang:num_queue_reqs`, `sglang:token_usage`, `sglang:kv_available_tokens`, `sglang:kv_used_tokens`, `sglang:cache_hit_rate`, `sglang:gen_throughput`, `sglang:num_retracted_reqs`, `sglang:is_cuda_graph`, `sglang:new_token_ratio`, `sglang:queue_time_seconds`, `sglang:per_stage_req_latency_seconds`, метрики grammar-бэкенда, при HiCache — `sglang:hicache_host_used_tokens`. Значения пулов и очереди обновляются не на каждой итерации, а раз в `--decode-log-interval` decode-шагов.
 
-Флаг также включает метрики radix-кеша и storage-слоя: `enable_metrics` пробрасывается в `CacheInitParams` и дальше в `RadixCache`/`HiRadixCache`/`SWARadixCache`.
+Флаг также включает метрики radix-кеша и storage-слоя: `enable_metrics` пробрасывается в `CacheInitParams` и дальше читается `RadixCache` (и его наследниками вроде `PureSWARadixCache`) и `UnifiedRadixCache`; у последнего тот же флаг при подключенном HiCache включает и метрики L3-хранилища (`enable_storage_metrics`). Отдельного `HiRadixCache` больше нет.
 
 Пример живого вывода со списком метрик — `sglang/docs/docs/references/production_metrics.mdx`, готовый дашборд — `examples/monitoring/grafana/dashboards/json/sglang-dashboard.json` в том же checkout'е.
 
@@ -128,6 +128,8 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --enable-metrics
 - `sglang/python/sglang/srt/observability/func_timer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
+- `sglang/python/sglang/srt/mem_cache/radix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`
 - `sglang/docs/docs/references/production_metrics.mdx`
 - `sglang/docs/docs/advanced_features/observability.mdx`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/SYSTEM_METRICS.md`

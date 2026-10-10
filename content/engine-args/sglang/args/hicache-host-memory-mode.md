@@ -38,7 +38,7 @@ Whether host memory is a persistent HiCache tier (cache) or a transient staging 
 
 ## Что меняет в движке
 
-`cache` удерживает L2-префиксы в host memory. В `buffer_only` host pool обслуживает передачу и временно удерживает prefetch/backup; постоянные данные живут в storage. Валидация требует storage backend, запрещает `write_back` и disaggregation decode; обычный scheduler и prefill-инстансы поддерживаются.
+`cache` удерживает L2-префиксы в host memory. В `buffer_only` host pool обслуживает передачу и временно удерживает prefetch/backup; постоянные данные живут в storage. Валидация требует storage backend, запрещает `write_back` и disaggregation decode; обычный scheduler и prefill-инстансы поддерживаются. Реализация есть только в `UnifiedRadixCache` (`init_hicache` и `BufferModePipeline` в `mem_cache/buffer_mode/pipeline.py`) и только для деревьев из компонентов FULL/SWA: если для модели выбрано другое дерево, `create_tree_cache` бросает `ValueError` «--hicache-host-memory-mode buffer_only is only implemented for the unified radix tree…», а Mamba-гибрид — «…buffer_only supports only FULL/SWA unified trees…».
 
 ## Значения и формат
 
@@ -71,4 +71,6 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --enable-hierarchic
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
-- `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/registry.py`
+- `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/buffer_mode/pipeline.py`

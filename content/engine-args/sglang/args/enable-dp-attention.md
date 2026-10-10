@@ -20,6 +20,7 @@ related:
   - --enable-two-batch-overlap
   - --enable-attn-tp-input-scattered
   - --dist-init-addr
+  - --boundary-reduction
 ---
 
 # --enable-dp-attention
@@ -62,7 +63,7 @@ attn_dp_rank = tp_rank // (attn_tp_size * attn_cp_size)
 - **Веса внимания шардируются по `attn_tp_size`, а не по `tp_size`.** При `dp_size == tp_size` получается `attn_tp_size == 1`: каждый ранг держит **полную копию** проекций внимания. Это и есть плата за флаг — дублированные веса attention.
 - **KV-пул шардируется по `attn_tp_size`**: конфигуратор берет `model_config.get_num_kv_heads(get_parallel().attn_tp_size, …)`. Для MLA (одна KV-голова) при обычном TP каждый ранг все равно получал бы полную копию KV; здесь каждая DP-группа хранит KV **только своих** запросов, поэтому суммарный полезный пул растет в `dp_size` раз.
 - **Батчи независимы.** Каждая DP-группа планирует свои запросы и может находиться в своем режиме (prefill, decode, idle).
-- **FFN и MoE не меняются**: они остаются TP/EP по всей группе. Токены собираются со всех DP-групп перед MLP (all-gather / a2a) и разбираются обратно после — этим занимаются `LayerCommunicator` и `require_mlp_tp_gather`/`require_attn_tp_gather` (`utils/common.py`).
+- **FFN и MoE не меняются**: они остаются TP/EP по всей группе. Токены собираются со всех DP-групп перед MLP и разбираются обратно после. Сборку и возврат выполняют границы стадий `layers/layer_boundary/`: DP-gather на входе FFN (`prepare.py`), на выходе scatter или reduce-scatter (`exit.py`; какие reduce-scatter разрешены, задает `--boundary-reduction`). При a2a-backend'е MoE-слой получает DP-локальные токены, а all-to-all делает сам MoE, не граница. Нужны ли под это глобальный счет токенов по DP-рангам и общий gathered-буфер, решают `require_mlp_tp_gather`/`require_attn_tp_gather` (`utils/common.py`).
 - **`lm_head`** по умолчанию остается общим и требует all-gather по DP-группам; убрать его — задача `--enable-dp-lm-head`.
 
 ### Что аргумент переписывает молча
@@ -147,7 +148,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/prepare.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/exit.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/factories.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/dp_attn.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`

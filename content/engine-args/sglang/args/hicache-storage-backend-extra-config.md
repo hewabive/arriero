@@ -35,23 +35,24 @@ A dictionary in JSON string format, or a string starting with a leading '@' and 
 - Эффективное значение: не переопределяется; разобранный словарь теряет изъятые движком ключи до того, как попадет в backend
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend_extra_config`
 - Статус: обычный
-- Этап применения: `HiRadixCache._parse_storage_backend_extra_config` при инициализации дерева кеша (а также при рантайм-подключении backend'а через `PUT /hicache/storage-backend`)
+- Этап применения: `HybridCacheController.parse_storage_backend_extra_config` из `UnifiedRadixCache.init_hicache` при инициализации дерева кеша (а также из `StorageAttachment.attach` при рантайм-подключении backend'а через `PUT /hicache/storage-backend`)
 
 ## Что меняет в движке
 
-Разбор выполняет `HiRadixCache._parse_storage_backend_extra_config` (`sglang/python/sglang/srt/mem_cache/hiradix_cache.py`):
+Отдельного `HiRadixCache` больше нет. Разбор выполняет статический `HybridCacheController.parse_storage_backend_extra_config` (`sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_cache_controller.py`); вызывают его `UnifiedRadixCache.init_hicache` на старте и `StorageAttachment.attach` при рантайм-подключении:
 
 1. Если строка начинается с `@`, остаток трактуется как путь к файлу, а формат определяется по расширению: `.json`, `.toml` (через `tomllib`, файл открывается в бинарном режиме), `.yaml`/`.yml` (через `yaml.safe_load`). Прочие расширения — `ValueError: Unsupported config file … (config format: …)`.
 2. Иначе строка разбирается как JSON-объект.
 3. Из полученного словаря **вынимаются** (`pop`) и проверяются по типу:
    - `prefetch_threshold` (int, по умолчанию 256) — минимальная длина совпадения в L3, при которой вообще запускается prefetch; дальше берется `max(prefetch_threshold, page_size)`;
-   - `prefetch_timeout_base` (число, 2.0 с) — фиксированная часть тайм-аута;
-   - `prefetch_timeout_per_ki_token` (число, 0.1 с на 1024 токена) — линейная часть;
-   - `prefetch_timeout_max` (число, 30.0 с) — потолок;
+   - `prefetch_timeout_base` (число, 1 с) — фиксированная часть тайм-аута;
+   - `prefetch_timeout_per_ki_token` (число, 0.25 с на 1024 токена) — линейная часть;
    - `hicache_storage_pass_prefix_keys` (bool, `False`) — передавать ли backend'у хеши префиксных узлов при записи.
-4. Остаток словаря уходит в `HiCacheController` и далее в конструктор backend'а.
+4. Остаток словаря уходит в `HybridCacheController` (наследник `HiCacheController`) и через `HiCacheStorageConfig.extra_config` — в конструктор backend'а.
 
-Часть остаточных ключей читает не сам backend, а контроллер: `tp_lcm_size` в `_generate_storage_config` включает разбиение по головам для heterogeneous-TP (только для не-MLA моделей и только при `--hicache-mem-layout page_head`), `interface_v1` у `dynamic` включает zero-copy пути чтения/записи, `allocator: "shm"` у `dynamic` переключает аллокатор host-пула на shared memory.
+Ключ `prefetch_timeout_max`, который до сих пор описывает апстрим-документация (`hicache_design.mdx`, `hicache_storage_runtime_attach_detach.mdx`), код больше не изымает: он остается в остатке, уходит backend'у и на тайм-аут prefetch не влияет — потолка у тайм-аута нет.
+
+Часть остаточных ключей читает не сам backend, а контроллер: `tp_lcm_size` в `_generate_storage_config` включает разбиение по головам для heterogeneous-TP (только для не-MLA моделей и только при `--hicache-mem-layout page_head`), `interface_v1` у `dynamic` включает zero-copy пути чтения/записи, `allocator: "shm"` у `dynamic` переключает аллокатор host-пула на shared memory (только при inline-JSON: `get_allocator_type` в `mem_cache/pool_host/common.py` разбирает строку как JSON, и `@`-файл этот ключ не включает).
 
 Для `--hicache-storage-backend dynamic` обязательны три ключа: `backend_name`, `module_path`, `class_name`; их отсутствие — `ValueError: Missing required field '<field>' …`.
 
@@ -60,7 +61,7 @@ A dictionary in JSON string format, or a string starting with a leading '@' and 
 - JSON-строка: `'{"prefetch_threshold": 512, "prefetch_timeout_base": 0.5}'`. Кавычки обязательно одинарные снаружи, двойные внутри — иначе shell съест их.
 - Файл: `"@/etc/sglang/hicache.toml"`. Расширение определяет парсер; для сложных конфигураций (типично NIXL) апстрим рекомендует именно файл.
 - Значение должно разбираться в **объект**. Массив или скаляр приведет к ошибке на первом же `pop`.
-- Неверный JSON — `logger.error("Invalid backend extra config JSON: …")` и проброс исключения, то есть отказ старта.
+- Неверный JSON на старте — необработанный `json.JSONDecodeError` из `json.loads` в трассировке падения scheduler'а, то есть отказ старта; при рантайм-подключении — ответ «Failed to parse storage_backend_extra_config_json '…': …», в логе `Failed to parse storage_backend_extra_config_json: …` с трассировкой, сервер продолжает работать.
 - Неверный тип у изъятых ключей — `ValueError: prefetch_threshold must be int, got …` и аналогичные.
 - Аргумент имеет смысл только вместе с `--hicache-storage-backend`: без L3 словарь разбирается, но backend, которому его передать, не создается.
 
@@ -75,7 +76,7 @@ A dictionary in JSON string format, or a string starting with a leading '@' and 
 ## Влияние на производительность и память
 
 - `prefetch_threshold` напрямую управляет числом обращений к L3: слишком низкий порог создает поток мелких запросов, слишком высокий обесценивает L3 на средних префиксах.
-- Тайм-ауты определяют хвост TTFT при промахе L3: формула `min(max, base + per_ki_token * tokens / 1024)`.
+- Тайм-ауты определяют хвост TTFT при промахе L3: бюджет `base + per_ki_token * tokens / 1024`, где `tokens` — длина предзагрузки, кратная странице; верхнего потолка нет.
 - `hicache_storage_pass_prefix_keys: true` добавляет вычисление и передачу хешей префиксных узлов при каждой записи — небольшой, но постоянный CPU-оверхед.
 - Прямого расхода памяти у самого аргумента нет; косвенно `allocator: "shm"` меняет способ выделения host-пула.
 
@@ -90,11 +91,12 @@ A dictionary in JSON string format, or a string starting with a leading '@' and 
 
 ## Типовые проблемы и диагностика
 
-- «Invalid backend extra config JSON: …» — сломанный JSON или неверные кавычки в shell.
+- `json.decoder.JSONDecodeError` при старте или «Failed to parse storage_backend_extra_config_json …» в ответе рантайм-эндпоинта — сломанный JSON или неверные кавычки в shell.
 - `ValueError: Unsupported config file … (config format: …)` — у `@`-файла расширение не из списка `.json`/`.toml`/`.yaml`/`.yml`.
 - `ValueError: prefetch_threshold must be int, got float` — в JSON написано `512.0` вместо `512`.
 - Ассерт «tp_lcm_size must be divisible by tp_size.» — неверный НОК для heterogeneous-TP.
-- Backend не видит ваш ключ — проверьте, не входит ли он в список изымаемых движком: `prefetch_threshold`, `prefetch_timeout_base`, `prefetch_timeout_per_ki_token`, `prefetch_timeout_max`, `hicache_storage_pass_prefix_keys` до backend'а не доходят.
+- Backend не видит ваш ключ — проверьте, не входит ли он в список изымаемых движком: `prefetch_threshold`, `prefetch_timeout_base`, `prefetch_timeout_per_ki_token`, `hicache_storage_pass_prefix_keys` до backend'а не доходят. `tp_lcm_size` изымает уже контроллер в `_generate_storage_config`.
+- Задали `prefetch_timeout_max`, а длинные предзагрузки все равно ждут дольше — ключ не читается движком (см. выше).
 - Текущий словарь можно посмотреть в ответе `GET /hicache/storage-backend`; при рантайм-подключении он передается полем `hicache_storage_backend_extra_config_json`.
 - Файл конфигурации попадает в процесс как есть: не кладите в него секреты, которые не должны читаться из-под пользователя сервера.
 
@@ -112,7 +114,10 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/mem_cache/hiradix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_cache_controller.py`
+- `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`
+- `sglang/python/sglang/srt/mem_cache/unified_cache/storage_attachment.py`
+- `sglang/python/sglang/srt/mem_cache/pool_host/common.py`
 - `sglang/python/sglang/srt/mem_cache/hicache_storage.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/storage/backend_factory.py`

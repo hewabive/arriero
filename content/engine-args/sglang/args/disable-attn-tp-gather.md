@@ -112,6 +112,6 @@ python -m sglang.launch_server --model-path /models/moe-model --tensor-parallel-
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/common.py`
-- `sglang/python/sglang/srt/layers/communicator.py`
+- `sglang/python/sglang/srt/layers/layer_boundary/adapters/attention.py`
 - `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/dp_attn.py`
