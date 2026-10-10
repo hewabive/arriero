@@ -22,7 +22,7 @@ for plugging in a new engine.
 | Field | Meaning | llama-server | rpc-worker | vllm | sglang | ktransformers |
 | --- | --- | --- | --- | --- | --- | --- |
 | `displayName` | Human name used in health-status reasons | `llama-server` | `rpc-server` | `vLLM` | `SGLang` | `KTransformers (SGLang-KT)` |
-| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`) | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` | 30000, `--host`/`--port` | 30000, `--host`/`--port` |
+| `http` | Default host/port + arg keys for host/port/api-prefix (`instances/endpoint.ts`); an instance that sets no port is launched with the default pinned (`process/launch-snapshot.ts:managedPortArgs`), so the address arriero probes never depends on the engine's own default | 8080, `--host`/`--port`/`--api-prefix` | 50052, `--host`/`--port`,`-p` | 8000, `--host`/`--port` | 30000, `--host`/`--port` | 30000, `--host`/`--port` |
 | `proxy` | Capability booleans, translation dialect and cache-report flag consumed by the proxy (below) | native capabilities, `llama-server` dialect | all `false`, `llama-server` dialect | serve + lease + estimated rate, `openai-compatible` dialect | serve + lease + estimated rate, `openai-compatible` dialect, `--enable-cache-report` | serve + lease, `openai-compatible` dialect |
 | `probe` | Probe implementation id, whether `/health`-style HTTP health exists, optional slow-cold-start `httpTimeoutMs` | `llama-http`, `httpHealth: true` | `tcp-accept`, `httpHealth: false` | `openai-http`, `httpHealth: true` | `openai-http`, `httpHealth: true`, 15 s | `openai-http`, `httpHealth: true`, 15 s |
 | `nativeApi` | llama-native HTTP surface | `llama` | `none` | `none` | `none` | `none` |

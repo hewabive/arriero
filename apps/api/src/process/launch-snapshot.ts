@@ -1,5 +1,6 @@
 import {
   engineDescriptor,
+  instanceHttpAddress,
   InstanceNumaSchema,
   type Instance,
   type InstanceArgs,
@@ -38,6 +39,16 @@ export function managedSlotSavePath(instance: Instance): string | null {
   return resolve(config.slotsDir, instance.name);
 }
 
+export function managedPortArgs(instance: Instance): InstanceArgs {
+  const portArgKeys = engineDescriptor(instance.kind).http.portArgKeys;
+  const portKey = portArgKeys[0];
+  if (!portKey || portArgKeys.some((key) => argIsSet(instance.args, key))) {
+    return {};
+  }
+  const address = instanceHttpAddress(instance);
+  return address ? { [portKey]: String(address.port) } : {};
+}
+
 function effectiveLaunchArgs(instance: Instance): InstanceArgs {
   const engineArgs =
     instance.engineConfig?.type === "ktransformers"
@@ -51,13 +62,11 @@ function effectiveLaunchArgs(instance: Instance): InstanceArgs {
         }
       : {};
   const slotSavePath = managedSlotSavePath(instance);
-  if (!slotSavePath) {
-    return { ...engineArgs, ...instance.args };
-  }
   return {
     ...engineArgs,
+    ...managedPortArgs(instance),
     ...instance.args,
-    "--slot-save-path": slotSavePath,
+    ...(slotSavePath ? { "--slot-save-path": slotSavePath } : {}),
   };
 }
 

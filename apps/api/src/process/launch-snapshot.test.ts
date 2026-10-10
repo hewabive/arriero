@@ -7,14 +7,19 @@ import { config } from "../config.js";
 import {
   buildLaunchSnapshot,
   hasLaunchSnapshotDrift,
+  managedPortArgs,
   managedSlotSavePath,
   parseLaunchSnapshot,
   serializeLaunchSnapshot,
 } from "./launch-snapshot.js";
 
-function slotSavePathArg(cliArgs: string[]): string | null {
-  const index = cliArgs.indexOf("--slot-save-path");
+function argAfter(cliArgs: string[], key: string): string | null {
+  const index = cliArgs.indexOf(key);
   return index >= 0 ? (cliArgs[index + 1] ?? null) : null;
+}
+
+function slotSavePathArg(cliArgs: string[]): string | null {
+  return argAfter(cliArgs, "--slot-save-path");
 }
 
 function makeInstance(overrides: Partial<Instance> = {}): Instance {
@@ -145,4 +150,50 @@ test("an injected --slot-save-path does not cause config drift", () => {
   const instance = makeInstance({ kind: "llama-server" });
   const snapshot = buildLaunchSnapshot(instance);
   assert.equal(hasLaunchSnapshotDrift(instance, snapshot), false);
+});
+
+test("buildLaunchSnapshot pins the descriptor port when the instance sets none", () => {
+  const instance = makeInstance({ args: { "--flash-attn": true } });
+  assert.equal(
+    argAfter(buildLaunchSnapshot(instance).cliArgs, "--port"),
+    "8080",
+  );
+  assert.equal(
+    hasLaunchSnapshotDrift(instance, buildLaunchSnapshot(instance)),
+    false,
+  );
+});
+
+test("an explicit port is preserved, not overridden", () => {
+  const instance = makeInstance({ args: { "--port": "9100" } });
+  assert.deepEqual(managedPortArgs(instance), {});
+  assert.equal(
+    argAfter(buildLaunchSnapshot(instance).cliArgs, "--port"),
+    "9100",
+  );
+});
+
+test("an rpc-worker port set through -p is not pinned twice", () => {
+  const instance = makeInstance({
+    kind: "rpc-worker",
+    args: { "-p": "50060" },
+  });
+  assert.deepEqual(managedPortArgs(instance), {});
+});
+
+test("each engine kind pins its own default port", () => {
+  assert.deepEqual(managedPortArgs(makeInstance({ kind: "vllm", args: {} })), {
+    "--port": "8000",
+  });
+  assert.deepEqual(
+    managedPortArgs(makeInstance({ kind: "sglang", args: {} })),
+    {
+      "--port": "30000",
+    },
+  );
+});
+
+test("a unix-socket host gets no pinned port", () => {
+  const instance = makeInstance({ args: { "--host": "/run/llama.sock" } });
+  assert.deepEqual(managedPortArgs(instance), {});
 });
