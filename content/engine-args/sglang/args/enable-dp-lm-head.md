@@ -35,10 +35,10 @@ Enable vocabulary parallel across the attention TP group to avoid all-gather acr
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: принудительно `False`, если `dp_size == 1` и `ep_join_mode != "scale"` (`_data_parallelism_defaults`); принудительно `True` при `--dwdp-size > 1` (`_handle_dwdp`). Проверка `_dp_lm_head_validation` требует, чтобы к моменту валидации `enable_dp_attention` был истинным. Поле помечено `resolvable=True`
+- Эффективное значение: принудительно `False`, если `dp_size == 1` и `ep_join_mode != "scale"` (`_data_parallelism_defaults`); принудительно `True` при `--dwdp-size > 1` (шаг `handle_dwdp` в `arg_groups/parallel_hook.py`). Проверка `_dp_lm_head_validation` требует, чтобы к моменту валидации `enable_dp_attention` был истинным. Поле помечено `resolvable=True`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_lm_head`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_data_parallelism` → `_dp_lm_head_validation`) → построение модели (`LogitsProcessor`, головы конкретных архитектур) → каждый forward на шаге сэмплирования
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (`handle_dwdp` → … → `handle_data_parallelism` с пассами `_data_parallelism_defaults` и `_dp_lm_head_validation`) → построение модели (`LogitsProcessor`, головы конкретных архитектур) → каждый forward на шаге сэмплирования
 
 ## Что меняет в движке
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/layers/logits_processor.py`
 - `sglang/python/sglang/srt/utils/common.py`

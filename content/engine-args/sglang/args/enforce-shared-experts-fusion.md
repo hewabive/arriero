@@ -32,10 +32,10 @@ Enforce shared experts fusion even when it would normally be disabled (e.g. unde
 - Тип значения: булев флаг (`store_true`); парного `--no-*` нет
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
-- Эффективное значение: принудительно ставится в `true` при `--enable-waterfill` (`_handle_a2a_moe`)
+- Эффективное значение: принудительно `true` при `--enable-waterfill` — декларирует шаг резолва `handle_a2a_moe` (`arg_groups/moe_hook.py`); поле `server_args` хранит ввод оператора, итог виден в `resolved_dict()` и дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enforce_shared_experts_fusion`
 - Статус: обычный
-- Этап применения: `__post_init__` (подстановка от Waterfill) → загрузка модели, внутри `shared_experts_fusion_disable_reason`
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_a2a_moe` (подстановка от Waterfill) → загрузка модели, внутри `shared_experts_fusion_disable_reason`
 
 ## Что меняет в движке
 
@@ -96,6 +96,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V4-Flash --tp-s
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`
 - `sglang/python/sglang/srt/models/deepseek_v4.py`

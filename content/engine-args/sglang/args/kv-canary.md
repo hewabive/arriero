@@ -39,7 +39,7 @@ KV cache canary mode. 'none' disables the canary (default). 'log' prints them wh
 - Эффективное значение: совпадает с заданным. Косвенно влияет на другие настройки: при `log`/`raise` включается проверка `assert not check_cuda_graph_backend(Phase.PREFILL, Backend.TC_PIECEWISE)`, то есть piecewise-CUDA-graph на prefill становится несовместим
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_canary`
 - Статус: обычный аргумент, но узкоспециальный диагностический механизм, а не повседневная настройка
-- Этап применения: `__post_init__` (проверка связки с `--kv-canary-sweep-interval`) → инициализация `ModelRunner`, сразу после выделения KV-пула и **до** захвата CUDA graph
+- Этап применения: `check_server_args` (`arg_groups/validation_hook.py`, после `ServerArgs.resolve_once`; проверка связки с `--kv-canary-sweep-interval`) → инициализация `ModelRunner`, сразу после выделения KV-пула и **до** захвата CUDA graph
 
 ## Что меняет в движке
 
@@ -140,4 +140,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/kv_canary/runner/health_checker.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - arriero: `docs/KTRANSFORMERS_OPERATIONS.md`, `docs/RESOURCE_MANAGEMENT.md`, `apps/api/src/process/log-parsers/sglang.ts`

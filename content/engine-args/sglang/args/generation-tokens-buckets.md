@@ -42,12 +42,12 @@ The buckets rule for generation tokens histogram. Supports 3 rule types: 'defaul
 - Флаги: `--generation-tokens-buckets`
 - Группа: `observability`
 - Тип значения: список строк, `nargs="+"` — первый элемент задает тип правила
-- Допустимые значения: `choices` нет; первым элементом допустимы только `default`, `tse`, `custom` (проверяет `validate_buckets_rule`)
+- Допустимые значения: `choices` нет; первым элементом допустимы только `default`, `tse`, `custom` (проверяет `validate_buckets_rule` в `arg_groups/validation_hook.py`)
 - Значение по умолчанию: `None`; `generate_buckets` подставляет `["default"]`
 - Эффективное значение: `default` разворачивается в `default_bucket_prompt_tokens` — список границ **для промптов**, а не для генерации; `+Inf` добавляет `prometheus_client`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.generation_tokens_buckets`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → создание `TokenizerMetricsCollector`, если задан `--enable-metrics`
+- Этап применения: `check_server_args` (`arg_groups/validation_hook.py`; вызывается при старте из `Engine._launch_subprocesses` после `ServerArgs.resolve_once`, валидация) → создание `TokenizerMetricsCollector`, если задан `--enable-metrics`
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ The buckets rule for generation tokens histogram. Supports 3 rule types: 'defaul
 
 Гистограмма наблюдается в tokenizer-процессе по завершении запроса, с тем же набором меток, что и остальные метрики токенизатора. Границы фиксируются при создании коллектора и на живом сервере не меняются.
 
-Валидация (`validate_buckets_rule` в `__post_init__`) выполняется независимо от `--enable-metrics`: неправильное правило уронит старт даже на сервере без метрик.
+Валидация (`validate_buckets_rule` из `check_server_args`) выполняется независимо от `--enable-metrics`: неправильное правило уронит старт даже на сервере без метрик.
 
 ## Значения и формат
 
@@ -118,4 +118,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/observability/utils.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `apps/api/src/process/log-filter.ts`

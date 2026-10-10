@@ -33,10 +33,10 @@ Export performance metrics for each request to local file (e.g. for forwarding t
 - Тип значения: bool, `action="store_true"` — значения не принимает
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
-- Эффективное значение: совпадает с заданным. `__post_init__` не переписывает его, но валидирует: при `--export-metrics-to-file` без `--export-metrics-to-file-dir` старт падает с `ValueError: --export-metrics-to-file-dir is required when --export-metrics-to-file is enabled`
+- Эффективное значение: совпадает с заданным. Ни один шаг резолва его не декларирует, но `check_server_args` (`arg_groups/validation_hook.py`; вызывается из `Engine._launch_subprocesses` сразу после `ServerArgs.resolve_once`) его валидирует: при `--export-metrics-to-file` без `--export-metrics-to-file-dir` старт падает с `ValueError: --export-metrics-to-file-dir is required when --export-metrics-to-file is enabled`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.export_metrics_to_file`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка) → конструктор `TokenizerManager` (создание экспортера и каталога) → завершение каждого запроса
+- Этап применения: `check_server_args` (проверка) → конструктор `TokenizerManager` (создание экспортера и каталога) → завершение каждого запроса
 
 ## Что меняет в движке
 
@@ -84,7 +84,7 @@ request_output_data = {
 ## Значения и формат
 
 - Флаг без значения; `--export-metrics-to-file true` argparse не примет.
-- Обязательно вместе с `--export-metrics-to-file-dir`, иначе старт падает еще в `__post_init__`, до загрузки модели.
+- Обязательно вместе с `--export-metrics-to-file-dir`, иначе старт падает еще в `check_server_args`, до запуска процессов и загрузки модели.
 - Формат файла — JSON Lines: один объект на строку, `flush` после каждой записи, кодировка UTF-8, режим открытия `a`.
 - Имя файла: `sglang-request-metrics-YYYYMMDD_HH.log`, час — локальный (`datetime.now()`), не UTC.
 - Отключить после старта нельзя.
@@ -107,7 +107,7 @@ request_output_data = {
 
 ## Взаимодействие с другими аргументами
 
-- `--export-metrics-to-file-dir`: обязателен, проверяется в `__post_init__`.
+- `--export-metrics-to-file-dir`: обязателен, проверяется в `check_server_args`.
 - `--enable-metrics`: **не требуется**. Это независимые механизмы: Prometheus — агрегаты в памяти, этот флаг — сырые записи на диск. Их можно включать по отдельности.
 - `--log-requests` / `--log-requests-level`: определяют, какие поля запроса будут исключены из файла. Единственный способ убрать промпты из экспорта — задать `--log-requests --log-requests-level 0` (без `sampling_params`) или `1`.
 - `--enable-request-time-stats-logging`: соседний способ получить тайминги — но в лог scheduler'а, без параметров запроса.
@@ -138,6 +138,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --export-metrics
 
 - `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/observability/request_metrics_exporter.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/utils/request_logger.py`

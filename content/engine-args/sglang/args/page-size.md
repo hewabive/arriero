@@ -36,10 +36,10 @@ The number of tokens in a page.
 - Тип значения: целое (`Optional[int]`)
 - Допустимые значения: `choices` нет; практически принимаются значения, которые переживут проверки backend'а и пула. Реально используемый набор — `1`, `16`, `32`, `64`, `128`, `256`
 - Значение по умолчанию: `null` — значит «подберет движок»
-- Эффективное значение: подбирается в несколько шагов и почти всегда отличается от `null`. Финальную подстановку делает `_handle_page_size` → `_page_size_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`): `1` на обычных платформах, `64` на MUSA, `64` на ROCm при `SGLANG_AITER_KV_CACHE_LAYOUT=vectorized_5d`. Но до нее уже отработали привязки к backend'у и к архитектуре модели (см. ниже) — они пишут значение и в том случае, когда оно задано вручную
+- Эффективное значение: подбирается в несколько шагов и почти всегда отличается от `null`. Платформенный дефолт подставляет проход `_page_size_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`), который `run_resolution_pipeline` запускает напрямую: `1` на обычных платформах, `64` на MUSA, `64` на ROCm при `SGLANG_AITER_KV_CACHE_LAYOUT=vectorized_5d`. Но до него уже отработали привязки к backend'у и к архитектуре модели (см. ниже) — они декларируют значение и в том случае, когда оно задано вручную. Сам `server_args.page_size` хранит ввод оператора, итог виден в `resolved_dict()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.page_size`
 - Статус: обычный; поле помечено `resolvable=True`, то есть проходит через пайплайн деклараций `arg_groups/overrides.py`
-- Этап применения: `__post_init__` (подбор значения) → выделение KV-пула и создание аллокатора → построение radix cache → инициализация attention backend → каждая итерация планировщика
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (подбор значения) → выделение KV-пула и создание аллокатора → построение radix cache → инициализация attention backend → каждая итерация планировщика
 
 ## Что меняет в движке
 
@@ -51,13 +51,14 @@ The number of tokens in a page.
 
 **Radix cache.** `RadixKey.match(...)` (`sglang/python/sglang/srt/mem_cache/radix_cache.py`) округляет длину совпавшего префикса **вниз** до кратной `page_size`, а ключи узлов дерева строятся по `child_key(page_size)`. Следствие: с `--page-size 64` общий префикс в 100 токенов дает переиспользование только 64 токенов, остальные 36 будут пересчитаны.
 
-Дополнительно значение публикуется наружу как `block_size` в дескрипторе `--kv-events-config` (`ServerArgs` в `sglang/python/sglang/srt/server_args.py`): внешний роутер обязан хешировать промпты именно этим шагом, иначе он будет промахиваться мимо кеша.
+Дополнительно значение публикуется наружу как `block_size` в дескрипторе `--kv-events-config` (`describe_kv_events_publisher` в `sglang/python/sglang/srt/runtime_context.py`, ширина — `kv_event_block_size_of` из `arg_groups/overrides.py`): внешний роутер обязан хешировать промпты именно этим шагом, иначе он будет промахиваться мимо кеша.
 
-Подбор значения, если оно не задано, идет в таком порядке внутри `__post_init__`:
+Подбор значения, если оно не задано, идет в таком порядке шагов `run_resolution_pipeline` (`arg_groups/pipeline.py`):
 
-1. `_handle_model_specific_adjustments` — переопределения по архитектуре: DeepSeek V4 → `256` (`128` на NPU), sm100 с дефолтным `trtllm_mha` → `64` (иначе `1`), Qwen3-VL на ROCm с `SGLANG_USE_AITER_UNIFIED_ATTN` → `16`, diffusion-LLM → `dllm_block_size`.
-2. `_handle_attention_backend_compatibility` — привязки к backend'у (`_mla_backend_page_constraints`, `_fa4_page_constraint`, `_intel_xpu_page_constraint`).
-3. `_handle_page_size` — подстановка платформенного дефолта, только если после шагов 1-2 значение все еще `null`.
+1. `handle_model_specific_adjustments` (`arg_groups/model_hook.py`) — декларации по архитектуре из `arg_groups/model_overrides/`: DeepSeek V4 → `256` (`128` на NPU), sm100 с дефолтным `trtllm_mha` → `64` (иначе `1`), Qwen3-VL на ROCm с `SGLANG_USE_AITER_UNIFIED_ATTN` → `16`.
+2. `handle_attention_backend_compatibility` (`arg_groups/attention_hook.py`) — привязки к backend'у (проходы `_mla_backend_page_constraints`, `_fa4_page_constraint`, `_intel_xpu_page_constraint`).
+3. Проход `_page_size_default` прямо из `pipeline.py` (отдельного шага-обертки `_handle_page_size` больше нет) — подстановка платформенного дефолта, только если после шагов 1-2 значение все еще `null`.
+4. `handle_dllm_inference` (`arg_groups/dllm_hook.py`, проход `_dllm_page_size`) — уже после дефолта, только для diffusion-LLM: страница приводится к размеру блока dLLM.
 
 ## Значения и формат
 
@@ -126,6 +127,11 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --attention-back
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/pipeline.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
+- `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/mem_cache/allocator/base.py`
 - `sglang/python/sglang/srt/mem_cache/radix_cache.py`

@@ -32,17 +32,17 @@ Enable prefix multimodal cache. Currently only supports mm-only.
 - Тип значения: bool, `action="store_true"`
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется; в `_handle_encoder_disaggregation` только проверяется совместимость с `--encoder-only`
+- Эффективное значение: ни один шаг резолва его не декларирует; в шаге `handle_encoder_disaggregation` только проверяется совместимость с `--encoder-only`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_prefix_mm_cache`
 - Статус: обычный; ограничение «только mm-only» зафиксировано и в справке, и в проверке
-- Этап применения: `__post_init__` (валидация) → каждый вызов `_encode` в encoder-воркере
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_encoder_disaggregation` (`arg_groups/pd_disaggregation_hook.py`, валидация) → каждый вызов `_encode` в encoder-воркере
 
 ## Что меняет в движке
 
-Проверка на старте (`sglang/python/sglang/srt/server_args.py`):
+Проверка на старте (`sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`, `handle_encoder_disaggregation`):
 
 ```python
-if self.enable_prefix_mm_cache and not self.encoder_only:
+if cfg.enable_prefix_mm_cache and not cfg.encoder_only:
     raise ValueError("--enable-prefix-mm-cache requires --encoder-only to be enabled")
 ```
 
@@ -109,7 +109,7 @@ SGLANG_VLM_CACHE_SIZE_MB=8192 python -m sglang.launch_server --model-path /model
 ## Источники
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
-- `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
 - `sglang/python/sglang/srt/mem_cache/multimodal_cache.py`
 - `sglang/python/sglang/srt/managers/mm_utils.py`

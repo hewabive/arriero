@@ -30,10 +30,10 @@ Tuning parameters for --radix-eviction-policy, as a json object passed to the po
 - Тип значения: JSON-объект (`type_parser=json.loads`)
 - Допустимые значения: ключи зависят от `--radix-eviction-policy`; `choices` нет
 - Значение по умолчанию: `null` — стратегия создается с собственными дефолтами
-- Эффективное значение: не переписывается; для `tlru` `handle_cache_compatibility` в `__post_init__` проверяет `threshold` и `next_prompt_estimate`
+- Эффективное значение: ни один шаг резолва его не декларирует; для `tlru` шаг `handle_cache_compatibility` (`arg_groups/kv_cache_hook.py`) проверяет `threshold` и `next_prompt_estimate`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_eviction_policy_config`
 - Статус: обычный
-- Этап применения: разбор CLI (`json.loads`) → `__post_init__` (проверка `tlru`) → `CacheInitParams.eviction_policy_config` в `kv_cache_builder` → конструктор стратегии в дереве кеша
+- Этап применения: разбор CLI (`json.loads`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_cache_compatibility` (проверка `tlru`) → `CacheInitParams.eviction_policy_config` в `kv_cache_builder` → конструктор стратегии в дереве кеша
 
 ## Что меняет в движке
 
@@ -46,7 +46,7 @@ Tuning parameters for --radix-eviction-policy, as a json object passed to the po
 
 - JSON-объект в одинарных кавычках оболочки: `'{"protected_threshold": 4}'`, `'{"threshold": 4096, "next_prompt_estimate": 512}'`.
 - Неизвестный ключ — `TypeError` при создании стратегии, с именем класса и ключа (например, `SLRUStrategy.__init__() got an unexpected keyword argument 'protected_treshold'`). Проверка происходит при построении дерева кеша, то есть после загрузки весов.
-- `tlru` проверяется раньше, в `__post_init__`: оба значения должны быть неотрицательными, а `threshold` — строго больше `next_prompt_estimate`. Отсутствующий ключ считается нулем, поэтому `tlru` без этого флага не стартует.
+- `tlru` проверяется раньше, при резолве аргументов на старте (шаг `handle_cache_compatibility`): оба значения должны быть неотрицательными, а `threshold` — строго больше `next_prompt_estimate`. Отсутствующий ключ считается нулем, поэтому `tlru` без этого флага не стартует.
 - В статье T-LRU оба параметра заданы в блоках; здесь — в токенах, то есть значения из статьи умножаются на `--page-size`.
 
 ## Когда использовать

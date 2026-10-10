@@ -35,7 +35,7 @@ Enable MSCCL++ for tuned AllReduce and AllGather messages, with NCCL fallback.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным — ни один обработчик пайплайна `__post_init__` (`arg_groups/`) его не переписывает. Но «включено» и «работает» здесь не одно и то же: отбраковка происходит уже в конструкторе коммуникатора и никак не отражается на `server_args`
+- Эффективное значение: совпадает с заданным — ни один шаг пайплайна резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`, `arg_groups/`) его не декларирует. Но «включено» и «работает» здесь не одно и то же: отбраковка происходит уже в конструкторе коммуникатора и никак не отражается на `server_args`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_mscclpp`
 - Статус: обычный
 - Этап применения: разбор CLI → `_set_all_reduce_flags` (`sglang/python/sglang/srt/distributed/bootstrap.py`, `set_mscclpp`) → конструктор `GroupCoordinator` (импорт `mscclpp`, создание `CommGroup`, сборка алгоритмов, автотюнинг) → захват CUDA graph → forward внутри графа

@@ -34,10 +34,10 @@ Disable the built-in shared experts fusion optimization for DeepSeek V3/R1. Note
 - Тип значения: булев флаг (`store_true`); парного `--no-*` нет
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
-- Эффективное значение: переписывается в `__post_init__` в обе стороны. В `true` — при `--moe-runner-backend` из набора `flashinfer_cutedsl`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed` (`_moe_runner_fusion_disable`) и при `--moe-a2a-backend flashinfer` (`_a2a_fusion_adjustments`), каждый раз с предупреждением в логе. В `false` — при `--enable-waterfill` с a2a `deepep`/`megamoe`
+- Эффективное значение: переопределяется проходами резолва из `python/sglang/srt/arg_groups/overrides.py` в обе стороны; итог декларируется через `declare_resolution`, а загрузчик читает его из `get_exec().moe`, не из сырого `server_args.disable_shared_experts_fusion`. В `true` — при `--moe-runner-backend` из набора `flashinfer_cutedsl`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed` (проход `_moe_runner_fusion_disable` внутри шага `handle_moe_kernel_config`) и при `--moe-a2a-backend flashinfer` (проход `_a2a_fusion_adjustments` внутри шага `handle_a2a_moe`, оба шага — `python/sglang/srt/arg_groups/moe_hook.py`), каждый раз с предупреждением в логе. В `false` — при `--enable-waterfill` с a2a `deepep`/`megamoe`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.disable_shared_experts_fusion`
 - Статус: обычный
-- Этап применения: `__post_init__` → загрузка модели (`install_shared_experts_fusion_decision`, один раз на runner, до создания слоев)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_moe_kernel_config`, `handle_a2a_moe`) → загрузка модели (`install_shared_experts_fusion_decision`, один раз на runner, до создания слоев)
 
 ## Что меняет в движке
 
@@ -50,7 +50,7 @@ if not disabled:
     if reason: disabled = True
 ```
 
-Отсюда следует практический вывод: **флаг сильнее любого автоматического включения.** Заявленное в справке `--enforce-shared-experts-fusion` взаимное исключение нигде не проверяется ассертом — при обоих флагах ворота модели просто не опрашиваются, и побеждает отключение. Единственное исключение — Waterfill, который сбрасывает значение раньше, еще в `__post_init__`.
+Отсюда следует практический вывод: **флаг сильнее любого автоматического включения.** Заявленное в справке `--enforce-shared-experts-fusion` взаимное исключение нигде не проверяется ассертом — при обоих флагах ворота модели просто не опрашиваются, и побеждает отключение. Единственное исключение — Waterfill, который сбрасывает значение раньше, еще при резолве (`_a2a_fusion_adjustments`).
 
 Ворота семейства DeepSeek-V3 (`sglang/python/sglang/srt/models/deepseek_v2.py`) отключают fusion сами, если: включены SBO или TBO; выбран a2a-бэкенд класса DeepEP (там fusion выключен по умолчанию, и это ровно тот случай, ради которого существует `--enforce-shared-experts-fusion`); архитектура checkpoint'а не `DeepseekV3ForCausalLM`; `n_routed_experts` не 256 и не 384 (384 — только для Quark-MXFP4 checkpoint'а Kimi-K2.5); `n_shared_experts` не равен 1; недостаточная compute capability (ниже 8.0 на NVIDIA, ниже gfx942 на AMD, ниже 3.1 на MUSA); включен экспертный параллелизм на не-AMD платформе; квантизация W4AFP8 или W4A16. Причина печатается строкой `<причина> Shared experts fusion optimization is disabled.`
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-R1 --tp-size 8 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`

@@ -18,7 +18,7 @@ related:
 
 ## Кратко
 
-Аргумент делает две независимые вещи. Первая: tokenizer-процесс начинает **постоянно** держать в памяти скользящее пятиминутное окно завершенных запросов, чтобы при падении записать их вместе с незавершенными в один pickle-файл. Вторая, только на CUDA: `__post_init__` выставляет умолчания переменных окружения для device-coredump, включая генерацию дампа при исключении на GPU. Оба эффекта стоят ресурсов и оба сохраняют содержимое запросов — в файле будут и промпты, и сгенерированные ответы. Не указан — вся механика выключена.
+Аргумент делает две независимые вещи. Первая: tokenizer-процесс начинает **постоянно** держать в памяти скользящее пятиминутное окно завершенных запросов, чтобы при падении записать их вместе с незавершенными в один pickle-файл. Вторая, только на CUDA: шаг резолва `handle_crash_dump_env` (`arg_groups/serving_hook.py`) выставляет умолчания переменных окружения для device-coredump, включая генерацию дампа при исключении на GPU. Оба эффекта стоят ресурсов и оба сохраняют содержимое запросов — в файле будут и промпты, и сгенерированные ответы. Не указан — вся механика выключена.
 
 ## Оригинальная справка
 
@@ -36,7 +36,7 @@ Folder path to dump requests from the last 5 min before a crash (if any). If not
 - Эффективное значение: совпадает с заданным. Может быть изменено на лету через `ConfigureLoggingReq` (`python -m sglang.srt.managers.configure_logging --url … --crash-dump-folder …`) — тогда новое значение действует до перезапуска, но переменные окружения coredump остаются от старта
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.crash_dump_folder`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_crash_dump_env`, переменные окружения) → конструктор `TokenizerManager` → завершение каждого запроса (запись в буфер) → обработчик падения
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_crash_dump_env` (`arg_groups/serving_hook.py`, переменные окружения) → конструктор `TokenizerManager` → завершение каждого запроса (запись в буфер) → обработчик падения
 
 ## Что меняет в движке
 
@@ -65,7 +65,7 @@ if self.crash_dump_folder and state.finished and state.obj.log_metrics:
 
 ### Переменные окружения CUDA coredump
 
-`_handle_crash_dump_env` выставляет, **только если они еще не заданы**:
+`handle_crash_dump_env` выставляет, **только если они еще не заданы**:
 
 - `CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1` — дамп при исключении на устройстве;
 - `CUDA_ENABLE_USER_TRIGGERED_COREDUMP=1`;
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --crash-dump-fol
 
 - `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/io_struct.py`
 - `sglang/python/sglang/srt/utils/watchdog.py`

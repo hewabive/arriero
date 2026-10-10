@@ -16,7 +16,7 @@ related:
 
 ## Кратко
 
-`outlines` кеширует построенные из регулярных выражений FSM на диск через `diskcache`, чтобы не пересобирать их при каждом запуске. Кеш — это файловая база, и при высокой конкурентности или на сетевой файловой системе он умеет ломаться, отсюда и флаг. Три вещи, которые надо знать перед использованием. Первая: он относится **только** к backend'у `outlines`, а по умолчанию грамматика идет через `xgrammar`. Вторая: единственная функция, обернутая дисковым кешем, — `init_state_to_jump_forward`, и в этом checkout'е она не вызывается вообще, потому что `OutlinesGrammarBackend._compile_regex` жестко передает `jump_forward_map = None`. Третья: переменная окружения, которой всё управляется, по умолчанию читается как `true` — то есть при импорте модуля вне `launch_server` кеш выключен, а `__post_init__` затем всегда перезаписывает ее значением флага.
+`outlines` кеширует построенные из регулярных выражений FSM на диск через `diskcache`, чтобы не пересобирать их при каждом запуске. Кеш — это файловая база, и при высокой конкурентности или на сетевой файловой системе он умеет ломаться, отсюда и флаг. Три вещи, которые надо знать перед использованием. Первая: он относится **только** к backend'у `outlines`, а по умолчанию грамматика идет через `xgrammar`. Вторая: единственная функция, обернутая дисковым кешем, — `init_state_to_jump_forward`, и в этом checkout'е она не вызывается вообще, потому что `OutlinesGrammarBackend._compile_regex` жестко передает `jump_forward_map = None`. Третья: переменная окружения, которой всё управляется, по умолчанию читается как `true` — то есть при импорте модуля вне `launch_server` кеш выключен, а шаг резолва `handle_environment_variables` при `ServerArgs.resolve_once` затем всегда перезаписывает ее значением флага.
 
 ## Оригинальная справка
 
@@ -31,10 +31,10 @@ Disable disk cache of outlines to avoid possible crashes related to file system 
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: само поле не переписывается, но обратите внимание на асимметрию с переменной окружения. `_handle_environment_variables` безусловно выполняет `envs.SGLANG_DISABLE_OUTLINES_DISK_CACHE.set("1" if self.disable_outlines_disk_cache else "0")`, то есть значение, экспортированное оператором в окружение, всегда перезаписывается флагом. При этом модуль `constrained/outlines_jump_forward.py` читает переменную с дефолтом `"true"` — значение по умолчанию флага (`false`) и значение по умолчанию переменной противоположны, и совпадают они только потому, что `__post_init__` всегда пишет переменную явно
+- Эффективное значение: ни один шаг резолва поле не декларирует, но обратите внимание на асимметрию с переменной окружения. Шаг `handle_environment_variables` (`arg_groups/serving_hook.py`) безусловно выполняет `envs.SGLANG_DISABLE_OUTLINES_DISK_CACHE.set("1" if cfg.disable_outlines_disk_cache else "0")`, то есть значение, экспортированное оператором в окружение, всегда перезаписывается флагом. При этом модуль `constrained/outlines_jump_forward.py` читает переменную с дефолтом `"true"` — значение по умолчанию флага (`false`) и значение по умолчанию переменной противоположны, и совпадают они только потому, что резолв всегда пишет переменную явно
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.disable_outlines_disk_cache`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (`_handle_environment_variables`) → импорт `constrained/outlines_jump_forward.py` в процессе scheduler'а → декоратор `disk_cache()` на `init_state_to_jump_forward`
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_environment_variables` → импорт `constrained/outlines_jump_forward.py` в процессе scheduler'а → декоратор `disk_cache()` на `init_state_to_jump_forward`
 
 ## Что меняет в движке
 
@@ -82,7 +82,7 @@ def init_state_to_jump_forward(regex_string): ...
 
 ## Взаимодействие с другими аргументами
 
-- `--grammar-backend`: определяет, участвует ли `outlines` вообще. По умолчанию поле пустое и `_handle_grammar_backend` подставляет `xgrammar`.
+- `--grammar-backend`: определяет, участвует ли `outlines` вообще. По умолчанию поле пустое и шаг резолва `handle_grammar_backend` декларирует `xgrammar`.
 - `--constrained-json-disable-any-whitespace`, `--constrained-json-whitespace-pattern`: настройки построения регулярки из JSON-схемы; у outlines-backend'а `whitespace_pattern` передается в `build_regex_from_object`, то есть влияет на то, какие регулярки попадут в кеш.
 - `--max-running-requests`: исторический контекст флага — «high concurrency» из его справки; конкурентный доступ к `diskcache` из нескольких процессов scheduler'а был источником падений.
 
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --grammar-backend o
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/python/sglang/srt/constrained/outlines_jump_forward.py`
 - `sglang/python/sglang/srt/constrained/outlines_backend.py`

@@ -35,10 +35,10 @@ Attention backend for speculative decoding drafting.
 - Тип значения: строка (`Optional[str]`)
 - Допустимые значения: `choices: null` — в отличие от `--attention-backend`, поле объявлено без `choices`, и **argparse принимает любую строку**. Реальный набор имён — ключи реестра `ATTENTION_BACKENDS` (`layers/attention/attention_registry.py`), доступность каждого зависит от железа и установленных пакетов. Посмотреть на своей сборке: `python -c "import sglang.srt.layers.attention.attention_registry as r; print(sorted(r.ATTENTION_BACKENDS))"`
 - Значение по умолчанию: `null` — берётся backend target'а
-- Эффективное значение: `dsv4` вместо устаревшего `compressed` (`_handle_deprecated_args`); `trtllm_mha` для Kimi-K3 + DSPARK на SM100 при незаданном значении (`arg_groups/kimi_k3_hook.py`); для `DFLASH` значение **дорезолвливается на этапе разбора аргументов** и может быть молча заменено (см. ниже), после чего в `server_args` лежит уже итоговый backend
+- Эффективное значение: `dsv4` вместо устаревшего `compressed` (шаг `handle_deprecated_args`); `trtllm_mha` для Kimi-K3 + DSPARK на SM100 при незаданном значении (`apply_kimi_k3_spec_backend_defaults` в `arg_groups/kimi_k3_hook.py`, вызывается из `handle_model_specific_adjustments`); для `DFLASH` значение **дорезолвливается в `ServerArgs.resolve_once`** и может быть молча заменено (см. ниже). Все это декларации (`declare_resolution`): поле `server_args.speculative_draft_attention_backend` хранит ввод оператора, а итоговый backend виден в `resolved_dict()` и читается в runtime через `get_spec()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_attention_backend`
 - Статус: обычный
-- Этап применения: `__post_init__` (DFLASH-резолвинг, Kimi-K3-хук, deprecated-алиас) → создание draft-`ModelRunner` → инициализация draft-backend'ов (`DraftBackendFactory` или `build_draft_tp_worker`) → forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (deprecated-алиас в `handle_deprecated_args`, Kimi-K3-хук в `handle_model_specific_adjustments`, DFLASH-резолвинг в `handle_speculative_decoding`) → создание draft-`ModelRunner` → инициализация draft-backend'ов (`DraftBackendFactory` или `build_draft_tp_worker`) → forward
 
 ## Что меняет в движке
 
@@ -105,6 +105,8 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2-Exp --attentio
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/arg_groups/kimi_k3_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/speculative/draft_worker_common.py`
 - `sglang/python/sglang/srt/speculative/draft_utils.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

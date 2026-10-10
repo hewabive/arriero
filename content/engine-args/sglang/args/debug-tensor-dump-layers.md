@@ -32,7 +32,7 @@ The layer ids to dump. Dump all layers if not specified.
 - Тип значения: список int (`Optional[List[int]]`); argparse получает `nargs="+"`, `type=int` — значения через пробел
 - Допустимые значения: `choices` нет; диапазон не проверяется. Номера, которых в модели нет, молча ни на что не влияют
 - Значение по умолчанию: `null` — «все слои», о чем прямо сказано комментарием в объявлении поля
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Полностью инертен без `--debug-tensor-dump-output-folder`
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. Полностью инертен без `--debug-tensor-dump-output-folder`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_layers`
 - Статус: обычный, отладочный
 - Этап применения: загрузка весов в model runner, регистрация хуков (`register_forward_hook_for_model`)

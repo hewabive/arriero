@@ -33,7 +33,7 @@ The maximum number of requests in a prefill batch. If not specified, there is no
 - Тип значения: целое (`Optional[int]`)
 - Допустимые значения: не ограничены на уровне argparse; проверок при старте нет
 - Значение по умолчанию: `null` — ограничения по числу запросов нет
-- Эффективное значение: не переопределяется; `__post_init__` это поле не читает
+- Эффективное значение: не переопределяется; ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) это поле не читает и не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_max_requests`
 - Статус: обычный
 - Этап применения: передается в `PrefillAdder` при каждой сборке prefill-батча

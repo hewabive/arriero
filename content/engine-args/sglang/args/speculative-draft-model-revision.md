@@ -36,7 +36,7 @@ The specific draft model version to use. It can be a branch name, a tag name, or
 - Эффективное значение: `"main"` — подставляется в `handle_speculative_decoding`, если `--speculative-draft-model-path` задан, а ревизия нет. Для MTP-чекпоинтов, где путь draft'а автоматически равен `--model-path`, сюда так же автоматически копируется `--revision` target'а
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_revision`
 - Статус: обычный
-- Этап применения: `__post_init__` (первое действие `handle_speculative_decoding`) → чтение hf-конфига draft'а → создание `ModelConfig` draft-воркера → загрузка весов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` (`python/sglang/srt/arg_groups/speculative_hook.py`, первое действие) → чтение hf-конфига draft'а → создание `ModelConfig` draft-воркера → загрузка весов
 
 ## Что меняет в движке
 
@@ -44,7 +44,7 @@ The specific draft model version to use. It can be a branch name, a tag name, or
 
 - `get_config(...)` при выводе `block_size` для DFLASH, `gamma`/`mask_token_id` для DSPARK и при определении draft-архитектуры в `_resolve_dflash_draft_attention_backend`;
 - `ModelConfig.from_server_args(..., model_revision=speculative_draft_model_revision, is_draft_model=True)` — и в `spec_aux_hidden_state.py` (расчёт числа слоёв draft'а для KV-ячейки), и в `TpModelWorker._init_model_config` при создании самого воркера;
-- `_handle_modelscope_paths` — при `SGLANG_USE_MODELSCOPE=1` ревизия передаётся в `snapshot_download`, и там же явно раскрывается как `revision or "main"`.
+- `handle_modelscope_paths` (`python/sglang/srt/arg_groups/model_path_hook.py`, вызывается из шага `handle_missing_default_values`, то есть раньше `handle_speculative_decoding`) — при `SGLANG_USE_MODELSCOPE=1` ревизия передаётся в `snapshot_download`, и там же явно раскрывается как `revision or "main"`.
 
 Если путь draft'а — локальный каталог, значение не используется никак: ревизия релевантна только для загрузки из хаба.
 
@@ -53,7 +53,7 @@ The specific draft model version to use. It can be a branch name, a tag name, or
 - Любая строка, которую примет huggingface_hub: `main`, `v1.2`, `refs/pr/3`, полный или сокращённый sha.
 - Отсутствие значения при заданном пути = `main`. Отдельного «взять как у target'а» нет; чтобы совпало с `--revision`, задайте его сюда явно.
 - Аргумент действует только на draft. `--revision` на draft не влияет (кроме автоподстановки для MTP-чекпоинта, где путь и так равен целевому).
-- Несуществующая ревизия не отвергается argparse — падение приходит из huggingface_hub при первом чтении конфига, то есть ещё в `__post_init__`.
+- Несуществующая ревизия не отвергается argparse — падение приходит из huggingface_hub при первом чтении конфига, то есть ещё при резолве аргументов в `ServerArgs.resolve_once`.
 
 ## Когда использовать
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --r
 - `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/spec_aux_hidden_state.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_config.py`

@@ -36,14 +36,14 @@ Enable EPLB algorithm
 - Тип значения: булев флаг (`store_true`); парного `--no-enable-eplb` нет
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется, но включает цепочку подстановок в `__post_init__` (см. ниже)
+- Эффективное значение: ни один шаг резолва его не декларирует, но флаг запускает цепочку подстановок в пайплайне резолва (см. ниже)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_eplb`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_eplb_and_dispatch`, `_handle_expert_distribution_metrics`, `_handle_elastic_ep`) → инициализация model runner (`maybe_init_eplb_manager`) → конец каждого forward-прохода
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_dwdp`, `handle_eplb_and_dispatch`, `handle_expert_distribution_metrics`, `handle_elastic_ep` в `arg_groups/parallel_hook.py`) → инициализация model runner (`maybe_init_eplb_manager`) → конец каждого forward-прохода
 
 ## Что меняет в движке
 
-**В `__post_init__`:**
+**В резолве (`ServerArgs.resolve_once`).** Подстановки декларируются через `declare_resolution`: сырые поля хранят ввод оператора, итог виден в дампе `server_args=`.
 
 - если `--expert-distribution-recorder-mode` не задан, он выставляется в `stat` с предупреждением в логе — без статистики балансировать нечего;
 - если `--ep-dispatch-algorithm` не задан, он становится `dynamic` при `--moe-a2a-backend none` и `static` в остальных случаях;
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`
 - `sglang/python/sglang/srt/eplb/eplb_algorithms/__init__.py`

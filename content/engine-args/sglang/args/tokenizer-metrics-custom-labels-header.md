@@ -38,7 +38,7 @@ Specify the HTTP header for passing custom labels for tokenizer metrics.
 - Тип значения: str — имя HTTP-заголовка
 - Допустимые значения: `choices` нет; любая строка. Поиск заголовка идет через `raw_request.headers.get(...)`, то есть регистр имени значения не имеет (заголовки HTTP регистронезависимы)
 - Значение по умолчанию: `x-custom-labels`
-- Эффективное значение: совпадает с заданным. Пустая строка вместе с непустым `--tokenizer-metrics-allowed-custom-labels` дает `ValueError` в `__post_init__`; пустая строка без белого списка допустима и просто ничего не значит
+- Эффективное значение: совпадает с заданным. Пустая строка вместе с непустым `--tokenizer-metrics-allowed-custom-labels` дает `ValueError` в `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, вызывается после пайплайна резолва `ServerArgs.resolve_once`); пустая строка без белого списка допустима и просто ничего не значит
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.tokenizer_metrics_custom_labels_header`
 - Статус: обычный
 - Этап применения: HTTP-обработчики `/v1/chat/completions` и `/v1/completions`, на каждый запрос
@@ -49,7 +49,7 @@ Specify the HTTP header for passing custom labels for tokenizer metrics.
 def extract_custom_labels(self, raw_request):
     if (
         not self.allowed_custom_labels
-        or not self.tokenizer_manager.server_args.tokenizer_metrics_custom_labels_header
+        or not get_observability().tokenizer_metrics_custom_labels_header
     ):
         return None
     ...
@@ -136,4 +136,5 @@ curl -sS http://127.0.0.1:30000/v1/completions -H 'Content-Type: application/jso
 - `sglang/python/sglang/srt/entrypoints/openai/serving_completions.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - arriero: `apps/api/src/proxy/http.ts`, `docs/API_PROXY_FOUNDATION.md`, `apps/api/src/process/log-parsers/sglang.ts`, `apps/api/src/process/health-summary.ts`

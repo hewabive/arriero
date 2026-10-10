@@ -32,10 +32,10 @@ Number of leading 'attention sink' tokens the draft always attends to, in additi
 - Тип значения: optional int
 - Допустимые значения: целое `≥ 0`
 - Значение по умолчанию: `null` — то же, что `0`: чистое окно без sink
-- Эффективное значение: `handle_speculative_decoding` (`arg_groups/speculative_hook.py`) проверяет `≥ 0` и наличие окна и фиксирует значение как `int`; на рантайме `resolve_draft_decode_window` (`speculative/spec_utils.py`) обнуляет и окно, и sink, если у draft-модели есть собственное скользящее окно
+- Эффективное значение: `handle_speculative_decoding` (`arg_groups/speculative_hook.py`) проверяет `≥ 0` и наличие окна и декларирует значение как `int` через `declare_resolution`; на рантайме `resolve_draft_decode_window` (`speculative/spec_utils.py`) обнуляет и окно, и sink, если у draft-модели есть собственное скользящее окно
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_sink_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка) → инициализация multi-step draft-backend'а (`TritonMultiStepDraftBackend`, `FlashInferMultiStepDraftBackend`) → построение KV-индексов каждого draft-decode шага
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` (проверка) → инициализация multi-step draft-backend'а (`TritonMultiStepDraftBackend`, `FlashInferMultiStepDraftBackend`) → построение KV-индексов каждого draft-decode шага
 
 ## Что меняет в движке
 

@@ -36,7 +36,7 @@ DFLASH only. Block size (verify window length). Alias of --speculative-num-draft
 - Эффективное значение: при заданном значении `speculative_num_draft_tokens` становится равным ему. При обоих незаданных block size выводится из hf-конфига draft-чекпоинта (`dflash_config.block_size` или верхнеуровневый `block_size`), а если конфиг прочитать не удалось — `16` с предупреждением. `speculative_num_steps` и `speculative_eagle_topk` в этом же хуке принудительно становятся `1`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dflash_block_size`
 - Статус: обычный, но алгоритмо-специфичный: единственный читатель — `_handle_dflash`
-- Этап применения: `__post_init__` (`_handle_dflash`) → размер verify-форварда, размер draft-KV на шаг, размерность CUDA graph → forward
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_speculative_decoding` → `_handle_dflash` (`arg_groups/speculative_hook.py`) → размер verify-форварда, размер draft-KV на шаг, размерность CUDA graph → forward
 
 ## Что меняет в движке
 

@@ -31,7 +31,7 @@ Path to the JSON file containing the KV cache scaling factors. This should gener
 - Тип значения: путь к JSON-файлу (`Optional[str]`, парсер `nullable_str`)
 - Допустимые значения: не ограничены `choices`; фактически — путь к файлу схемы `QuantParamSchema`
 - Значение по умолчанию: `null`
-- Эффективное значение: не переопределяется; ни один `_handle_*` в `ServerArgs.__post_init__` это поле не трогает
+- Эффективное значение: не переопределяется; ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.quantization_param_path`
 - Статус: обычный
 - Этап применения: после загрузки весов модели, в `load_kv_cache_scales` (`sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`)

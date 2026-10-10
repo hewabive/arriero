@@ -35,7 +35,7 @@ Path to a JSON config file for adaptive speculative decoding tuning knobs.
 - Эффективное значение: файл читается **только** если включён `--speculative-adaptive`; иначе значение лежит в `ServerArgs` без всякого эффекта
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_adaptive_config`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_init_adaptive_speculative_params` → `resolve_candidate_steps_from_config`) → размер буферов и захват CUDA graph по ступеням → инициализация `AdaptiveSpeculativeParams` в воркере
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` (`arg_groups/speculative_hook.py`: `_init_adaptive_speculative_params` → `resolve_candidate_steps_from_config`) → размер буферов и захват CUDA graph по ступеням → инициализация `AdaptiveSpeculativeParams` в воркере
 
 ## Что меняет в движке
 

@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-Скрытые состояния — это выход последнего слоя перед LM-головой, вектор длины `hidden_size` на токен. Флаг поднимает **потолок сервера**: он не заставляет каждый ответ содержать состояния, он лишь разрешает запросам их просить. Запрос по-прежнему должен передать `return_hidden_states: true` (или `"last"`). Формально флаг не помечен как deprecated, но собственная справка описывает его как эквивалент `--return-hidden-states-mode full`, и в `__post_init__` эти два поля синхронизируются между собой. В новых конфигурациях задавайте режим явно — так видно, что вы разрешили только `last`, а не всё.
+Скрытые состояния — это выход последнего слоя перед LM-головой, вектор длины `hidden_size` на токен. Флаг поднимает **потолок сервера**: он не заставляет каждый ответ содержать состояния, он лишь разрешает запросам их просить. Запрос по-прежнему должен передать `return_hidden_states: true` (или `"last"`). Формально флаг не помечен как deprecated, но собственная справка описывает его как эквивалент `--return-hidden-states-mode full`, и шаг резолва `handle_return_hidden_states_mode` синхронизирует эти два поля между собой. В новых конфигурациях задавайте режим явно — так видно, что вы разрешили только `last`, а не всё.
 
 ## Оригинальная справка
 
@@ -34,10 +34,10 @@ Enable returning full hidden states with responses. Equivalent to `--return-hidd
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: синхронизируется с `--return-hidden-states-mode` в `_handle_return_hidden_states_mode` (`sglang/python/sglang/srt/server_args.py`). Если режим не задан, а флаг включен, режим становится `"full"`. Если режим задан (любой из `last`/`full`), флаг принудительно становится `True` — то есть в дампе `server_args=` вы увидите `enable_return_hidden_states=True` даже при `--return-hidden-states-mode last`, и это **не** означает полный режим
+- Эффективное значение: синхронизируется с `--return-hidden-states-mode` в шаге резолва `handle_return_hidden_states_mode` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`), который декларирует итог через `declare_resolution`; сами поля `server_args` хранят ввод оператора. Если режим не задан, а флаг включен, режим становится `"full"`. Если режим задан (любой из `last`/`full`), флаг принудительно становится `True` — то есть в дампе `server_args=` вы увидите `enable_return_hidden_states=True` даже при `--return-hidden-states-mode last`, и это **не** означает полный режим
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_return_hidden_states`
 - Статус: обычный; фактически legacy-псевдоним, что зафиксировано и в его справке, и в тексте ошибки валидации запроса
-- Этап применения: разбор CLI → `__post_init__` (`_handle_return_hidden_states_mode`) → выбор `capture_hidden_mode` при захвате CUDA graph → валидация каждого запроса в `TokenizerManager` → сборка ответа
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_return_hidden_states_mode` → выбор `capture_hidden_mode` при захвате CUDA graph → валидация каждого запроса в `TokenizerManager` → сборка ответа
 
 ## Что меняет в движке
 
@@ -110,6 +110,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B --speculative-a
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/model_executor/forward_batch_info.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

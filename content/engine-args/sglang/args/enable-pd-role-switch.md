@@ -38,7 +38,7 @@ Allow runtime prefill<->decode role switch via /pd_role_switch (PD mode).
 - Эффективное значение: совпадает с заданным; `handle_pd_disaggregation` (`arg_groups/pd_disaggregation_hook.py`) значение не меняет, но при `--disaggregation-mode prefill|decode` отвергает несовместимые конфигурации
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_pd_role_switch`
 - Статус: обычный, opt-in
-- Этап применения: `__post_init__` (проверки) → запуск bootstrap-сервера в tokenizer manager → построение `req_to_token`-пула → цикл scheduler'а (супервизор перезапуска цикла) → HTTP-эндпоинт `/pd_role_switch`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_pd_disaggregation` (проверки) → запуск bootstrap-сервера в tokenizer manager → построение `req_to_token`-пула → цикл scheduler'а (супервизор перезапуска цикла) → HTTP-эндпоинт `/pd_role_switch`
 
 ## Что меняет в движке
 

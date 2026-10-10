@@ -38,12 +38,12 @@ Maximum EP size the server can scale to at runtime. Pre-allocates active-rank st
 - Флаги: `--max-ep-size`
 - Группа: `parallel`
 - Тип значения: int (`Optional[int]`)
-- Допустимые значения: строго положительное целое; проверяется `assert self.max_ep_size > 0` с текстом `--max-ep-size must be a positive integer.`
-- Значение по умолчанию: `null`. Не «ноль» и не «без ограничения» — при незаданном значении потребители подставляют текущий world size: `max_ep_size or world_size` в NIXL-диспетчере и в `ElasticEPStateManager`, `server_args.max_ep_size or server_args.dp_size` в `DataParallelController`
-- Эффективное значение: не переписывается. Но само его наличие меняет чужие: связка «`elastic_ep_backend` задан **и** `max_ep_size > tp_size`» включает режим `scaling_active`, который принудительно ставит `enable_dp_attention_local_control_broadcast = True` и добавляет длинный список обязательных условий (см. ниже)
+- Допустимые значения: строго положительное целое; проверяется `assert cfg.max_ep_size > 0` в шаге `handle_elastic_ep` с текстом `--max-ep-size must be a positive integer.`
+- Значение по умолчанию: `null`. Не «ноль» и не «без ограничения» — при незаданном значении потребители подставляют текущий world size: `max_ep_size or world_size` в NIXL-диспетчере и в `ElasticEPStateManager`, `get_parallel().max_ep_size or get_parallel().dp_size` в `DataParallelController`
+- Эффективное значение: ни один шаг резолва его не декларирует. Но само его наличие меняет чужие: связка «`elastic_ep_backend` задан **и** `max_ep_size > tp_size`» включает режим `scaling_active`, который декларирует `enable_dp_attention_local_control_broadcast=True` и добавляет длинный список обязательных условий (см. ниже)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.max_ep_size`
 - Статус: обычный, но применим только в экспериментальном контуре elastic EP
-- Этап применения: `__post_init__` (`_handle_elastic_ep`) → `PortArgs`/`DataParallelController` (резервирование слотов воркеров) → `init_distributed_environment(max_world_size=…)` → создание буферов диспетчера NIXL → runtime-scale по запросу
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (`arg_groups/parallel_hook.py`) → `PortArgs`/`DataParallelController` (резервирование слотов воркеров) → `init_distributed_environment(max_world_size=…)` → создание буферов диспетчера NIXL → runtime-scale по запросу
 
 ## Что меняет в движке
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

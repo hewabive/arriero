@@ -42,7 +42,7 @@ Allocate this number of redundant experts in expert parallel.
 1. **Размерность слоя.** Реализации MoE-моделей строят `FusedMoE` с `num_experts = <логические эксперты> + get_exec().moe.ep_num_redundant_experts` (`deepseek_v2.py`, `qwen3_moe.py`, `glm4_moe.py`, `minimax_m2.py` и другие). То есть под реплики реально выделяются веса.
 2. **Метаданные расположения.** `ExpertLocationMetadata._init_common` считает `base_num_physical_experts = num_logical_experts + ep_num_redundant_experts` и требует делимости на `ep_size`: `assert num_physical_experts % ep_size == 0`. Локальное число экспертов на ранг — `num_physical_experts // ep_size`.
 3. **Начальная раскладка.** При тривиальном размещении (`--init-expert-location trivial`, значение по умолчанию) `init_trivial` строит карту `arange(0, base_num_physical_experts) % num_logical_experts` — первые `num_logical` слотов идентичны, а `R` дополнительных достаются логическим экспертам `0…R-1` по порядку.
-4. **Маршрутизация.** Перевод логических id в физические выполняется только если задан `--ep-dispatch-algorithm`: `ExpertLocationDispatchInfo.init_new` возвращает `None`, когда алгоритм не задан. Значение по умолчанию для алгоритма выставляется в `_handle_eplb_and_dispatch` **только** при `--enable-eplb` или нетривиальном `--init-expert-location` — наличие одних лишь избыточных экспертов такой подстановки не вызывает. В DeepSeek-V2/V3 к этому добавляется собственное условие: `ExpertLocationDispatchInfo` создается только при `enable_eplb`.
+4. **Маршрутизация.** Перевод логических id в физические выполняется только если задан `--ep-dispatch-algorithm`: `ExpertLocationDispatchInfo.init_new` возвращает `None`, когда алгоритм не задан. Значение по умолчанию для алгоритма декларирует шаг резолва `handle_eplb_and_dispatch` (`arg_groups/parallel_hook.py`) **только** при `--enable-eplb` или нетривиальном `--init-expert-location` — наличие одних лишь избыточных экспертов такой подстановки не вызывает. В DeepSeek-V2/V3 к этому добавляется собственное условие: `ExpertLocationDispatchInfo` создается только при `enable_eplb`.
 
 Вывод, который стоит держать в голове: `--ep-num-redundant-experts R` без EPLB и без нетривиального начального размещения выделяет и загружает `R` дополнительных экспертов на слой, но маршрутизатор в них не попадает.
 
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`
 - `sglang/python/sglang/srt/eplb/expert_location_dispatch.py`
 - `sglang/python/sglang/srt/layers/moe/topk.py`

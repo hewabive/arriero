@@ -25,7 +25,7 @@ related:
 
 ## Кратко
 
-Обычная последовательность в конце блока трансформера — all-reduce выхода слоя, затем сложение с residual, затем RMSNorm. Три ядра, два обхода памяти по одному и тому же тензору. Флаг разрешает слить их в одно ядро aiter (`forward_with_allreduce_fusion` у `RMSNorm`), что убирает лишние чтения-записи HBM и часть latency. Это ROCm-функция: включается только если сборка на HIP **и** в окружении задан `SGLANG_USE_AITER=1`. Отдельно стоит запомнить, что флаг не «просто оптимизация»: `check_server_args` жестко запрещает его при context parallel, детерминированный режим его сбрасывает, а для MiniMax-M3 на ROCm он еще и управляет тем, останется ли включенным custom all-reduce.
+Обычная последовательность в конце блока трансформера — all-reduce выхода слоя, затем сложение с residual, затем RMSNorm. Три ядра, два обхода памяти по одному и тому же тензору. Флаг разрешает слить их в одно ядро aiter (`forward_with_allreduce_fusion` у `RMSNorm`), что убирает лишние чтения-записи HBM и часть latency. Это ROCm-функция: включается только если сборка на HIP **и** в окружении задан `SGLANG_USE_AITER=1`. Отдельно стоит запомнить, что флаг не «просто оптимизация»: шаг резолва `handle_context_parallelism` (`arg_groups/parallel_hook.py`) жестко запрещает его при context parallel, детерминированный режим его сбрасывает, а для MiniMax-M3 на ROCm он еще и управляет тем, останется ли включенным custom all-reduce.
 
 ## Оригинальная справка
 
@@ -40,7 +40,7 @@ Enable Aiter AllReduce Fusion.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: сбрасывается в `False` при `--enable-deterministic-inference` (`_handle_deterministic_inference`, warning `Disable --enable-aiter-allreduce-fusion because deterministic inference is enabled.`) и реестром переопределений для MiniMax-M3 на ROCm при `ep_size > 1` с `--moe-a2a-backend none` (warning про порчу частичных выходов разреженного MoE). При `attn_cp_size > 1` или `moe_dp_size > 1` значение не сбрасывается, а **отвергается** ассертом `Aiter allreduce fusion is not supported with context parallelism`. В обратную сторону: для `GlmMoeDsaForCausalLM` (GLM-5) на HIP при выключенном DP attention и `--nnodes 1` `handle_model_specific_adjustments` сам объявляет `enable_aiter_allreduce_fusion=True` вместе с `disable_aiter_allreduce_fusion_in_prefill=True`, не глядя на CLI (лог `Enable Aiter AllReduce Fusion on decode phase for GlmMoeDsaForCausalLM`)
+- Эффективное значение: сбрасывается в `False` при `--enable-deterministic-inference` (шаг `handle_deterministic_inference` в `arg_groups/attention_hook.py`, warning `Disable --enable-aiter-allreduce-fusion because deterministic inference is enabled.`) и реестром переопределений для MiniMax-M3 на ROCm при `ep_size > 1` с `--moe-a2a-backend none` (warning про порчу частичных выходов разреженного MoE). При `attn_cp_size > 1` или `moe_dp_size > 1` значение не сбрасывается, а **отвергается** ассертом `Aiter allreduce fusion is not supported with context parallelism` в шаге `handle_context_parallelism`. В обратную сторону: для `GlmMoeDsaForCausalLM` (GLM-5) на HIP при выключенном DP attention и `--nnodes 1` `handle_model_specific_adjustments` сам объявляет `enable_aiter_allreduce_fusion=True` вместе с `disable_aiter_allreduce_fusion_in_prefill=True`, не глядя на CLI (лог `Enable Aiter AllReduce Fusion on decode phase for GlmMoeDsaForCausalLM`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_aiter_allreduce_fusion`; поле помечено `resolvable=True`
 - Статус: обычный
 - Этап применения: разбор CLI → пайплайн разрешения (модельные объявления, детерминированный сброс, ассерты CP) → построение слоев (`layers/layer_boundary/`) → каждый forward с учетом фазы батча
@@ -128,6 +128,8 @@ SGLANG_USE_AITER=1 python -m sglang.launch_server --model-path /models/Qwen3-32B
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/residual/add_norm.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/fusions/allreduce.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/exit.py`

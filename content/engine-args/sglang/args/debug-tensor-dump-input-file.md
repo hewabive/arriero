@@ -32,7 +32,7 @@ The input filename for dumping tensors
 - Тип значения: str — путь к файлу `.npy` (формат NumPy), читается через `np.load(...).tolist()`
 - Допустимые значения: `choices` нет; формат и содержимое не валидируются
 - Значение по умолчанию: `null`
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Но фактическое срабатывание зависит от `skip_server_warmup`, который переписывают другие аргументы
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. Но фактическое срабатывание зависит от эффективного `skip_server_warmup`, который декларируют шаги резолва по другим аргументам
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_input_file`. Прямо над объявлением оставлен комментарий-напоминание о будущем удалении старого кода дампера — путь помечен авторами как устаревающий
 - Статус: обычный, отладочный, с явной пометкой на удаление в исходниках
 - Этап применения: прогревочный запрос в `_execute_server_warmup` → завершение процесса в `_wait_and_warmup`
@@ -63,7 +63,7 @@ if server_args.debug_tensor_dump_input_file:
 
 ### Несовместимость с `--debug-tensor-dump-output-folder`
 
-`__post_init__` при заданном `--debug-tensor-dump-output-folder` выставляет `skip_server_warmup = True`. В `_wait_and_warmup` прогрев в этом случае не выполняется вовсе — ветка уходит в `else`, где статус сервера просто помечается как `Up`. Дальше печатается «fired up» и срабатывает `kill_process_tree`. Итог: ни одного forward не произошло, дампа нет, процесс завершился.
+Шаг резолва `handle_other_validations` (`python/sglang/srt/arg_groups/serving_hook.py`) при заданном `--debug-tensor-dump-output-folder` декларирует `skip_server_warmup=True`; поле `server_args.skip_server_warmup` при этом хранит ввод оператора, а `_wait_and_warmup` читает эффективное значение через `get_serving()`. В `_wait_and_warmup` прогрев в этом случае не выполняется вовсе — ветка уходит в `else`, где статус сервера просто помечается как `Up`. Дальше печатается «fired up» и срабатывает `kill_process_tree`. Итог: ни одного forward не произошло, дампа нет, процесс завершился.
 
 Практический вывод: в этом commit'е (`b20c375c`) сочетание двух аргументов не даёт дампа. Работоспособные варианты — либо снимать дамп без файла входа (послать запрос самому, пока сервер жив), либо использовать `--debug-tensor-dump-input-file` с механизмом захвата, который не отключает прогрев, — например с не-интрузивным дампером `sglang/python/sglang/srt/debug_utils/dumper.py`, который включается не через CLI. Тот же конфликт затрагивает и `--msprobe-dump-config`: он тоже выставляет `skip_server_warmup = True`.
 
@@ -123,6 +123,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --debug-tensor
 
 - `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/debug_utils/tensor_dump_forward_hook.py`
 - arriero: `docs/STATUS_LAYERS.md`

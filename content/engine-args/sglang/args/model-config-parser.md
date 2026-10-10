@@ -73,7 +73,7 @@ Which model-config parser to use. "auto" picks "mistral" via the is_mistral_mode
 ## Взаимодействие с другими аргументами
 
 - `--model-path`: значение эвристики `auto` считается по этой строке; для GGUF/`runai`/connector путь предварительно переписывается.
-- `--load-format`: отдельный, но связанный автодетект — `_handle_load_format` независимо ставит `load_format=mistral` по составу каталога (`consolidated*.safetensors` без `model*.safetensors`). Формат весов и парсер конфига определяются **разными** проверками, и они могут разойтись.
+- `--load-format`: отдельный, но связанный автодетект — шаг резолва `handle_load_format` (`arg_groups/model_path_hook.py`) независимо декларирует `load_format=mistral` по составу каталога (`consolidated*.safetensors` без `model*.safetensors`). Формат весов и парсер конфига определяются **разными** проверками, и они могут разойтись.
 - `--decrypted-config-file` / `--decrypted-draft-config-file`: работают только через kwargs `hf`-парсера.
 - `--json-model-override-args`: применяется поверх результата парсера.
 - `--trust-remote-code`: передается в парсер; для `mistral` он тоже пробрасывается в `load_mistral_config`.
@@ -100,6 +100,7 @@ python -m sglang.launch_server --model-path /models/my-mistral-large-3-finetune-
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/configs/model_config_parser_registry.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/config.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/mistral_utils.py`

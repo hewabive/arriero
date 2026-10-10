@@ -33,7 +33,7 @@ Where to get default sampling parameters. 'openai' uses SGLang/OpenAI defaults (
 - Тип значения: строка с фиксированным списком
 - Допустимые значения: `openai`, `model`
 - Значение по умолчанию: `model`
-- Эффективное значение: `__post_init__` не переопределяет. Значение прокидывается в `ModelConfig(sampling_defaults=...)` в `ModelConfig.from_server_args`; сам конструктор `ModelConfig` имеет собственный дефолт `"openai"`, который виден только при прямом создании `ModelConfig` в обход `ServerArgs`
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует. Значение прокидывается в `ModelConfig(sampling_defaults=...)` в `ModelConfig.from_server_args`; сам конструктор `ModelConfig` имеет собственный дефолт `"openai"`, который виден только при прямом создании `ModelConfig` в обход `ServerArgs`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.sampling_defaults`
 - Статус: обычный
 - Этап применения: построение `ModelConfig` при старте → конструктор `OpenAIServingChat` (один раз) → подстановка в `to_sampling_params` на каждом чат-запросе

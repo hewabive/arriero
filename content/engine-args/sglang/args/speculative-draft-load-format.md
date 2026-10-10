@@ -31,12 +31,12 @@ The format of the draft model weights to load. If not specified, will use the sa
 - Флаги: `--speculative-draft-load-format`
 - Группа: `spec`
 - Тип значения: строка (`Optional[str]`)
-- Допустимые значения (из `choices`): `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Список общий с `--load-format` и может расширяться плагинами через `add_load_format_choices`
+- Допустимые значения (из `choices`): `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Список общий с `--load-format` и может расширяться плагинами через `add_load_format_choices` (`arg_groups/choices.py`)
 - Значение по умолчанию: `null` — используется `--load-format`
-- Эффективное значение: `runai_streamer`, если `--speculative-draft-model-path` указывает на объект RunAI-хранилища и аргумент не задан (`_handle_load_format`)
+- Эффективное значение: `runai_streamer`, если `--speculative-draft-model-path` указывает на объект RunAI-хранилища и аргумент не задан (декларация шага резолва `handle_load_format`, `arg_groups/model_path_hook.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_load_format`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format`) → `ModelRunner._resolve_draft_load_format` при инициализации draft-воркера → `build_load_config` → загрузка весов
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_load_format` → `ModelRunner._resolve_draft_load_format` при инициализации draft-воркера → `build_load_config` → загрузка весов
 
 ## Что меняет в движке
 
@@ -99,6 +99,8 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --load
 
 - `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`
 - `sglang/python/sglang/srt/configs/load_config.py`

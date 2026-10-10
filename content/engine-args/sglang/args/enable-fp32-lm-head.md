@@ -33,7 +33,7 @@ If set, the LM head outputs (logits) are in FP32.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переписывается ни `__post_init__`, ни реестром `arg_groups/overrides.py`
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once`), включая passes и реестр `arg_groups/overrides.py`, его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_fp32_lm_head`
 - Статус: обычный
 - Этап применения: разбор CLI → построение `LogitsProcessor` (значение читается один раз в конструктор, `self.use_fp32_lm_head`) → `_compute_lm_head` на каждом шаге сэмплинга. Кроме того, значение входит в структурную сигнатуру загрузчика весов (`model_loader/loader.py`), то есть кеш весов, снятый с одним значением флага, не подойдет к запуску с другим

@@ -33,7 +33,7 @@ Token usage low watermark for prefill delayer.
 - Тип значения: число с плавающей точкой (`Optional[float]`), доля занятого KV-пула
 - Допустимые значения: не ограничены проверками; осмысленный диапазон — `0 … 1`
 - Значение по умолчанию: `null` — предохранитель выключен, задержка ограничена только потолками
-- Эффективное значение: переопределяется переменной окружения `SGLANG_PREFILL_DELAYER_TOKEN_USAGE_LOW_WATERMARK`, если она задана и непустая (`_handle_prefill_delayer_env_compat`)
+- Эффективное значение: переопределяется переменной окружения `SGLANG_PREFILL_DELAYER_TOKEN_USAGE_LOW_WATERMARK`, если она задана и непустая (шаг резолва `handle_prefill_delayer_env_compat` в `python/sglang/srt/arg_groups/serving_hook.py` декларирует ее значение через `declare_resolution`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_token_usage_low_watermark`
 - Статус: обычный; читается только при `--enable-prefill-delayer`
 - Этап применения: создание `PrefillDelayer` → каждый проход сборки prefill-батча
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-dp-at
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`

@@ -36,10 +36,10 @@ Use the legacy SMG gRPC server (smg-grpc-servicer) instead of the HTTP server. R
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` выставляет его в `True`, если задан устаревший `--grpc-mode`. Кроме того, при активном legacy-режиме и незаданном `--grpc-port` порт выводится как `--port + 10000`
+- Эффективное значение: шаг резолва `handle_deprecated_args` (`arg_groups/serving_hook.py`) декларирует `True`, если задан устаревший `--grpc-mode`; само поле `server_args.smg_grpc_mode` хранит ввод оператора, поэтому `launch_server.run_server` выбирает точку входа по `resolving_view(server_args)` после `resolve_once`. Кроме того, при активном legacy-режиме и незаданном `--grpc-port` порт выводится как `--port + 10000`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.smg_grpc_mode`
 - Статус: обычный (заменяет устаревший `--grpc-mode`)
-- Этап применения: `__post_init__` (вывод портов, проверки совместимости) → выбор точки входа в `run_server` до запуска любых процессов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` (вывод портов, проверки совместимости) → выбор точки входа в `run_server` до запуска любых процессов
 
 ## Что меняет в движке
 
@@ -87,14 +87,14 @@ except ImportError as e:
 ### Порты
 
 ```python
-legacy_grpc = self.smg_grpc_mode or self.grpc_mode
-if legacy_grpc and self.grpc_port is None:
-    self.grpc_port = self.port + 10000
+legacy_grpc = cfg.smg_grpc_mode or cfg.grpc_mode
+if legacy_grpc and cfg.grpc_port is None:
+    declare_resolution(server_args, "_handle_deprecated_args", grpc_port=cfg.port + 10000)
 ...
-native_grpc = self.grpc_port is not None and not legacy_grpc
+native_grpc = cfg.grpc_port is not None and not legacy_grpc
 ```
 
-`--port` в этом режиме не слушается — он остается базой для производных портов (`+1` сайдкар, `+10000` gRPC). Проверка `--grpc-port != --port` для legacy-режима отключена (условие `not (self.smg_grpc_mode or self.grpc_mode)`).
+`--port` в этом режиме не слушается — он остается базой для производных портов (`+1` сайдкар, `+10000` gRPC). Проверка `--grpc-port != --port` в `check_server_args` (`arg_groups/validation_hook.py`) для legacy-режима отключена (условие `not (cfg.smg_grpc_mode or cfg.grpc_mode)`).
 
 ## Значения и формат
 
@@ -149,6 +149,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --smg-grpc-mod
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/entrypoints/grpc_server.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`

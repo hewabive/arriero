@@ -34,7 +34,7 @@ Minimum difference in priorities for an incoming request to have to preempt runn
 - Тип значения: целое
 - Допустимые значения: не ограничены; проверок при старте нет
 - Значение по умолчанию: `10`
-- Эффективное значение: не переопределяется; `__post_init__` это поле не читает
+- Эффективное значение: ни один шаг резолва его не декларирует и не читает
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.priority_scheduling_preemption_threshold`
 - Статус: обычный; без `--enable-priority-scheduling` не используется, предупреждения при этом не печатается
 - Этап применения: передается в `PrefillAdder` при каждой сборке prefill-батча, используется в `preempt_to_schedule`

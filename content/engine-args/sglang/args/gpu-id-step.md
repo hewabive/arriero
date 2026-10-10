@@ -32,7 +32,7 @@ The delta between consecutive GPU IDs that are used. For example, setting it to 
 - Флаги: `--gpu-id-step`
 - Группа: `device`
 - Тип значения: int
-- Допустимые значения: `choices` нет; проверка `assert self.gpu_id_step >= 1, "gpu_id_step must be positive"` в `check_server_args`
+- Допустимые значения: `choices` нет; проверка `assert cfg.gpu_id_step >= 1, "gpu_id_step must be positive"` в `check_server_args` (`arg_groups/validation_hook.py`, вызывается при старте после `ServerArgs.resolve_once`)
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным, автоподбора нет
 - Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.gpu_id_step`
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --port 30001 --base
 
 - `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/custom_all_reduce_utils.py`

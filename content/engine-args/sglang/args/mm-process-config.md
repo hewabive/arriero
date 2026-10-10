@@ -34,14 +34,14 @@ Multimodal preprocessing config, a json config contains keys: `image`, `video`, 
 - Тип значения: JSON-объект; поле `Optional[Dict[str, Any]]` с `type_parser=json.loads`
 - Допустимые значения: любой JSON-объект; осмысленные ключи верхнего уровня — `image`, `video`, `audio`, и значение каждого обязано быть объектом
 - Значение по умолчанию: `null`
-- Эффективное значение: `__post_init__` подставляет пустой словарь `{}`, если аргумент не задан, — процессоры затем читают `mm_process_config.get("image", {})` и т. д.
+- Эффективное значение: шаг резолва `handle_missing_default_values` (`python/sglang/srt/arg_groups/serving_hook.py`) декларирует пустой словарь `{}`, если аргумент не задан, — процессоры затем читают `mm_process_config.get("image", {})` и т. д.
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_process_config`
 - Статус: обычный
-- Этап применения: разбор CLI (`json.loads`) → структурная проверка в `ServerArgs._handle_multimodal` (до загрузки модели) → конструктор `BaseMultimodalProcessor` → каждый вызов HF-процессора
+- Этап применения: разбор CLI (`json.loads`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`: структурная проверка в шаге `handle_multimodal` (`python/sglang/srt/arg_groups/serving_hook.py`, до загрузки модели), подстановка `{}` в `handle_missing_default_values` → конструктор `BaseMultimodalProcessor` → каждый вызов HF-процессора
 
 ## Что меняет в движке
 
-`ServerArgs._handle_multimodal` проверяет только структуру: верхний уровень должен быть словарем, и каждый из ключей `image`/`video`/`audio`, если он присутствует, тоже должен быть словарем. Иначе — `TypeError`. Проверка стоит рано, до загрузки весов, поэтому опечатка в структуре не стоит вам минут ожидания.
+Шаг резолва `handle_multimodal` проверяет только структуру: верхний уровень должен быть словарем, и каждый из ключей `image`/`video`/`audio`, если он присутствует, тоже должен быть словарем. Иначе — `TypeError`. Проверка стоит рано, до загрузки весов, поэтому опечатка в структуре не стоит вам минут ожидания.
 
 `BaseMultimodalProcessor.__init__` раскладывает конфиг на три поля:
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-pr
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/qwen_vl.py`
 - `sglang/python/sglang/srt/multimodal/processors/minimax_m3_vl.py`

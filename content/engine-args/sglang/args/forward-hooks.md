@@ -33,7 +33,7 @@ JSON-formatted forward hook specifications to attach to the model.
 - Тип значения: одна строка, разбираемая `json_list_type` (`orjson.loads`); ожидается JSON-массив объектов (`Optional[List[dict[str, Any]]]`)
 - Допустимые значения: `choices` нет. Что результат разбора — именно список словарей, не проверяется; при другой форме ошибка вылезет позже, при обходе спецификаций
 - Значение по умолчанию: `null` — хуков нет
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_hooks`
 - Статус: обычный
 - Этап применения: `capture_cuda_graphs` в model runner'е, **после** захвата графов prefill и decode, до предвыделения symmetric memory pool

@@ -32,10 +32,10 @@ Timeout in seconds for a pending elastic EP scale operation.
 - Тип значения: float (секунды)
 - Допустимые значения: строго положительное число; проверяется ассертом, но только когда рантайм-расширение действительно активно
 - Значение по умолчанию: `600` (десять минут)
-- Эффективное значение: не переопределяется
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_scale_timeout`
 - Статус: обычный, часть молодой подсистемы elastic EP
-- Этап применения: `__post_init__` (проверка положительности) → конец каждого forward-прохода в `maybe_join_ep_ranks`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (`arg_groups/parallel_hook.py`, проверка положительности) → конец каждого forward-прохода в `maybe_join_ep_ranks`
 
 ## Что меняет в движке
 
@@ -95,6 +95,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/entrypoints/elastic_ep.py`

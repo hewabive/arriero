@@ -37,7 +37,7 @@ Skip caching reasoning-model output (thinking + answer) in the radix tree on fin
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` не переопределяет
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.strip_thinking_cache`
 - Статус: обычный, явно помеченный как opt-in
 - Этап применения: завершение запроса в планировщике — `release_kv_cache` / `cache_finished_req`

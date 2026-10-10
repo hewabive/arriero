@@ -38,7 +38,7 @@ Disable the overlap scheduler, which overlaps the CPU scheduler with GPU model w
 - Эффективное значение: принудительно `true` при `--pp-size > 1`, на `--device mps` без MLX, при спекулятивном декодировании на `--device cpu`, при diffusion-LLM (`--dllm-algorithm`), при `SGLANG_EMBEDDINGS_SPARSE_HEAD`, и при стратегии mamba radix cache `no_buffer`; `--enable-pdmux` требует его явно
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.disable_overlap_schedule`
 - Статус: обычный
-- Этап применения: `__post_init__` (принудительные переключения и проверки) → выбор event loop при запуске scheduler'а
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (принудительные переключения декларируют шаг `handle_mps_backends`, пассы `arg_groups/overrides.py` — `_pipeline_parallel_overlap_disable`, `_dllm_overlap_disable`, `_sparse_head_overlap_disable`, `_mamba_radix_cache_resolution` — и `_disable_overlap_schedule_for_cpu` в `arg_groups/speculative_hook.py`; там же проверки) → выбор event loop при запуске scheduler'а
 
 ## Что меняет в движке
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-pdmux
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`

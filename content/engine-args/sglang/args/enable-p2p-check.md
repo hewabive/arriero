@@ -33,7 +33,7 @@ Enable P2P check for GPU access, otherwise the p2p access is allowed by default.
 - Тип значения: bool (`store_true`)
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False` — то есть **проверка отключена**, а P2P считается доступным
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_p2p_check`
 - Статус: обычный
 - Этап применения: `init_torch_distributed`, до создания групп и до инициализации custom all-reduce

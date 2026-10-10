@@ -21,7 +21,7 @@ related:
 
 ## Кратко
 
-`--ssl-certfile` — половина обязательной пары, включающей TLS у HTTP-слоя SGLang. Второй половиной является `--ssl-keyfile`; любая из них без другой отвергается в `__post_init__`, до загрузки весов.
+`--ssl-certfile` — половина обязательной пары, включающей TLS у HTTP-слоя SGLang. Второй половиной является `--ssl-keyfile`; любая из них без другой отвергается шагом резолва `handle_ssl_validation` (`arg_groups/serving_hook.py`), до загрузки весов.
 
 Включение TLS меняет не только внешний протокол: `ServerArgs.url()` начинает строить `https://…`, поэтому по HTTPS пойдет и внутренний warmup-запрос сервера к самому себе. Если сертификат самоподписанный и `--ssl-ca-certs` не задан, проверка сертификата для этих внутренних запросов отключается и в лог пишется отдельное предупреждение.
 
@@ -36,12 +36,12 @@ The file path to the SSL certificate file.
 - Флаги: `--ssl-certfile`
 - Группа: `serving`
 - Тип значения: str — путь к существующему файлу (PEM-сертификат или цепочка)
-- Допустимые значения: `choices` нет; путь обязан указывать на файл, `os.path.isfile` проверяется на этапе `__post_init__`
+- Допустимые значения: `choices` нет; путь обязан указывать на файл, `os.path.isfile` проверяется в шаге резолва `handle_ssl_validation`
 - Значение по умолчанию: `None` — TLS выключен, сервер слушает обычный HTTP
-- Эффективное значение: совпадает с заданным; переписывания нет. Влияет на производные: `ServerArgs.url()` выбирает схему `https`, `ServerArgs.ssl_verify()` возвращает `False` (с предупреждением) вместо `True`, если не задан `--ssl-ca-certs`
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует. Влияет на производные: `ServerArgs.url()` выбирает схему `https`, `ssl_verify_of(cfg)` (`arg_groups/serving_hook.py`, бывший метод `ServerArgs.ssl_verify()`) возвращает `False` (с предупреждением) вместо `True`, если не задан `--ssl-ca-certs`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_certfile`
 - Статус: обычный
-- Этап применения: `__post_init__` → `_handle_ssl_validation` (парная проверка и существование файла) → HTTP-слой (`uvicorn.run(ssl_certfile=...)` либо `Granian(ssl_cert=...)`)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_ssl_validation` (`arg_groups/serving_hook.py`; парная проверка и существование файла) → HTTP-слой (`uvicorn.run(ssl_certfile=...)` либо `Granian(ssl_cert=...)`)
 
 ## Что меняет в движке
 
@@ -49,14 +49,14 @@ The file path to the SSL certificate file.
 
 1. **Слушатель.** `_setup_and_run_http_server` (`entrypoints/http_server.py`) передает `ssl_certfile` во все три uvicorn-ветки (обычную, ветку `--enable-ssl-refresh`, multi-worker) и как `ssl_cert=` в `_run_granian_server` при `--enable-http2`. Перед стартом печатается строка `SSL enabled: certfile=<путь>, keyfile=<путь>`.
 2. **Схема внутренних URL.** `ServerArgs.url()` возвращает `https://…`, если `ssl_certfile` задан. По этому URL warmup-поток обращается к `/model_info` и затем к `/generate`; тот же URL используется как `engine_info_bootstrap_url`.
-3. **Проверка сертификата внутренним клиентом.** `ServerArgs.ssl_verify()` возвращает путь `--ssl-ca-certs`, если он задан; иначе — `False`, один раз залогировав `SSL is enabled but --ssl-ca-certs was not provided. Certificate verification is DISABLED for internal health checks.` Это значение уходит в `verify=` библиотеки `requests`.
+3. **Проверка сертификата внутренним клиентом.** `ssl_verify_of(cfg)` (`arg_groups/serving_hook.py`) возвращает путь `--ssl-ca-certs`, если он задан; иначе — `False`, один раз залогировав `SSL is enabled but --ssl-ca-certs was not provided. Certificate verification is DISABLED for internal health checks.` Это значение уходит в `verify=` библиотеки `requests`.
 
-Ранняя валидация в `_handle_ssl_validation` устроена так, что все ошибки конфигурации TLS вылетают до загрузки модели:
+Ранняя валидация в `handle_ssl_validation` устроена так, что все ошибки конфигурации TLS вылетают до загрузки модели:
 
 ```python
-if self.ssl_keyfile and not self.ssl_certfile: raise ValueError(...)
-if self.ssl_certfile and not self.ssl_keyfile: raise ValueError(...)
-if self.ssl_certfile and not os.path.isfile(self.ssl_certfile): raise ValueError(...)
+if cfg.ssl_keyfile and not cfg.ssl_certfile: raise ValueError(...)
+if cfg.ssl_certfile and not cfg.ssl_keyfile: raise ValueError(...)
+if cfg.ssl_certfile and not os.path.isfile(cfg.ssl_certfile): raise ValueError(...)
 ```
 
 ## Значения и формат
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

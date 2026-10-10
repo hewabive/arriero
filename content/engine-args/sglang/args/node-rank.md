@@ -36,7 +36,7 @@ The node rank.
 - Тип значения: int
 - Допустимые значения: `choices` нет; осмысленный диапазон — `0…nnodes-1`. Выход за диапазон не проверяется: `_calculate_rank_ranges` посчитает несуществующие ранги, группа не соберется, и запуск повиснет
 - Значение по умолчанию: `0`
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает. Единственная жесткая проверка — в elastic EP: `--elastic-ep-join-mode scale` требует ровно `--node-rank 1`
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. Единственная жесткая проверка — в elastic EP: `--elastic-ep-join-mode scale` требует ровно `--node-rank 1`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.node_rank`
 - Статус: обычный
 - Этап применения: `_calculate_rank_ranges` (выбор локальных TP/PP-рангов) → запуск scheduler-процессов → развилка «узел 0 или нет» в `_launch_subprocesses` → рандеву `torch.distributed`
@@ -58,7 +58,7 @@ The node rank.
 
 ### Elastic EP
 
-Присоединяющаяся группа запускается с `--elastic-ep-join-mode scale` и обязана иметь `--node-rank 1`: `assert self.node_rank == 1` с текстом `Elastic EP scale-up requires one joining TP group at --node-rank 1 (got N).`. Ее scheduler'ы получают порты от первичного развертывания по handshake-каналу, а свои выходы отправляют в токенизатор первичного узла.
+Присоединяющаяся группа запускается с `--elastic-ep-join-mode scale` и обязана иметь `--node-rank 1`: шаг резолва `handle_elastic_ep` (`sglang/python/sglang/srt/arg_groups/parallel_hook.py`) проверяет `assert cfg.node_rank == 1` с текстом `Elastic EP scale-up requires one joining TP group at --node-rank 1 (got N).`. Ее scheduler'ы получают порты от первичного развертывания по handshake-каналу, а свои выходы отправляют в токенизатор первичного узла.
 
 ## Значения и формат
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path meta-llama/Meta-Llama-3-8B-Instruct 
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

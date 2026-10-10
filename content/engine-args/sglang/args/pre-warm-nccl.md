@@ -34,10 +34,10 @@ Pre-warm NCCL/RCCL communicators during startup to reduce P99 TTFT cold-start la
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: единственное переопределение — сброс в `False` на платформе вне CUDA/HIP/NPU (`_handle_nccl_pre_warm`) с предупреждением `pre_warm_nccl is only applicable for CUDA or HIP hardware or NPU hardware. Ignoring pre_warm_nccl setting on current hardware.` Обещанного справкой автоматического включения на AMD в коде checkout'а нет: ни `_handle_amd_specifics`, ни реестр `arg_groups/overrides.py`, ни платформенные хуки поля не трогают. Если вам нужен прогрев на ROCm — задавайте флаг явно
+- Эффективное значение: единственное переопределение — сброс в `False` на платформе вне CUDA/HIP/NPU (шаг резолва `handle_nccl_pre_warm` в `python/sglang/srt/arg_groups/platform_hook.py`, декларация через `declare_resolution`) с предупреждением `pre_warm_nccl is only applicable for CUDA or HIP hardware or NPU hardware. Ignoring pre_warm_nccl setting on current hardware.` Обещанного справкой автоматического включения на AMD в коде checkout'а нет: ни шаг `handle_amd_specifics`, ни пассы `arg_groups/overrides.py`, ни платформенные хуки поля не декларируют. Если вам нужен прогрев на ROCm — задавайте флаг явно
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.pre_warm_nccl`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (`_handle_nccl_pre_warm`) → `init_torch_distributed` после `_init_parallel_groups`, до загрузки весов
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_nccl_pre_warm` → `init_torch_distributed` после `_init_parallel_groups`, до загрузки весов
 
 ## Что меняет в движке
 
@@ -58,7 +58,7 @@ if server_args.pre_warm_nccl and (ps.tp_size > 1 or ps.pp_size > 1 or ps.moe_ep_
 
 - Флаг без значения; парной `--no-…` формы нет.
 - На одноранговой конфигурации выполняется проверка и ничего не происходит — ошибки не будет.
-- На CPU/MPS/XPU-хосте флаг сбрасывается в `__post_init__` с предупреждением.
+- На CPU/MPS/XPU-хосте флаг сбрасывается шагом резолва `handle_nccl_pre_warm` с предупреждением.
 
 ## Когда использовать
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tensor-paralle
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
 - `sglang/docs/docs/hardware-platforms/ascend-npus/reference/support_features.mdx`

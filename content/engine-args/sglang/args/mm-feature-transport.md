@@ -36,13 +36,13 @@ Transport multimodal features through CPU memory, a bounded CUDA IPC pool, or a 
 - Группа: `mm`
 - Тип значения: `Optional[Literal["cpu", "cuda_ipc", "cuda_vmm"]]`
 - Допустимые значения: `cpu`, `cuda_ipc`, `cuda_vmm`
-- Значение по умолчанию: `null`; эффективное значение разрешает `ServerArgs._handle_multimodal_feature_transport`
+- Значение по умолчанию: `null`; эффективное значение разрешает `handle_multimodal_feature_transport` (`arg_groups/serving_hook.py`, вызывается из шага резолва `handle_environment_variables`) и декларирует его через `declare_resolution`: `server_args.mm_feature_transport` хранит ввод оператора, итог виден в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_feature_transport`
-- Этап применения: `__post_init__` → проверка поддержки модели в `TokenizerManager` → создание bounded pool → упаковка каждого мультимодального запроса
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_environment_variables` → проверка поддержки модели в `TokenizerManager` → создание bounded pool → упаковка каждого мультимодального запроса
 
 ## Что меняет в движке
 
-`_handle_multimodal_feature_transport` сначала переводит устаревшую переменную `SGLANG_USE_CUDA_IPC_TRANSPORT` в новую политику (прежний флаг `--keep-mm-feature-on-device` из движка удален). Явный CLI-флаг имеет приоритет над конфликтующей переменной окружения. В `--encoder-only` оба GPU-варианта принудительно становятся `cpu`, потому что выход энкодера управляется `--encoder-transfer-backend`.
+`handle_multimodal_feature_transport` сначала переводит устаревшую переменную `SGLANG_USE_CUDA_IPC_TRANSPORT` в новую политику (прежний флаг `--keep-mm-feature-on-device` из движка удален). Явный CLI-флаг имеет приоритет над конфликтующей переменной окружения. В `--encoder-only` оба GPU-варианта принудительно становятся `cpu`, потому что выход энкодера управляется `--encoder-transfer-backend`.
 
 При незаданном значении движок выбирает:
 
@@ -105,6 +105,7 @@ SGLANG_MM_FEATURE_CACHE_MB=2048 python -m sglang.launch_server --model-path /mod
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/utils/cuda_ipc_transport_utils.py`
 - `sglang/python/sglang/srt/utils/cuda_vmm_transport_utils.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

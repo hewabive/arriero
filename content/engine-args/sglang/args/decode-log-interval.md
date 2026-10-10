@@ -34,7 +34,7 @@ The log and metrics reporting interval (in decode iterations) for decode batches
 - Тип значения: int (число decode-итераций)
 - Допустимые значения: `choices` нет, границы не проверяются. Значение `0` приводит к делению на ноль на первой же decode-итерации
 - Значение по умолчанию: `40`
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.decode_log_interval`
 - Статус: обычный
 - Этап применения: конструктор `SchedulerMetricsReporter` (значение копируется в поле) → каждая decode-итерация

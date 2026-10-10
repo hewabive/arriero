@@ -36,16 +36,16 @@ Bootstrap server port on the prefill server. Default is 8998.
 - Тип значения: int
 - Допустимые значения: `choices` нет; практически — свободный TCP-порт, не совпадающий с `--port`
 - Значение по умолчанию: `8998`
-- Эффективное значение: обычно совпадает с заданным. Два исключения: (1) при `SGLANG_RUST_SERVER` на prefill порт принудительно приравнивается к `--port` (`_alias_bootstrap_port_to_api_port`), потому что rust-сервер отдает реестр на своем же api-листенере; (2) при многоузловом prefill (`--nnodes > 1` и заданном `--dist-init-addr`) порт лидера broadcast'ится на все ранги (`_sync_bootstrap_port_across_nodes`), и локально заданное значение может быть заменено значением ранга 0
+- Эффективное значение: обычно совпадает с заданным. Два исключения: (1) при `SGLANG_RUST_SERVER` на prefill разрешенное значение принудительно приравнивается к `--port` (`_alias_bootstrap_port_to_api_port` в шаге резолва `handle_pd_disaggregation`; сырое поле хранит ввод оператора, потребители читают разрешенное), потому что rust-сервер отдает реестр на своем же api-листенере; (2) при многоузловом prefill (`--nnodes > 1` и заданном `--dist-init-addr`) порт лидера broadcast'ится на все ранги (`_sync_bootstrap_port_across_nodes`), и локально заданное значение может быть заменено значением ранга 0
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_bootstrap_port`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_pd_disaggregation` (только rust-сервер) → `start_disagg_service` в tokenizer manager (prefill: bind) → `CommonKVManager.__init__` в каждом scheduler'е (prefill: регистрация, decode: адрес по умолчанию) → обработка каждого запроса на decode
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_pd_disaggregation` (только rust-сервер) → `start_disagg_service` в tokenizer manager (prefill: bind) → `CommonKVManager.__init__` в каждом scheduler'е (prefill: регистрация, decode: адрес по умолчанию) → обработка каждого запроса на decode
 
 ## Что меняет в движке
 
 ### На prefill-сервере
 
-`start_disagg_service` (`managers/disagg_service.py`) создает `<Backend>KVBootstrapServer(host=server_args.host, port=server_args.disaggregation_bootstrap_port)` и запускает его в демон-потоке. Реестр отдает:
+`start_disagg_service` (`managers/disagg_service.py`) создает `<Backend>KVBootstrapServer(host=get_serving().host, port=get_disagg().disaggregation_bootstrap_port)` и запускает его в демон-потоке. Реестр отдает:
 
 ```
 PUT  /route              регистрация ранга prefill

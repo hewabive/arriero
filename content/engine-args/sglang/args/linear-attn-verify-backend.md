@@ -35,10 +35,10 @@ Override the kernel backend for linear attention speculative target-verify. If n
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
 - Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu`, `nv_cutedsl` — это общий список linear-attn backend'ов **плюс** `nv_cutedsl`, который допустим только здесь. Фактически KDA-диспетчер принимает `triton`, `nv_cutedsl` и `flashinfer`; остальные значения verify-ядра не имеют и отвергаются
 - Значение по умолчанию: `null` — следует за decode: `flashinfer`, если decode `flashinfer`, иначе `triton`
-- Эффективное значение: подстановка выполняется в `initialize_linear_attn_config`; `_handle_linear_attn_backend` дополнительно проверяет разрешенное значение на совместимость с типом состояния
+- Эффективное значение: подстановка выполняется в `initialize_linear_attn_config`; шаг резолва `handle_linear_attn_backend` (`python/sglang/srt/arg_groups/attention_hook.py`) дополнительно проверяет разрешенное значение на совместимость с типом состояния
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_verify_backend`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка типа состояния) → создание backend'а внимания → каждый шаг target-verify
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_linear_attn_backend` (проверка типа состояния) → создание backend'а внимания → каждый шаг target-verify
 
 ## Что меняет в движке
 
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`

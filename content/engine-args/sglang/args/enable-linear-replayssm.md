@@ -41,7 +41,7 @@ Enable the ReplaySSM buffered output-only linear-attn decode kernel. Primarily a
 - Эффективное значение: совпадает с заданным; движок его не включает сам
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_linear_replayssm`
 - Статус: обычный, но явно экспериментальный по формулировке справки и по числу оговорок в коде (часть путей помечена как follow-up)
-- Этап применения: `__post_init__` (`_handle_linear_attn_backend` — четыре проверки) → аллокация `MambaPool` (кольцевые буферы + курсоры) → каждый decode-шаг линейных слоев
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_linear_attn_backend` (`arg_groups/attention_hook.py`, четыре проверки) → аллокация `MambaPool` (кольцевые буферы + курсоры) → каждый decode-шаг линейных слоев
 
 ## Что меняет в движке
 
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/layers/attention/hybrid_linear_attn_backend.py`

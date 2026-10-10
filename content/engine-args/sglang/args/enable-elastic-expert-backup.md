@@ -34,10 +34,10 @@ Enable elastic expert backup feature.
 - Тип значения: булев флаг (`store_true`); парного `--no-*` нет
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется, но игнорируется без `--elastic-ep-backend`: и запуск процесса-хранителя, и создание клиента гейтятся условием «флаг И задан бэкенд elastic EP»
+- Эффективное значение: ни один шаг резолва его не декларирует, но игнорируется без `--elastic-ep-backend`: и запуск процесса-хранителя, и создание клиента гейтятся условием «флаг И задан бэкенд elastic EP»
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_elastic_expert_backup`
 - Статус: обычный, часть молодой подсистемы elastic EP
-- Этап применения: `__post_init__` (проверка несовместимости с расширением) → запуск процессов движка (`run_expert_backup_manager`) → инициализация model runner (`maybe_init_expert_backup_client`) → перебалансировка/восстановление
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` в `arg_groups/parallel_hook.py` (проверка несовместимости с расширением) → запуск процессов движка (`run_expert_backup_manager`) → инициализация model runner (`maybe_init_expert_backup_client`) → перебалансировка/восстановление
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ Enable elastic expert backup feature.
 
 - Многоузловая EP-развертка на RDMA, где восстановление после падения ранга должно занимать секунды, а не минуты, и где есть свободная хостовая RAM под копию весов экспертов.
 - Вместе с `--enable-eplb`: именно перебалансировка после смены маски живых рангов чаще всего и обнаруживает недостающих экспертов.
-- Не включайте, если планируете рантайм-расширение EP: `_handle_elastic_ep` отвергает такую комбинацию ассертом.
+- Не включайте, если планируете рантайм-расширение EP: `handle_elastic_ep` отвергает такую комбинацию ассертом.
 - Не включайте на одном узле: доля экспертов узла тогда равна всей модели, а восстанавливать не у кого.
 - Не включайте при жестком лимите хостовой памяти — см. ниже.
 
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/elastic_ep/expert_backup_manager.py`
 - `sglang/python/sglang/srt/elastic_ep/expert_backup_client.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`

@@ -35,12 +35,12 @@ The backend for disaggregation transfer. Default is mooncake.
 - Флаги: `--disaggregation-transfer-backend`
 - Группа: `disagg`
 - Тип значения: str
-- Допустимые значения: `mooncake`, `nixl`, `ascend`, `fake`, `mori`, `mooncake_tcp` (список `DISAGG_TRANSFER_BACKEND_CHOICES` в `server_args.py`). Список расширяем плагинами через `add_disagg_transfer_backend_choices`, поэтому на конкретной сборке в `--help` может быть больше значений
+- Допустимые значения: `mooncake`, `nixl`, `ascend`, `fake`, `mori`, `mooncake_tcp` (список `DISAGG_TRANSFER_BACKEND_CHOICES` в `arg_groups/choices.py`). Список расширяем плагинами через `add_disagg_transfer_backend_choices` (там же, алиас `DISAGG_TRANSFER_BACKEND_CHOICES.extend`), поэтому на конкретной сборке в `--help` может быть больше значений
 - Значение по умолчанию: `"mooncake"`
-- Эффективное значение: `mooncake_tcp` переписывается в `mooncake` в `handle_pd_disaggregation` с побочными эффектами `os.environ.setdefault("MC_FORCE_TCP", "1")` и `disaggregation_ib_device = None`. Остальные значения проходят как заданы
+- Эффективное значение: для `mooncake_tcp` шаг резолва `handle_pd_disaggregation` декларирует `mooncake` с побочными эффектами `os.environ.setdefault("MC_FORCE_TCP", "1")` и декларацией `disaggregation_ib_device=None`; само поле `server_args.disaggregation_transfer_backend` хранит `mooncake_tcp`, а итог виден в `resolved_dict()` и дампе `server_args=`. Остальные значения проходят как заданы
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_transfer_backend`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_pd_disaggregation` (нормализация `mooncake_tcp`, кросс-проверки) → `_handle_encoder_disaggregation` (валидация IB-устройств для mooncake) → `start_disagg_service` на prefill (класс bootstrap-сервера) → `get_kv_class(...)` в scheduler'е при создании KV-менеджера/сендера/ресивера → импорт нативного пакета
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаги `handle_pd_disaggregation` (нормализация `mooncake_tcp`, кросс-проверки) и `handle_encoder_disaggregation` (валидация IB-устройств для mooncake) в `arg_groups/pd_disaggregation_hook.py` → `start_disagg_service` на prefill (класс bootstrap-сервера) → `get_kv_class(...)` в scheduler'е при создании KV-менеджера/сендера/ресивера → импорт нативного пакета
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ The backend for disaggregation transfer. Default is mooncake.
 
 - Одно значение из `choices`, регистр значим.
 - Значение должно совпадать на prefill и decode. Несовпадение не диагностируется на старте — оно проявится как зависшая передача или падение при рукопожатии.
-- `fake` на prefill отвергается ассертом на этапе `__post_init__`.
+- `fake` на prefill отвергается ассертом в шаге резолва `handle_pd_disaggregation`.
 - Специальных значений `auto`/`none` нет: выключить transfer можно только выключив сам PD-режим.
 
 ## Когда использовать
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --d
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/disaggregation/utils.py`
 - `sglang/python/sglang/srt/disaggregation/mooncake/conn.py`
 - `sglang/python/sglang/srt/disaggregation/nixl/conn.py`

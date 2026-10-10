@@ -34,7 +34,7 @@ Allow automatically truncating requests that exceed the maximum input length ins
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` не переопределяет
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.allow_auto_truncate`
 - Статус: обычный
 - Этап применения: валидация запроса в `TokenizerManager` → валидация запроса в планировщике → дополнительно проверка `max_completion_tokens` в OpenAI-фасаде чата

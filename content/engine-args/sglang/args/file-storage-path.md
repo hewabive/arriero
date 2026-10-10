@@ -32,7 +32,7 @@ The path of the file storage in backend.
 - Тип значения: str (путь)
 - Допустимые значения: не ограничены; проверок нет
 - Значение по умолчанию: `"sglang_storage"` — относительный путь, который никогда никуда не разрешается
-- Эффективное значение: совпадает с заданным; `__post_init__` поле не трогает. Никакого «эффективного поведения» у него нет вовсе
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. Никакого «эффективного поведения» у него нет вовсе
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.file_storage_path`
 - Статус: формально обычный (не `hidden`, не `Deprecated*Action`), фактически — не подключенный ни к чему остаток. В `--help` он показывается, что и делает его источником ложных ожиданий
 - Этап применения: отсутствует. Значение доходит до датакласса и на этом останавливается
@@ -45,7 +45,7 @@ The path of the file storage in backend.
 grep -rn "file_storage_path" python/sglang/
 ```
 
-Результат — только объявление в `server_args.py`. В `entrypoints/openai/` нет ни маршрута `/v1/files`, ни `/v1/batches`, ни какого-либо кода, который бы обращался к этому пути. История поля (`git log -S"file_storage_path" -- python/sglang/srt/`) заканчивается коммитом `72676cd6c0` «feat(oai refactor): Replace `openai_api` with `entrypoints/openai` (#7351)», который удалил обработчик `upload_file(file, purpose, file_storage_path)` — единственного потребителя.
+Результат — только объявление поля в `arg_groups/fields/serving.py` и его имя в списке порядка полей `arg_groups/field_order.py`. В `entrypoints/openai/` нет ни маршрута `/v1/files`, ни `/v1/batches`, ни какого-либо кода, который бы обращался к этому пути. История поля (`git log -S"file_storage_path" -- python/sglang/srt/`) заканчивается коммитом `72676cd6c0` «feat(oai refactor): Replace `openai_api` with `entrypoints/openai` (#7351)», который удалил обработчик `upload_file(file, purpose, file_storage_path)` — единственного потребителя.
 
 ## Значения и формат
 
@@ -64,7 +64,7 @@ grep -rn "file_storage_path" python/sglang/
 
 ## Взаимодействие с другими аргументами
 
-Взаимодействий нет: ни один `_handle_*`, ни одна проверка `check_server_args` и ни один другой аргумент это поле не читают. Не путайте его с `--download-dir` (каталог загрузки весов с Hugging Face) и с `--hicache-storage-backend` (внешнее хранилище префиксного KV-кеша) — вот они действующие.
+Взаимодействий нет: ни один шаг резолва, ни одна проверка `check_server_args` и ни один другой аргумент это поле не читают. Не путайте его с `--download-dir` (каталог загрузки весов с Hugging Face) и с `--hicache-storage-backend` (внешнее хранилище префиксного KV-кеша) — вот они действующие.
 
 ## Типовые проблемы и диагностика
 

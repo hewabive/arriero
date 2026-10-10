@@ -16,7 +16,7 @@ related:
 
 ## Кратко
 
-Флаг deprecated. Он сохранен для старых команд запуска, но `_handle_deprecated_args` печатает warning и заменяет его на `image_processor_backend="pil"`. Новые конфигурации должны задавать `--image-processor-backend pil` напрямую.
+Флаг deprecated. Он сохранен для старых команд запуска, но шаг резолва `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`) печатает warning и заменяет его на `image_processor_backend="pil"`. Новые конфигурации должны задавать `--image-processor-backend pil` напрямую.
 
 ## Оригинальная справка
 
@@ -32,11 +32,11 @@ Deprecated. Use --image-processor-backend=pil instead.
 - Значение по умолчанию: `false`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.disable_fast_image_processor`
 - Статус: deprecated; замена — `--image-processor-backend pil`
-- Этап применения: разбор CLI → `_handle_deprecated_args` → загрузка image processor
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` → загрузка image processor
 
 ## Что меняет в движке
 
-Если legacy-флаг установлен, SGLang сначала проверяет актуальное поле. При `auto` или `pil` печатается предупреждение, после чего `image_processor_backend` становится `pil`. Если одновременно явно выбран `torchvision`, старт прекращается из-за конфликта.
+Если legacy-флаг установлен, SGLang сначала проверяет актуальное поле. При `auto` или `pil` печатается предупреждение, после чего шаг декларирует эффективное `image_processor_backend="pil"` через `declare_resolution` (сырое поле `server_args.image_processor_backend` сохраняет ввод оператора, итог виден в `resolved_dict()`). Если одновременно явно выбран `torchvision`, старт прекращается из-за конфликта.
 
 Дальше действует только семантика актуального backend: image sub-processor загружается как PIL-вариант, а `BaseMultimodalProcessor` не передает ему `device=`, оставляя preprocessing на CPU.
 
@@ -77,5 +77,6 @@ python -m sglang.launch_server --model-path /models/Qwen-VL --image-processor-ba
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

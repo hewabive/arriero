@@ -33,10 +33,10 @@ Enabling data parallelism for mm encoder. The dp size will be set to the tp size
 - Тип значения: bool, `action="store_true"`
 - Допустимые значения: значения не принимает — флаг присутствия; пары `--no-...` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется; в `_handle_data_parallelism` только печатается предупреждение или информационная строка
+- Эффективное значение: не переопределяется — ни один шаг резолва его не декларирует; шаг `handle_data_parallelism` (`arg_groups/parallel_hook.py`) только печатает предупреждение или информационную строку, а `handle_language_model_only` (из шага `handle_encoder_disaggregation`) отвергает связку с `--language-model-only`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_enable_dp_encoder`
 - Статус: обычный
-- Этап применения: `__post_init__` (диагностика) → конструирование модели (`self.use_data_parallel` в vision-части) → каждый forward мультимодального prefill
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (диагностика) → конструирование модели (`self.use_data_parallel` в vision-части) → каждый forward мультимодального prefill
 
 ## Что меняет в движке
 
@@ -51,7 +51,7 @@ Enabling data parallelism for mm encoder. The dp size will be set to the tp size
 
 Пункт 4 объясняет, где теряется выигрыш: паддинг идет до максимума по рангам, поэтому при сильно неравномерной раскладке (одна картинка много больше остальных) через all-gather летит заметно больше данных, чем полезной нагрузки.
 
-`__post_init__._handle_data_parallelism` при `--tp-size 1` пишет предупреждение:
+Шаг резолва `handle_data_parallelism` при `--tp-size 1` пишет предупреждение:
 
 ```text
 --mm-enable-dp-encoder is enabled with TP=1, so the encoder has no data-parallel work to distribute. Disable it unless you need to validate this configuration.
@@ -114,6 +114,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-30B-A3B-Instruct --
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/multimodal/mm_utils.py`
 - `sglang/python/sglang/srt/multimodal/encoder_preprocessing.py`
 - `sglang/python/sglang/srt/multimodal/processors/qwen_vl.py`

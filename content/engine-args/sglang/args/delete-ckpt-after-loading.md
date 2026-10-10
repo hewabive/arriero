@@ -17,7 +17,7 @@ related:
 
 ## Кратко
 
-Флаг делает ровно одно: после успешного прогрева сервера вызывает `shutil.rmtree(server_args.model_path)`. Смысл — освободить диск в эфемерном окружении (контейнер, спот-инстанс, CI), где чекпоинт больше не нужен, потому что веса уже в VRAM. Никакого подтверждения, никакого «в корзину» — каталог исчезает. На хосте, где модель лежит в постоянном каталоге, это уничтожение данных.
+Флаг делает ровно одно: после успешного прогрева сервера вызывает `shutil.rmtree` по эффективному `model_path`. Смысл — освободить диск в эфемерном окружении (контейнер, спот-инстанс, CI), где чекпоинт больше не нужен, потому что веса уже в VRAM. Никакого подтверждения, никакого «в корзину» — каталог исчезает. На хосте, где модель лежит в постоянном каталоге, это уничтожение данных.
 
 ## Оригинальная справка
 
@@ -42,8 +42,8 @@ Delete the model checkpoint after loading the model.
 Единственная точка использования — `sglang/python/sglang/srt/entrypoints/http_server.py`:
 
 ```python
-if server_args.delete_ckpt_after_loading:
-    delete_directory(server_args.model_path)
+if get_model().delete_ckpt_after_loading:
+    delete_directory(get_model().model_path)
 ```
 
 `delete_directory` (`sglang/python/sglang/srt/utils/common.py`) — это `shutil.rmtree` с проглатыванием `OSError`: при неудаче печатается предупреждение «Failed to delete directory %s: %s», и сервер продолжает работать.
@@ -51,7 +51,7 @@ if server_args.delete_ckpt_after_loading:
 Ключевые детали момента вызова:
 
 - удаление происходит **после** ожидания весов (`--checkpoint-engine-wait-weights-before-ready`) и после прогрева, то есть когда сервер уже отвечает на запросы;
-- удаляется значение `server_args.model_path` в том виде, в каком оно осталось после `__post_init__` — для ModelScope это уже локальный snapshot-каталог, для обычного HF repo ID это остается идентификатором репозитория, и `rmtree` по нему просто не сработает (предупреждение в лог);
+- удаляется эффективный `model_path` из опубликованного после резолва конфига (`get_model().model_path`), а не сырой ввод `server_args.model_path` — для ModelScope шаг `handle_modelscope_paths` (`arg_groups/model_path_hook.py`) уже подменил его локальным snapshot-каталогом, для обычного HF repo ID это остается идентификатором репозитория, и `rmtree` по нему просто не сработает (предупреждение в лог);
 - для GGUF `--model-path` — это файл, а `rmtree` работает с каталогами; удаления не произойдет, будет предупреждение.
 
 ## Значения и формат
@@ -103,5 +103,6 @@ python -m sglang.launch_server --model-path /scratch/Qwen3-30B-A3B --model-check
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/utils/common.py`

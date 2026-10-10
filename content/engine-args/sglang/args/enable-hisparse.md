@@ -39,7 +39,7 @@ Enable hierarchical sparse attention
 - Эффективное значение: не переопределяется; несовместимые комбинации приводят к ассерту или `ValueError` на старте
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_hisparse`
 - Статус: обычный флаг узкого назначения; путь свежий и активно меняется, часть ограничений в коде помечена как временная
-- Этап применения: валидация в `__post_init__` (`validate_hisparse`) → выбор классов KV-пула и аллокатора → создание `HiSparseCoordinator` в `ModelRunner.initialize()` до захвата CUDA graph → каждый шаг decode
+- Этап применения: валидация в `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`: проход `_hisparse_validation` → `validate_hisparse`), который `Engine._launch_subprocesses` вызывает после `ServerArgs.resolve_once` и перед `publish`; в сам пайплайн резолва эта проверка не входит → выбор классов KV-пула и аллокатора → создание `HiSparseCoordinator` в `ModelRunner.initialize()` до захвата CUDA graph → каждый шаг decode
 
 ## Что меняет в движке
 
@@ -115,6 +115,9 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --trust-remote
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/hisparse_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/mem_cache/sparsity/factory.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

@@ -33,7 +33,7 @@ Choose the kernel backend for multi-LoRA serving.
 - Тип значения: строка
 - Допустимые значения: `triton`, `csgmv`, `ascend`, `torch_native` (константа `LORA_BACKEND_CHOICES`)
 - Значение по умолчанию: `csgmv`
-- Эффективное значение: не переопределяется в `__post_init__`
+- Эффективное значение: ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_backend`
 - Статус: обычный
 - Этап применения: конструктор `LoRAManager` (после загрузки весов модели, до выделения LoRA-пула)

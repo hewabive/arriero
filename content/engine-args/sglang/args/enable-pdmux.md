@@ -35,10 +35,10 @@ Enable PD-Multiplexing, PD running on greenctx stream.
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; движок его не переписывает, но отвергает четырьмя ассертами при несовместимой конфигурации
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует, но движок отвергает четырьмя ассертами при несовместимой конфигурации
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.enable_pdmux`
 - Статус: обычный флаг, но фактически экспериментальный: связанный `adjust_stream_groups` помечен в исходниках как временная демонстрационная реализация
-- Этап применения: разбор CLI → `check_server_args` (четыре ассерта + предупреждение по версии torch) → `Scheduler.init_pdmux` (чтение `--pdmux-config-path`, создание green-context-потоков) → `attention_backend_setup` (создание `--sm-group-num` копий decode-backend'а внимания) → захват CUDA graph по одному набору на каждую группу потоков → `dispatch_event_loop` выбирает `event_loop_pdmux`
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `check_server_args` (`arg_groups/validation_hook.py`; не шаг пайплайна резолва, а проверка, которую `Engine._launch_subprocesses` вызывает после него: четыре ассерта + предупреждение по версии torch) → `Scheduler.init_pdmux` (чтение `--pdmux-config-path`, создание green-context-потоков) → `attention_backend_setup` (создание `--sm-group-num` копий decode-backend'а внимания) → захват CUDA graph по одному набору на каждую группу потоков → `dispatch_event_loop` выбирает `event_loop_pdmux`
 
 ## Что меняет в движке
 
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-32B --enable-pdmux --pdmu
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/multiplex/pdmux_context.py`
 - `sglang/python/sglang/srt/multiplex/multiplexing_mixin.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`

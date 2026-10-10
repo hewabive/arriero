@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-Значение попадает в `logging.basicConfig(level=...)` — сначала в `prepare_server_args` (чтобы предупреждения из `__post_init__` уже были отформатированы), затем в `configure_logger` в каждом порожденном процессе: tokenizer, scheduler на каждом TP/DP-ранге, detokenizer, DP-контроллер, multi-tokenizer-воркеры. Это единственный общий выключатель громкости движка.
+Значение попадает в `logging.basicConfig(level=...)` — сначала в `prepare_server_args` (чтобы предупреждения шагов резолва из `ServerArgs.resolve_once`, который `launch_server.run_server` вызывает следом, уже были отформатированы), затем в `configure_logger` в каждом порожденном процессе: tokenizer, scheduler на каждом TP/DP-ранге, detokenizer, DP-контроллер, multi-tokenizer-воркеры. Это единственный общий выключатель громкости движка.
 
 Две вещи, которые ломают ожидания:
 
@@ -60,7 +60,7 @@ HTTP-слой форматируется иначе: `set_uvicorn_logging_config
 
 - `debug` — дополнительная детализация подсистем (планировщик, кеш, backend'ы внимания); объем на порядок больше, чем на `info`.
 - `info` (по умолчанию) — итоговый дамп `server_args=` при старте (`_launch_subprocesses`, `sglang/python/sglang/srt/entrypoints/engine.py`), выбранный backend, размер KV-пула, периодические строки `Prefill batch` / `Decode batch` (частота — `--decode-log-interval`), access-лог uvicorn.
-- `warning` — дамп `server_args=` пропадает, вместе с ним пропадает и access-лог uvicorn (если `--log-level-http` не задан); остаются предупреждения о deprecated-флагах и автоподборе значений в `__post_init__`.
+- `warning` — дамп `server_args=` пропадает, вместе с ним пропадает и access-лог uvicorn (если `--log-level-http` не задан); остаются предупреждения о deprecated-флагах и автоподборе значений в шагах резолва (`resolve_once`).
 - `error` и выше — практически немой сервер; диагностировать по логу становится нечем.
 
 Уровень можно менять на живом сервере: `POST /configure_logging` с телом `{"log_level": "debug"}` вызывает `logging.getLogger().setLevel(...)` в tokenizer-процессе и рассылает запрос в scheduler и detokenizer (`sglang/python/sglang/srt/managers/tokenizer_manager.py`, `configure_logging.py`). Уровень HTTP-слоя таким образом не меняется.

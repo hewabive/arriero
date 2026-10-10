@@ -32,10 +32,10 @@ Number of iterations to automatically trigger a EPLB re-balance.
 - Тип значения: int (число forward-проходов)
 - Допустимые значения: `choices` нет; ограничение только относительное — не меньше `--expert-distribution-recorder-buffer-size`
 - Значение по умолчанию: `1000`
-- Эффективное значение: не переопределяется, но само становится дефолтом для `--expert-distribution-recorder-buffer-size` (`_handle_expert_distribution_metrics`)
+- Эффективное значение: ни один шаг резолва его не декларирует, но само становится дефолтом для `--expert-distribution-recorder-buffer-size` (шаг `handle_expert_distribution_metrics`, `arg_groups/parallel_hook.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_rebalance_num_iterations`
 - Статус: обычный
-- Этап применения: `__post_init__` (как дефолт буфера) → конструктор `EPLBManager` → конец каждого forward-прохода
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_expert_distribution_metrics` (как дефолт буфера) → конструктор `EPLBManager` → конец каждого forward-прохода
 
 ## Что меняет в движке
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`

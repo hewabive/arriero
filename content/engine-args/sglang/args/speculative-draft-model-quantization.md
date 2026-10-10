@@ -33,10 +33,10 @@ The quantization method for speculative model.
 - Тип значения: строка (`Optional[str]`)
 - Допустимые значения (из `choices`): `awq`, `fp8`, `mxfp8`, `gptq`, `gptq_marlin`, `awq_marlin`, `bitsandbytes`, `gguf`, `modelopt`, `modelopt_fp8`, `modelopt_fp4`, `nvfp4_online`, `modelopt_mixed`, `petit_nvfp4`, `w8a8_int8`, `w8a8_fp8`, `moe_wna16`, `w4afp8`, `mxfp4`, `auto-round`, `auto-round-int8`, `compressed-tensors`, `modelslim`, `mxfp_w4a8`, `quark`, `quark_int4fp8_moe`, `quark_mxfp4`, `mlx_q4`, `mlx_q8`, `unquant`, `humming`. Это общий список методов SGLang; какие из них реально работают, зависит от железа и установленных пакетов (на ROCm поддерживается заметно меньший набор)
 - Значение по умолчанию: `null`
-- Эффективное значение: в `_handle_missing_default_values` при `None` подставляется `--quantization`; значение `unquant` затем превращается в `None` (то есть «грузить как есть»). Факт того, что оператор задал аргумент явно, запоминается во внутреннем поле `_speculative_draft_quantization_explicitly_set` (без CLI-поверхности) и позже позволяет online-квантизации draft'а победить автодетект чекпоинта
+- Эффективное значение: шаг резолва `handle_missing_default_values` (`arg_groups/serving_hook.py`) при `None` декларирует значение `--quantization`; `unquant` затем декларируется как `None` (то есть «грузить как есть»). Сам `server_args.speculative_draft_model_quantization` хранит ввод оператора, итог читается через `get_spec()`. Факт того, что оператор задал аргумент явно, тот же шаг декларирует во внутреннем поле `_speculative_draft_quantization_explicitly_set` (без CLI-поверхности) и позже позволяет online-квантизации draft'а победить автодетект чекпоинта
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_quantization`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_missing_default_values`) → `ModelConfig.from_server_args(..., is_draft_model=True)` → `_verify_quantization` → загрузка весов draft-воркера
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_missing_default_values` (`arg_groups/serving_hook.py`) → `ModelConfig.from_server_args(..., is_draft_model=True)` → `_verify_quantization` → загрузка весов draft-воркера
 
 ## Что меняет в движке
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-70B-FP8 --quantiza
 
 - `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`
 - `sglang/python/sglang/srt/models/qwen3_next_mtp.py`

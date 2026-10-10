@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-Режим отладки численных расхождений: движок регистрирует `register_forward_hook` на каждом листовом модуле модели, копирует все выходы на CPU и после каждого полного прохода пишет их одним `torch.save` в файл `Pass<NNNNN>.pt`. Включение аргумента **меняет конфигурацию сервера**: `__post_init__` принудительно выключает CUDA graph для prefill и decode и ставит `skip_server_warmup=True`. Это не наблюдаемость в эксплуатационном смысле — это инструмент для сравнения тензоров между двумя сборками, и на нагруженном сервере он неприменим ни по скорости, ни по объему.
+Режим отладки численных расхождений: движок регистрирует `register_forward_hook` на каждом листовом модуле модели, копирует все выходы на CPU и после каждого полного прохода пишет их одним `torch.save` в файл `Pass<NNNNN>.pt`. Включение аргумента **меняет конфигурацию сервера**: шаг резолва `handle_other_validations` (`arg_groups/serving_hook.py`) принудительно выключает CUDA graph для prefill и decode и ставит `skip_server_warmup=True`. Это не наблюдаемость в эксплуатационном смысле — это инструмент для сравнения тензоров между двумя сборками, и на нагруженном сервере он неприменим ни по скорости, ни по объему.
 
 ## Оригинальная справка
 
@@ -35,10 +35,10 @@ The output folder for dumping tensors. In Eagle mode, tensor outputs from draft 
 - Тип значения: str — путь к каталогу
 - Допустимые значения: `choices` нет; существование пути не проверяется, подкаталоги создаются рекурсивно при инициализации дампера
 - Значение по умолчанию: `null` — дамп выключен
-- Эффективное значение: совпадает с заданным, но **само его наличие переписывает три других поля**: `cuda_graph_config.decode.backend = DISABLED`, `cuda_graph_config.prefill.backend = DISABLED`, `skip_server_warmup = True` (в `__post_init__`, с предупреждением в логе)
+- Эффективное значение: совпадает с заданным, но **само его наличие переписывает три других поля**: `cuda_graph_config.decode.backend = DISABLED`, `cuda_graph_config.prefill.backend = DISABLED`, `skip_server_warmup = True` (шаг `handle_other_validations` декларирует их через `declare_resolution` с предупреждением в логе; поля `server_args` хранят ввод оператора, а HTTP-слой и model runner читают итог через `get_serving()` / `get_<bag>()`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.debug_tensor_dump_output_folder`
 - Статус: обычный, но отладочный; в исходниках рядом с объявлением соседнего поля оставлен комментарий-напоминание о будущем удалении старого кода дампера, а на смену этому пути идет не-интрузивный дампер `sglang/python/sglang/srt/debug_utils/dumper.py`, включаемый не через CLI
-- Этап применения: `__post_init__` (переопределение графов и warmup) → загрузка весов в model runner (`maybe_register_debug_tensor_dump_hook`) → каждый forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_other_validations` (переопределение графов и warmup) → загрузка весов в model runner (`maybe_register_debug_tensor_dump_hook`) → каждый forward
 
 ## Что меняет в движке
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tp-size 2 --
 
 - `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/debug_utils/tensor_dump_forward_hook.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

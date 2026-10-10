@@ -36,10 +36,10 @@ The custom labels allowed for tokenizer metrics. The labels are specified via a 
 - Тип значения: список строк, `nargs="+"` — имена меток через пробел
 - Допустимые значения: `choices` нет. Имена должны быть корректными именами меток Prometheus (`prometheus_client` отвергнет недопустимое имя при создании метрики)
 - Значение по умолчанию: `None` — пользовательские метки выключены
-- Эффективное значение: совпадает с заданным. `__post_init__` проверяет связку: непустой список при пустом `--tokenizer-metrics-custom-labels-header` дает `ValueError: Please set --tokenizer-metrics-custom-labels-header when setting --tokenizer-metrics-allowed-custom-labels.`
+- Эффективное значение: совпадает с заданным. `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`) проверяет связку: непустой список при пустом `--tokenizer-metrics-custom-labels-header` дает `ValueError: Please set --tokenizer-metrics-custom-labels-header when setting --tokenizer-metrics-allowed-custom-labels.`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.tokenizer_metrics_allowed_custom_labels`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка) → инициализация `TokenizerManager` (регистрация имен меток в коллекторе) → HTTP-обработчики `/v1/chat/completions` и `/v1/completions`
+- Этап применения: `ServerArgs.resolve_once` → `ServerArgs.check_server_args` (проверка; вызывается из `Engine._launch_subprocesses` до `publish`) → инициализация `TokenizerManager` (регистрация имен меток в коллекторе) → HTTP-обработчики `/v1/chat/completions` и `/v1/completions`
 
 ## Что меняет в движке
 
@@ -124,4 +124,5 @@ curl -sS http://127.0.0.1:30000/v1/chat/completions -H 'Content-Type: applicatio
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `apps/api/src/proxy/http.ts`

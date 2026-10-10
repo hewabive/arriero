@@ -38,7 +38,7 @@ DSA (DeepSeek Sparse Attention) decode backend. If not specified, auto-detects b
 - Эффективное значение: `_dsa_split_backend_resolution` (`sglang/python/sglang/srt/arg_groups/overrides.py`), только для DSA-моделей из `_DEEPSEEK_FAMILY_ARCHS` и не на NPU/XPU. GLM DSA на SM120 с fp8 → `flashinfer_sparse_mla`; `--enable-hisparse` → своя ветка; ROCm при обоих незаданных полях → `tilelang`; `--kv-cache-dtype fp8_e4m3` → `trtllm` на Blackwell, `flashmla_kv` на Hopper; иначе → `trtllm` на Blackwell и `fa3` на более старых картах. Итог печатается warning'ом `Set DSA backends for <dtype> KV Cache: prefill=…, decode=…`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_decode_backend`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (автоподбор и проверки) → конфигурация KV-пула → конструктор `DeepseekSparseAttnBackend` (аллокация workspace) → каждый шаг декодирования
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_model_specific_adjustments` (pass `_dsa_split_backend_resolution`: автоподбор и проверки) → конфигурация KV-пула → конструктор `DeepseekSparseAttnBackend` (аллокация workspace) → каждый шаг декодирования
 
 ## Что меняет в движке
 
@@ -46,7 +46,7 @@ DSA (DeepSeek Sparse Attention) decode backend. If not specified, auto-detects b
 - `flashmla_sparse_q8` в decode отвергается прямо в конструкторе: `--dsa-decode-backend flashmla_sparse_q8 is not supported: flashmla_sparse_q8 is a prefill-only backend. For FP8, use --dsa-prefill-backend flashmla_sparse_q8 together with --dsa-decode-backend flashmla_kv.` Это не подбор, а отказ старта.
 - **Аллокация workspace зависит от decode-стороны.** Если выбран `flashinfer_sparse_mla` (после валидации `_validate_flashinfer_sparse_mla_backend` по архитектуре, SM и типу KV) — выделяется `dsa_flashinfer_sparse_mla_workspace`. Иначе, если карта SM100+ **или** decode-backend `trtllm`, выделяется `dsa_trtllm_workspace` плюс персистентный буфер счетчиков multi-CTA размером под `--max-running-requests`. В остальных случаях workspace не выделяется вовсе.
 - На ROCm при `aiter` и fp8-KV заранее готовятся метаданные декода aiter (`_ensure_aiter_dsa_decode_metadata_buffer`), и число голов дополняется до кратного 16.
-- `tilelang` на CUDA несовместим с fp8-KV (`_check_tilelang_dsa_fp8_kv`, `ValueError` на старте); на ROCm совместим.
+- `tilelang` на CUDA несовместим с fp8-KV (`_check_dsa_backend_constraints` в `sglang/python/sglang/srt/arg_groups/overrides.py`, вызывается из pass'а `_dsa_split_backend_resolution`; `ValueError` на старте); на ROCm совместим.
 - Раскладка KV-пула учитывает decode-поле: `kv_cache_configurator.py` отдельно ветвится на `trtllm` и на пару `tilelang`/`aiter`.
 
 ## Значения и формат

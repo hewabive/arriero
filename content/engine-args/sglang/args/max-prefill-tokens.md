@@ -44,7 +44,7 @@ Examples:
 - Тип значения: целое (`int`), парсится `human_readable_int`
 - Допустимые значения: положительное целое, опционально с суффиксом SI (`k`, `M`, `G`, `T`) или IEC (`Ki`, `Mi`, `Gi`, `Ti`); суффиксы регистрозависимы, дробная часть допустима только с SI
 - Значение по умолчанию: `16384`
-- Эффективное значение: не переопределяется ни `__post_init__`, ни `_handle_*` — значение попадает в scheduler как есть
+- Эффективное значение: не переопределяется — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует, значение попадает в scheduler как есть
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_prefill_tokens`
 - Статус: обычный
 - Этап применения: `Scheduler` через `TpModelWorker.get_worker_info()` → `PrefillAdder` на каждом проходе планирования
@@ -61,7 +61,7 @@ Examples:
 
 - автоподбор `--mem-fraction-static`, если chunked prefill выключен: `activation_tokens = max(max_prefill_tokens, 2048)`;
 - `--enable-dynamic-chunking` при `--pp-size > 1`: предсказанный размер куска ограничивается сверху `max_prefill_tokens`, и от этой же величины считается верхняя граница prefill-буфера;
-- бюджет токенов CuteDSL MoE all-to-all (`cutedsl_moe_max_num_tokens`), где недостаточный лимит диспетчера FlashInfer приводит к отказу на старте;
+- бюджет токенов CuteDSL MoE all-to-all (`cutedsl_moe_max_num_tokens` в `python/sglang/srt/arg_groups/overrides.py`), где недостаточный лимит диспетчера FlashInfer приводит к отказу на старте;
 - прогрев автотюнера FlashInfer, который прогоняет фиктивный extend-батч на `max_prefill_tokens` токенов.
 
 ## Значения и формат
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --chunked-pref
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

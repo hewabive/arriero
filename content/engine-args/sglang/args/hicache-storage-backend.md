@@ -37,10 +37,10 @@ The storage backend for hierarchical KV cache. Built-in backends: file, mooncake
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
 - Допустимые значения: `file`, `sim`, `mooncake`, `npu_memcache`, `hf3fs`, `nixl`, `aibrix`, `dynamic`, `eic`, `simm`, `mori`, `shm`, `tensorcast`
 - Значение по умолчанию: `null` — L3 не подключен, HiCache работает как двухуровневый (L1+L2)
-- Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — `mooncake` и `npu_memcache` переписывают `--hicache-mem-layout layer_first` в `page_first`/`page_first_direct`, а `shm` (и `dynamic` с `"allocator": "shm"`), `mooncake`, `mori` и `tensorcast` подменяют аллокатор host-пула (`get_allocator_from_storage` в `mem_cache/pool_host/common.py`)
+- Эффективное значение: не переопределяется; но выбор backend'а меняет **другие** значения — для `mooncake` и `npu_memcache` шаг резолва `handle_hicache` (через `resolve_storage_layout_compatibility` в `arg_groups/hicache_hook.py`) декларирует вместо `--hicache-mem-layout layer_first` раскладку `page_first`/`page_first_direct`, а `shm` (и `dynamic` с `"allocator": "shm"`), `mooncake`, `mori` и `tensorcast` подменяют аллокатор host-пула (`get_allocator_from_storage` в `mem_cache/pool_host/common.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_storage_backend`
 - Статус: обычный; конкретные backend'ы — сторонние интеграции разной зрелости
-- Этап применения: `__post_init__` (`_handle_hicache`, `_handle_cache_compatibility`) → `HiCacheController.attach_storage_backend` при инициализации дерева кеша
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_hicache` (`python/sglang/srt/arg_groups/hicache_hook.py`) и `handle_cache_compatibility` (`python/sglang/srt/arg_groups/kv_cache_hook.py`) → `HiCacheController.attach_storage_backend` при инициализации дерева кеша
 
 ## Что меняет в движке
 
@@ -128,6 +128,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/python/sglang/srt/mem_cache/storage/tensorcast_store/README.md`
 - `sglang/python/sglang/srt/mem_cache/storage/tensorcast_store/tensorcast_store.py`
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/storage/backend_factory.py`
 - `sglang/python/sglang/srt/mem_cache/hicache_storage.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/common.py`

@@ -23,7 +23,7 @@ related:
 
 ## Кратко
 
-`--attention-backend` определяет, какая реализация внимания создается для модели: FlashAttention (fa3/fa4), FlashInfer, Triton, TRT-LLM (MHA и MLA), FlashMLA, CuTe DSL MLA, торч-нативные пути и платформенные backend'ы AMD/Ascend/Intel. Это самый нагруженный аргумент группы `exec.kernel`: он тянет за собой обязательный `--page-size`, ограничивает допустимые `--kv-cache-dtype`, включает или выключает CUDA graph, chunked prefix cache и radix cache, и участвует в проверках почти каждой модельной ветки `_handle_model_specific_adjustments`. Оставленный незаданным, он подбирается движком; заданный вручную — жестко проверяется, и часть проверок это не ошибка, а тихая подмена значения с записью в лог.
+`--attention-backend` определяет, какая реализация внимания создается для модели: FlashAttention (fa3/fa4), FlashInfer, Triton, TRT-LLM (MHA и MLA), FlashMLA, CuTe DSL MLA, торч-нативные пути и платформенные backend'ы AMD/Ascend/Intel. Это самый нагруженный аргумент группы `exec.kernel`: он тянет за собой обязательный `--page-size`, ограничивает допустимые `--kv-cache-dtype`, включает или выключает CUDA graph, chunked prefix cache и radix cache, и участвует в проверках почти каждой модельной ветки `handle_model_specific_adjustments`. Оставленный незаданным, он подбирается движком; заданный вручную — жестко проверяется, и часть проверок это не ошибка, а тихая подмена значения с записью в лог.
 
 ## Оригинальная справка
 
@@ -36,12 +36,12 @@ Choose the kernels for attention layers.
 - Флаги: `--attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_attention_backend_choices` позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
+- Допустимые значения (из `choices`): `triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`. Список — константа `ATTENTION_BACKEND_CHOICES` в `sglang/python/sglang/srt/arg_groups/choices.py` (server_args.py ее только реэкспортирует); алиас `add_attention_backend_choices = ATTENTION_BACKEND_CHOICES.extend` там же позволяет out-of-tree платформенным пакетам его расширить, поэтому итоговый набор смотрите в `--help` установленной сборки. `nsa` — устаревший синоним `dsa`, `compressed` — устаревший синоним `dsv4`
 - Значение по умолчанию: `null` — «подберет движок»
-- Эффективное значение: переписывается на нескольких шагах `__post_init__` — платформенные обработчики (`_handle_hpu_backends`, `_handle_cpu_backends`, `_handle_npu_backends`), модельные переопределения в `_handle_model_specific_adjustments`, детерминированный режим (`_deterministic_attention_backend`), затем `_handle_attention_backend_compatibility` (`_attention_backend_default`, `_attention_backend_fa3_fp8_fallback`, `_attention_backend_platform_fallbacks`, `_attention_backend_dual_chunk`)
+- Эффективное значение: `server_args.attention_backend` хранит ввод оператора, а итог декларируют (`declare_resolution`) несколько шагов `ServerArgs.resolve_once` → `run_resolution_pipeline` — платформенные шаги `handle_hpu_backends`, `handle_cpu_backends`, `handle_npu_backends` (`arg_groups/platform_hook.py`), модельные переопределения в `handle_model_specific_adjustments` (`arg_groups/model_hook.py`), детерминированный режим (pass `_deterministic_attention_backend` внутри `handle_deterministic_inference`), затем `handle_attention_backend_compatibility` (`arg_groups/attention_hook.py`: passes `_attention_backend_default`, `_attention_backend_fa3_fp8_fallback`, `_attention_backend_platform_fallbacks`); последняя декларация видна в `resolved_dict()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`, то есть проходит через пайплайн деклараций `arg_groups/overrides.py`
-- Этап применения: разбор CLI → `__post_init__` (подбор и проверки, попутные правки `--page-size`, CUDA graph, radix cache) → создание backend'а в model runner (`ATTENTION_BACKENDS[...]`, там же вторая волна отказов) → захват CUDA graph → каждый forward
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline` (подбор и проверки, попутные правки `--page-size`, CUDA graph, radix cache) → создание backend'а в model runner (`ATTENTION_BACKENDS[...]`, там же вторая волна отказов) → захват CUDA graph → каждый forward
 
 ## Что меняет в движке
 
@@ -55,12 +55,12 @@ Choose the kernels for attention layers.
 
 ### Как выбирается backend, если аргумент не задан
 
-Порядок — это порядок вызовов в `ServerArgs.__post_init__`, и каждый следующий шаг видит результат предыдущего.
+Порядок — это порядок шагов `run_resolution_pipeline` (`python/sglang/srt/arg_groups/pipeline.py`), и каждый следующий шаг видит декларации предыдущих.
 
 1. **Платформа.** `--device hpu` жестко ставит `torch_native`; `--device cpu` при незаданном значении ставит `intel_amx` (или `torch_native` на ARM-хосте); `--device npu` через `set_default_server_args` пишет `ascend` **во все три** поля (`attention_backend`, `prefill_…`, `decode_…`) независимо от того, что задал оператор.
-2. **Архитектура модели** (`_handle_model_specific_adjustments` и реестр `arg_groups/overrides.py`). Эти переопределения срабатывают только если не задан ни один из трех флагов (`ServerArgs.is_attention_backend_not_set()`). Примеры из checkout'а: DeepSeek с DSA (V3.2, GLM DSA) → `dsa` плюс `--page-size 64`; DeepSeek V4 → `dsv4` плюс `--page-size 256` (128 на NPU); DeepSeek V3/R1 на SM100 → `trtllm_mla`; Qwen3-Next/Qwen3.5-гибриды на SM100 → `triton` или `trtllm_mha`; Lfm2 на SM100 → `flashinfer`.
+2. **Архитектура модели** (`handle_model_specific_adjustments` и провайдеры `arg_groups/model_overrides/`). Эти переопределения срабатывают только если не задан ни один из трех флагов (`is_attention_backend_not_set(cfg)` в `arg_groups/model_override_base.py`). Примеры из checkout'а: DeepSeek с DSA (V3.2, GLM DSA) → `dsa` плюс `--page-size 64`; DeepSeek V4 → `dsv4` плюс `--page-size 256` (128 на NPU); DeepSeek V3/R1 на SM100 → `trtllm_mla`; Qwen3-Next/Qwen3.5-гибриды на SM100 → `triton` или `trtllm_mha`; Lfm2 на SM100 → `flashinfer`.
 3. **Детерминированный режим.** При `--enable-deterministic-inference` и незаданном backend'е `_deterministic_attention_backend` выбирает `triton` (Blackwell + DeepSeek), `flashinfer` (Blackwell, не DeepSeek) либо `fa3` (SM90 и старше) и пишет warning со списком допустимых значений.
-4. **Общий автоподбор** — `ServerArgs._get_default_attn_backend(use_mla_backend, model_config)`:
+4. **Общий автоподбор** — `get_default_attn_backend(server_args, use_mla_backend, model_config)` из `arg_groups/model_override_base.py`, его вызывает pass `_attention_backend_default` внутри `handle_attention_backend_compatibility`:
    - out-of-tree платформа — свой `current_platform.get_default_attention_backend()`;
    - Whisper — всегда `flashinfer` (cross-attention под CUDA graph);
    - **MHA**: Hopper с CUDA ≥ 12.3 и без спекуляции с topk > 1 → `fa3`; SM100 без спекуляции с topk > 1 → `trtllm_mha`, а при асимметричных K/V (`has_asymmetric_kv`) → `fa4`; ROCm → `aiter`; MPS → `torch_native`; иначе `flashinfer`, если он установлен и у модели нет attention sinks, иначе `triton`;
@@ -80,8 +80,8 @@ Choose the kernels for attention layers.
 
 ## Значения и формат
 
-- Значение вне списка отвергает argparse (`invalid choice`). Значение из списка, но неподходящее вашей модели или карте, отвергается ассертом/`ValueError` — на этапе `__post_init__` либо при создании backend'а в model runner.
-- `nsa` и `compressed` — устаревшие синонимы. `compressed` нормализуется в `dsv4` прямо в `_handle_deprecated_args` (для всех четырех полей, включая `--speculative-draft-attention-backend`) с предупреждением `--attention-backend=compressed is deprecated; use 'dsv4' instead.`; `nsa` остается в реестре и печатает `DeprecationWarning` при создании DSA-backend'а. В новых конфигурациях используйте `dsa` и `dsv4`.
+- Значение вне списка отвергает argparse (`invalid choice`). Значение из списка, но неподходящее вашей модели или карте, отвергается ассертом/`ValueError` — на этапе резолва (`resolve_once`) либо при создании backend'а в model runner.
+- `nsa` и `compressed` — устаревшие синонимы. `compressed` нормализуется в `dsv4` прямо в шаге `handle_deprecated_args` (`arg_groups/serving_hook.py`; для всех четырех полей, включая `--speculative-draft-attention-backend`) с предупреждением `--attention-backend=compressed is deprecated; use 'dsv4' instead.`; `nsa` остается в реестре и печатает `DeprecationWarning` при создании DSA-backend'а. В новых конфигурациях используйте `dsa` и `dsv4`.
 - `dsa` и `dsv4` — не универсальные ядра, а backend'ы конкретных архитектур: `DeepseekSparseAttnBackend` падает ассертом `DSA backend only supports DeepSeek DSA`, если модель не DSA.
 - `null` (аргумент не задан) — единственный способ получить автоподбор. Задать «auto» строкой нельзя, такого значения в `choices` нет.
 
@@ -158,6 +158,13 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/pipeline.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/misc_utils.py`

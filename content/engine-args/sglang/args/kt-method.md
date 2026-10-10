@@ -31,7 +31,7 @@ related:
 - Тип значения: строка
 - Допустимые значения: `choices` в extract нет — argparse принимает любую строку. Реальный список зашит в kt-kernel: `INFERENCE_METHODS` в `ktransformers/kt-kernel/python/experts.py` (на момент checkout'а — `AMXINT4`, `AMXINT8`, `RAWINT4`, `FP8`, `BF16`, `FP8_PERCHANNEL`, `GPTQ_INT4`, `SYCL_GPTQ_INT4`, `MXFP4`, `MXFP8`, `LLAMAFILE`, `MOE_INT4`, `MOE_INT8`). Свой список смотрите в установленном пакете: `python -c "from kt_kernel.experts import INFERENCE_METHODS; print(sorted(INFERENCE_METHODS))"` либо в `--help` установленной сборки, если она из форка добавляет `choices`.
 - Значение по умолчанию: `AMXINT4`
-- Эффективное значение: не переопределяется; ни один `_handle_*` в `ServerArgs.__post_init__` не читает это поле
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) это поле не читает и не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_method`
 - Статус: обычный, но полностью реализован во внешнем пакете `kt_kernel`
 - Этап применения: конструктор `FusedMoE` (создание `KTMoEWrapper`) и загрузка весов слоя

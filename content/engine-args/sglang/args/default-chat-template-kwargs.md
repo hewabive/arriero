@@ -35,10 +35,10 @@ Default chat template kwargs applied to every request when not overridden per-re
 - Тип значения: JSON-объект (в extract `type: json`), разбирается `json.loads` на этапе argparse
 - Допустимые значения: `choices` нет. Имена ключей диктует chat-шаблон конкретной модели; значения — любые JSON-типы
 - Значение по умолчанию: `null` — ничего не подставляется
-- Эффективное значение: `__post_init__` значение не меняет, но `_handle_other_validations` требует, чтобы результат разбора был именно объектом
+- Эффективное значение: ни один шаг резолва его не декларирует, но шаг `handle_other_validations` (`arg_groups/serving_hook.py`) требует, чтобы результат разбора был именно объектом
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.default_chat_template_kwargs`
 - Статус: обычный
-- Этап применения: разбор CLI (`json.loads`) → валидация в `__post_init__` → рендеринг каждого запроса к `/v1/chat/completions`
+- Этап применения: разбор CLI (`json.loads`) → валидация в `ServerArgs.resolve_once` (шаг `handle_other_validations`) → рендеринг каждого запроса к `/v1/chat/completions`
 
 ## Что меняет в движке
 
@@ -66,7 +66,7 @@ if self.default_chat_template_kwargs:
 ## Значения и формат
 
 - Одна JSON-строка в кавычках оболочки: `--default-chat-template-kwargs '{"enable_thinking": false}'`.
-- Верхний уровень обязан быть объектом. Иначе — `ValueError: --default-chat-template-kwargs must decode to a JSON object` при инициализации `ServerArgs`.
+- Верхний уровень обязан быть объектом. Иначе — `ValueError: --default-chat-template-kwargs must decode to a JSON object` при резолве аргументов на старте (`resolve_once`).
 - Невалидный JSON отвергает argparse на этапе разбора (`json.loads` как `type`).
 - Значения передаются в Jinja как есть: `false` — булево, `"false"` — строка. Для `enable_thinking` это критично: строка `"false"` в Jinja истинна.
 - Специальных значений (`null`, `auto`, пустой объект) нет; `{}` эквивалентен «не задан» — проверка `if self.default_chat_template_kwargs:` falsy для пустого словаря.
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --default-chat
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`
 - `sglang/python/sglang/srt/entrypoints/openai/protocol.py`
 - `sglang/python/sglang/srt/parser/template_manager.py`

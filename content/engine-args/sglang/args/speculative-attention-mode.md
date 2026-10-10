@@ -33,10 +33,10 @@ Attention backend for speculative decoding operations (both target verify and dr
 - Тип значения: строка
 - Допустимые значения: `prefill`, `decode` (`choices` из extract; argparse отвергает всё остальное)
 - Значение по умолчанию: `prefill`
-- Эффективное значение: поле помечено `resolvable=True`, то есть реестр модельных override'ов может его переписать. Сегодня это делает Kimi-K3: при `--dcp-size > 1` вместе с `DSPARK` режим принудительно становится `decode` (иначе verify уходит на `trtllm_mla`, у которого нет DCP-пути), и на SM100/SM103 — `decode`, если decode-backend способен обслужить verify при данном `q_len`
+- Эффективное значение: поле помечено `resolvable=True`, то есть реестр модельных override'ов может его переписать. Сегодня это делает Kimi-K3: при `--dcp-size > 1` вместе с `DSPARK` режим принудительно становится `decode` (иначе verify уходит на `trtllm_mla`, у которого нет DCP-пути), и на SM100/SM103 — `decode`, если decode-backend способен обслужить verify при данном `q_len` (`python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`). Кроме того, шаг резолва `handle_kv4_compatibility` (`python/sglang/srt/arg_groups/kv_cache_hook.py`) с предупреждением переводит `prefill` в `decode` при спекулятивном декодировании со смешанным NVFP4 KV-кешем на SM100, где target verify уходит на `trtllm_mha`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_attention_mode`
 - Статус: обычный
-- Этап применения: `__post_init__` (модельные override'ы) → сборка `HybridAttnBackend` и draft-extend-backend'а → каждый forward фазы `target_verify` / `draft_extend`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (модельные override'ы в шаге `handle_model_specific_adjustments`, затем `handle_kv4_compatibility`) → сборка `HybridAttnBackend` и draft-extend-backend'а → каждый forward фазы `target_verify` / `draft_extend`
 
 ## Что меняет в движке
 
@@ -102,5 +102,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`
 - `sglang/python/sglang/srt/speculative/draft_utils.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
 - `sglang/python/sglang/srt/models/deepseek_v2.py`
 - `sglang/docs/docs/advanced_features/speculative_decoding.mdx`

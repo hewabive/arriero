@@ -34,11 +34,11 @@ Maximum size in MiB for one client-supplied remote media download. The limit is 
 - Значение по умолчанию: `64` МиБ
 - Допустимые значения: неотрицательные целые; отрицательное значение отвергается в `configure_media_url_security`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.media_url_max_file_size_mb`
-- Этап применения: нормализация в `__post_init__` → process-wide policy в каждом multimedia worker → streaming HTTP(S)-download до decode/preprocess
+- Этап применения: нормализация в шаге резолва `handle_media_url_security` (`ServerArgs.resolve_once` → `run_resolution_pipeline`, еще до проверки dummy-модели) → process-wide policy в каждом multimedia worker → streaming HTTP(S)-download до decode/preprocess
 
 ## Что меняет в движке
 
-`ServerArgs._handle_media_url_security` передаёт значение в `configure_media_url_security`, где МиБ переводятся в байты. `download_remote_media` затем делает запрос с `stream=True`, запрещает автоматические redirects и проверяет каждый новый destination отдельно.
+Шаг резолва `handle_media_url_security` (`arg_groups/serving_hook.py`) передаёт значение в `configure_media_url_security`, где МиБ переводятся в байты. `download_remote_media` затем делает запрос с `stream=True`, запрещает автоматические redirects и проверяет каждый новый destination отдельно.
 
 После успешного HTTP-ответа код сначала сравнивает числовой `Content-Length` с лимитом. Независимо от заголовка тело читается чанками по 64 КиБ; следующий чанк, пересекающий границу, вызывает `ValueError` до добавления в буфер. Та же process-wide policy устанавливается в процессоре, поэтому правило применяется к общим image/video/audio loaders и model-specific загрузчикам, использующим этот helper.
 
@@ -87,6 +87,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --media
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/test/registered/unit/multimodal/test_media_url_security.py`

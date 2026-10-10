@@ -35,7 +35,7 @@ The buckets of time to first token, specified as a list of floats.
 - Тип значения: список float (`Optional[List[float]]`); argparse получает `nargs="+"`, `type=float` — значения пишутся через пробел
 - Допустимые значения: `choices` нет. Список должен быть строго возрастающим — проверку выполняет сам `prometheus_client` в конструкторе `Histogram`, он же дописывает верхнюю границу `+Inf`
 - Значение по умолчанию: `null`. Реальные границы по умолчанию зашиты в `TokenizerMetricsCollector.__init__`: `0.1, 0.2, 0.4, 0.6, 0.8, 1, 2, 4, 6, 8, 10, 20, 40, 60, 80, 100, 200, 400`
-- Эффективное значение: `__post_init__` его не трогает; подстановка дефолта происходит позже, уже в конструкторе коллектора (`if bucket_time_to_first_token is None: …`)
+- Эффективное значение: ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует; подстановка дефолта происходит позже, уже в конструкторе коллектора (`if bucket_time_to_first_token is None: …`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.bucket_time_to_first_token`
 - Статус: обычный
 - Этап применения: конструктор `TokenizerManager` → конструктор `TokenizerMetricsCollector` (создание гистограммы)

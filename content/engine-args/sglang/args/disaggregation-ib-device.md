@@ -33,10 +33,10 @@ The InfiniBand devices for disaggregation transfer. Supports a single device (e.
 - Тип значения: str (`Optional[str]`) в трех формах: список через запятую, JSON-объект, путь к `.json`-файлу
 - Допустимые значения: `choices` нет; фактический список ограничен содержимым `/sys/class/infiniband` на конкретном хосте — посмотреть его можно `ls /sys/class/infiniband`
 - Значение по умолчанию: `null` (не задан) — mooncake ищет устройства сам
-- Эффективное значение: переписывается `_validate_ib_devices` в **нормализованную** строку — дубликаты убираются, пробелы срезаются, JSON пересобирается компактно (`json.dumps(..., separators=(",", ":"))`). При `--disaggregation-transfer-backend mooncake_tcp` значение принудительно сбрасывается в `None` еще раньше, в `handle_pd_disaggregation`
+- Эффективное значение: шаг `handle_encoder_disaggregation` декларирует результат `validate_ib_devices` — **нормализованную** строку (сам `server_args.disaggregation_ib_device` хранит исходный ввод) — дубликаты убираются, пробелы срезаются, JSON пересобирается компактно (`json.dumps(..., separators=(",", ":"))`). При `--disaggregation-transfer-backend mooncake_tcp` значение принудительно сбрасывается в `None` еще раньше, в `handle_pd_disaggregation`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_ib_device`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_pd_disaggregation` (сброс при `mooncake_tcp`) → `_handle_encoder_disaggregation` → `_validate_ib_devices` (чтение sysfs, нормализация) → `MooncakeTransferEngine.__init__` на каждом ранге, где устройство выбирается по `gpu_id`
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_pd_disaggregation` (`arg_groups/pd_disaggregation_hook.py`, сброс при `mooncake_tcp`) → `handle_encoder_disaggregation` (тот же файл) → `validate_ib_devices` (`arg_groups/validation_hook.py`, чтение sysfs, нормализация) → `MooncakeTransferEngine.__init__` на каждом ранге, где устройство выбирается по `gpu_id`
 
 ## Что меняет в движке
 
@@ -46,7 +46,7 @@ The InfiniBand devices for disaggregation transfer. Supports a single device (e.
 2. заканчивается на `.json` → файл читается с диска; отсутствие файла — `RuntimeError: File ... does not exist.`;
 3. начинается с `{` → парсится как JSON-объект `{"<gpu_id>": "<devices>"}`.
 
-Дальше `_validate_ib_devices` в `ServerArgs`:
+Дальше `validate_ib_devices` (`arg_groups/validation_hook.py`, вызывается из шага `handle_encoder_disaggregation`):
 
 - проверяет наличие каталога `/sys/class/infiniband`, иначе `RuntimeError: InfiniBand sysfs path not found: /sys/class/infiniband. Please ensure InfiniBand drivers are installed.`;
 - проверяет, что каталог не пуст, иначе `RuntimeError: No IB devices found in /sys/class/infiniband`;
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/mooncake_transfer_engine.py`
 - `sglang/python/sglang/srt/disaggregation/mooncake/conn.py`
 - `sglang/docs/docs/advanced_features/pd_disaggregation.mdx`

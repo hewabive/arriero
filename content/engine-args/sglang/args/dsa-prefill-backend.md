@@ -38,14 +38,14 @@ DSA (DeepSeek Sparse Attention) prefill backend. If not specified, auto-detects 
 - Эффективное значение: подбирается в `_dsa_split_backend_resolution` (`sglang/python/sglang/srt/arg_groups/overrides.py`) только для DSA-моделей из списка `_DEEPSEEK_FAMILY_ARCHS` и не на NPU/XPU. Порядок: GLM DSA на SM120 с fp8 → `flashinfer_sparse_mla`; `--enable-hisparse` → выбор HiSparse-ветки; ROCm при обоих незаданных полях → `tilelang`; `--kv-cache-dtype fp8_e4m3` → `trtllm` на Blackwell и `flashmla_kv` на Hopper; иначе → `flashmla_sparse`. Результат печатается warning'ом `Set DSA backends for <dtype> KV Cache: prefill=…, decode=…`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_prefill_backend`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (автоподбор и проверки KV-dtype) → конфигурация KV-пула (`kv_cache_configurator.py`) → конструктор `DeepseekSparseAttnBackend` → каждый extend-forward
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_model_specific_adjustments` (`arg_groups/model_hook.py`; пассы `_dsa_kv_cache_dtype_default` и `_dsa_split_backend_resolution` — автоподбор и проверки KV-dtype) → конфигурация KV-пула (`kv_cache_configurator.py`) → конструктор `DeepseekSparseAttnBackend` → каждый extend-forward
 
 ## Что меняет в движке
 
 - Значение попадает в `DeepseekSparseAttnBackend.dsa_prefill_impl` (`sglang/python/sglang/srt/layers/attention/dsa_backend.py`) и определяет, какое ядро считает разреженное внимание на prefill.
 - `flashmla_auto` включает `enable_auto_select_prefill_impl` — backend выбирает реализацию сам, по форме батча.
 - `flashmla_sparse_q8` — нативный FP8-путь SM90. Конструктор проверяет обе предпосылки и падает явно: без `--kv-cache-dtype fp8_e4m3` — `--dsa-prefill-backend flashmla_sparse_q8 is native FP8 and requires --kv-cache-dtype fp8_e4m3 …`; вне SM90 — `--dsa-prefill-backend flashmla_sparse_q8 is SM90-only …`. Это единственный вариант, который существует только как prefill (в decode он отвергается отдельной ошибкой).
-- `tilelang` на CUDA работает только с bf16-KV: `_check_tilelang_dsa_fp8_kv` бросает `ValueError` при `fp8_e4m3`, рекомендуя либо `--kv-cache-dtype bfloat16`, либо fp8-совместимый backend (`flashmla_kv` на Hopper, `trtllm` на Blackwell). На ROCm fp8 у tilelang поддержан.
+- `tilelang` на CUDA работает только с bf16-KV: `_check_dsa_backend_constraints` (`arg_groups/overrides.py`, вызывается из `_dsa_split_backend_resolution`; прежнее имя `_check_tilelang_dsa_fp8_kv` осталось лишь неиспользуемой оберткой) бросает `ValueError` при `fp8_e4m3`, рекомендуя либо `--kv-cache-dtype bfloat16`, либо fp8-совместимый backend (`flashmla_kv` на Hopper, `trtllm` на Blackwell). На ROCm fp8 у tilelang поддержан.
 - `flashinfer_sparse_mla` проверяется отдельной функцией `_validate_flashinfer_sparse_mla_backend` по архитектуре модели, SM-версии и типу KV; при его выборе выделяется workspace FlashInfer.
 - Выбор влияет на **раскладку KV-пула**: `kv_cache_configurator.py` читает `dsa_prefill_backend`/`dsa_decode_backend` и отдельно обрабатывает `trtllm`, `tilelang` и `aiter`.
 - Задание любого из двух DSA split-полей при `--kv-cache-dtype auto` печатает предупреждение с требованием задать тип KV явно: «DeepSeek V3.2 defaults to FP8 KV cache which may not be compatible with all backends».
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --kv-c
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/layers/attention/dsa_backend.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/speculative/draft_utils.py`

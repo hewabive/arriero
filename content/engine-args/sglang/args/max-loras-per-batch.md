@@ -34,12 +34,12 @@ Maximum number of adapters for a running batch, include base-only request.
 - Флаги: `--max-loras-per-batch`
 - Группа: `lora`
 - Тип значения: int
-- Допустимые значения: строго положительное целое; `assert self.max_loras_per_batch > 0, "max_loras_per_batch must be positive"` — проверка стоит в самом начале `check_lora_server_args` и выполняется даже при выключенной LoRA
+- Допустимые значения: строго положительное целое; `assert cfg.max_loras_per_batch > 0, "max_loras_per_batch must be positive"` — проверка стоит в самом начале `check_lora_server_args` (`python/sglang/srt/arg_groups/lora_hook.py`) и выполняется даже при выключенной LoRA
 - Значение по умолчанию: `8`
 - Эффективное значение: не переопределяется
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.max_loras_per_batch`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → `LoRAMemoryPool.init_buffers` при инициализации `ModelRunner` (до профилирования KV-пула) → планировщик на каждом шаге сборки батча
+- Этап применения: `ServerArgs.resolve_once` → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, после пайплайна резолва; вызывает `check_lora_server_args`: валидация) → `LoRAMemoryPool.init_buffers` при инициализации `ModelRunner` (до профилирования KV-пула) → планировщик на каждом шаге сборки батча
 
 ## Что меняет в движке
 
@@ -151,6 +151,8 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 - `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/utils.py`

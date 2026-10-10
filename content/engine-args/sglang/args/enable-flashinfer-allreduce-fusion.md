@@ -22,7 +22,7 @@ related:
 
 При тензорном параллелизме после каждого блока внимания и MLP выполняется allreduce, а следом — сложение с residual и RMSNorm. FlashInfer умеет слить эти три операции в одно ядро, что убирает лишние проходы по памяти. Раньше это включалось булевым флагом; теперь backend слияния выбирается явно через `--flashinfer-allreduce-fusion-backend` (`auto`, `trtllm`, `mnnvl`, `cutedsl`), потому что доступность зависит от поколения карт и от топологии узлов.
 
-Флаг устарел «мягко»: он объявлен обычным `store_true`, а не через семейство `Deprecated*Action`, поэтому предупреждение печатает не argparse, а `_handle_deprecated_args` — и только если новый аргумент не задан.
+Флаг устарел «мягко»: он объявлен обычным `store_true`, а не через семейство `Deprecated*Action`, поэтому предупреждение печатает не argparse, а шаг резолва `handle_deprecated_args` (`arg_groups/serving_hook.py`) — и только если новый аргумент не задан.
 
 ## Оригинальная справка
 
@@ -37,26 +37,37 @@ related:
 - Тип значения: флаг без значения (`action="store_true"`)
 - Допустимые значения: только присутствие флага
 - Значение по умолчанию: `False`
-- Эффективное значение: `_handle_deprecated_args` при `True` и незаданном `flashinfer_allreduce_fusion_backend` печатает предупреждение и ставит `flashinfer_allreduce_fusion_backend = "auto"`. После этого поле `enable_flashinfer_allreduce_fusion` **безусловно** сбрасывается в `False` — независимо от того, был флаг задан или нет
+- Эффективное значение: `handle_deprecated_args` при `True` и незаданном `flashinfer_allreduce_fusion_backend` печатает предупреждение и декларирует `flashinfer_allreduce_fusion_backend="auto"`. После этого разрешенное значение `enable_flashinfer_allreduce_fusion` **безусловно** декларируется как `False` — независимо от того, был флаг задан или нет; сырое поле хранит ввод оператора, а дамп `server_args=` показывает `False`
 - Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`
 - Статус: устаревший, но реализован обычным `store_true`; замена — `--flashinfer-allreduce-fusion-backend auto`
-- Этап применения: разбор CLI → `__post_init__` → `_handle_deprecated_args` → пассы резолюции в `arg_groups/overrides.py` → инициализация коммуникатора
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` → пассы резолюции в `arg_groups/overrides.py` → инициализация коммуникатора
 
 ## Что меняет в движке
 
 ### Предупреждение и трансляция
 
 ```python
-if self.enable_flashinfer_allreduce_fusion and self.flashinfer_allreduce_fusion_backend is None:
+if (
+    cfg.enable_flashinfer_allreduce_fusion
+    and cfg.flashinfer_allreduce_fusion_backend is None
+):
     logger.warning(
         "--enable-flashinfer-allreduce-fusion is deprecated. "
         "Please use --flashinfer-allreduce-fusion-backend=auto instead."
     )
-    self.flashinfer_allreduce_fusion_backend = "auto"
-self.enable_flashinfer_allreduce_fusion = False
+    declare_resolution(
+        server_args,
+        "_handle_deprecated_args",
+        flashinfer_allreduce_fusion_backend="auto",
+    )
+declare_resolution(
+    server_args,
+    "_handle_deprecated_args",
+    enable_flashinfer_allreduce_fusion=False,
+)
 ```
 
-Обратите внимание на два отличия от прочих устаревших флагов SGLang: предупреждение печатается на этапе `__post_init__` (то есть уже с обычным форматом лога и временным префиксом, а не в начале вывода), и оно не появится вовсе, если новый аргумент задан явно — тогда старый флаг просто молча проигнорируется.
+Обратите внимание на два отличия от прочих устаревших флагов SGLang: предупреждение печатается на этапе резолва (`resolve_once`, то есть уже с обычным форматом лога и временным префиксом, а не в начале вывода), и оно не появится вовсе, если новый аргумент задан явно — тогда старый флаг просто молча проигнорируется.
 
 ### Что делает backend слияния
 
@@ -125,6 +136,7 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-70B-Instruct --tp-
 ## Источники
 
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/layers/flashinfer_comm_fusion.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/residual/add_norm.py`

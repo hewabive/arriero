@@ -40,7 +40,7 @@ Show time cost of custom marks.
 - Тип значения: bool, `action="store_true"` — парной формы `--no-show-time-cost` нет
 - Допустимые значения: флаг присутствует или отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; никакой `_handle_*` его не трогает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.show_time_cost`
 - Статус: обычный, но фактически нерабочий в этом дереве (см. «Кратко»)
 - Этап применения: инициализация `ModelRunner`, то есть в процессах scheduler/TP-воркеров, до захвата CUDA graph

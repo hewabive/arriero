@@ -32,7 +32,7 @@ Inkling: replace the attention/MLP output all-reduce with a hidden-dimension red
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным — ни `__post_init__`, ни реестр `arg_groups/overrides.py` его не переписывают. Но у флага есть жесткие требования, проверяемые при построении слоя, а не при разборе аргументов (см. ниже)
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`run_resolution_pipeline`), включая реестр `arg_groups/overrides.py`, его не декларирует. Но у флага есть жесткие требования, проверяемые при построении слоя, а не при разборе аргументов (см. ниже)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_scattered_sconv`
 - Статус: обычный, но узкоархитектурный: значение читают только `configs/inkling.py`, `models/inkling.py`, `models/inkling_common/{attn,moe,dense_mlp}.py`, `models/inkling_common/kernels/comm.py` и `distributed/device_communicators/torch_symm_mem.py`
 - Этап применения: разбор CLI → построение слоев модели (ассерты делимости, размер conv-кеша) → выделение кеша состояний свертки → каждый forward

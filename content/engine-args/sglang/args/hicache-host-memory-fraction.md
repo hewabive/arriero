@@ -37,7 +37,7 @@ Fraction of the available host memory, bounded by visible cgroup memory.max/memo
 - Эффективное значение: `handle_hicache_ratio_default` (`arg_groups/hicache_hook.py`) разрешает его в `None` (auto-sizing выключен), если задан `--hicache-ratio` или `--hicache-size > 0`. Иначе значение сохраняется, а ratio по умолчанию (`2.0` для `cache`, `1.2` для `buffer_only`, на decode — по backend'у retraction) затем уменьшается в `auto_size_hicache` при построении дерева кеша
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_host_memory_fraction`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка, отключение при явном размере) → `build_kv_cache` (`mem_cache/kv_cache_builder.py`), контекст `auto_size_hicache` вокруг `create_tree_cache` — после выделения device KV-пула, до выделения host-пулов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_hicache_ratio_default` (проверка, отключение при явном размере) → `build_kv_cache` (`mem_cache/kv_cache_builder.py`), контекст `auto_size_hicache` вокруг `create_tree_cache` — после выделения device KV-пула, до выделения host-пулов
 
 ## Что меняет в движке
 

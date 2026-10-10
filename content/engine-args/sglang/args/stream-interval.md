@@ -34,7 +34,7 @@ The interval (or buffer size) for streaming in terms of the token length. A smal
 - Тип значения: целое, единица измерения — токены
 - Допустимые значения: `choices` нет; осмысленный диапазон — целые ≥ 1 (см. «Значения и формат» про `0` и отрицательные)
 - Значение по умолчанию: `1`
-- Эффективное значение: `__post_init__` не переопределяет. На каждом запросе значение может быть перекрыто полем `sampling_params.stream_interval` — но только на нативном `/generate` или через `--preferred-sampling-params`, поскольку OpenAI-схемы этого поля не содержат
+- Эффективное значение: ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. На каждом запросе значение может быть перекрыто полем `sampling_params.stream_interval` — но только на нативном `/generate` или через `--preferred-sampling-params`, поскольку OpenAI-схемы этого поля не содержат
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.stream_interval`
 - Статус: обычный
 - Этап применения: инициализация планировщика → каждый шаг декодирования (`_GenerationStreamAccumulator.accept`)

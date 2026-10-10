@@ -22,7 +22,7 @@ related:
 
 ## Кратко
 
-`--load-format` выбирает класс загрузчика в `get_model_loader` (`sglang/python/sglang/srt/model_loader/loader.py`). Дефолт `auto` — это `DefaultModelLoader`, который пробует safetensors и откатывается на `*.bin`. Важнее другое: `_handle_load_format` в `__post_init__` **сам меняет значение** по виду `--model-path` (GGUF-файл, нативный формат Mistral, `s3://`/`gs://`/`az://`, любой `схема://`), поэтому заданный вручную формат не всегда доживает до загрузчика. Каждый нестандартный формат — это отдельная подсистема со своими требованиями к файлам и к `--model-loader-extra-config`.
+`--load-format` выбирает класс загрузчика в `get_model_loader` (`sglang/python/sglang/srt/model_loader/loader.py`). Дефолт `auto` — это `DefaultModelLoader`, который пробует safetensors и откатывается на `*.bin`. Важнее другое: шаг резолва `handle_load_format` (`sglang/python/sglang/srt/arg_groups/model_path_hook.py`, выполняется в `ServerArgs.resolve_once`) **сам меняет значение** по виду `--model-path` (GGUF-файл, нативный формат Mistral, `s3://`/`gs://`/`az://`, любой `схема://`), поэтому заданный вручную формат не всегда доживает до загрузчика. Каждый нестандартный формат — это отдельная подсистема со своими требованиями к файлам и к `--model-loader-extra-config`.
 
 ## Оригинальная справка
 
@@ -37,10 +37,10 @@ The format of the model weights to load. "auto" will try to load the weights in 
 - Тип значения: строка
 - Допустимые значения: `auto`, `pt`, `safetensors`, `npcache`, `dummy`, `sharded_state`, `presharded`, `gguf`, `expert_pack`, `bitsandbytes`, `mistral`, `layered`, `flash_rl`, `remote`, `remote_instance`, `fastsafetensors`, `private`, `runai_streamer`. Внутренний `ipc_cache` намеренно не выведен в CLI; попытка задать его отвергается с подсказкой про `--weight-cache-mode`
 - Значение по умолчанию: `auto`
-- Эффективное значение: `_handle_load_format` переписывает его на `gguf` / `mistral` / `runai_streamer` / `remote` по `--model-path`, а `remote_instance` откатывает обратно в `auto` при неполной конфигурации удаленного загрузчика; кроме того `presharded` и `layered` внутри своих загрузчиков подменяют формат на `auto` для фактического чтения файлов
+- Эффективное значение: `handle_load_format` декларирует через `declare_resolution` `gguf` / `mistral` / `runai_streamer` / `remote` по `--model-path`, а `remote_instance` откатывает обратно в `auto` при неполной конфигурации удаленного загрузчика; кроме того `presharded` и `layered` внутри своих загрузчиков подменяют формат на `auto` для фактического чтения файлов. Поле `server_args.load_format` хранит ввод оператора, итог виден в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.load_format`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format`) → построение `LoadConfig` → `get_model_loader` → чтение весов в каждом воркере
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` → построение `LoadConfig` → `get_model_loader` → чтение весов в каждом воркере
 
 ## Что меняет в движке
 
@@ -66,7 +66,7 @@ The format of the model weights to load. "auto" will try to load the weights in 
 - Автоподмена по пути безусловна: GGUF-файл превратит даже явный `--load-format safetensors` в `gguf`, а `s3://` — в `runai_streamer`.
 - `remote_instance` при неполной конфигурации не падает, а откатывается в `auto` с предупреждением «Fallback load_format to 'auto' due to incomplete remote instance weight loader settings.» — то есть сервер поднимется, просто загрузит веса с диска.
 - `ipc_cache` — `ValueError: load_format='ipc_cache' is an internal-only format and must not be set directly.`; включается через `--weight-cache-mode client|daemon`.
-- `--weight-cache-mode` несовместим со спекулятивным декодированием — проверка живет в том же `_handle_load_format`.
+- `--weight-cache-mode` несовместим со спекулятивным декодированием — проверка живет в том же `handle_load_format`.
 
 ## Когда использовать
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --load-format 
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`

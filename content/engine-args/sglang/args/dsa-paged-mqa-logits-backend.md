@@ -33,7 +33,7 @@ DSA indexer paged MQA logits kernel backend. Options: 'auto' (default; DeepGEMM 
 - Тип значения: строка с фиксированным списком
 - Допустимые значения (из `choices`): `auto`, `deepgemm`, `cutedsl`, `aiter` (константа `DSA_PAGED_MQA_LOGITS_BACKEND_CHOICES`)
 - Значение по умолчанию: `auto`
-- Эффективное значение: разрешается не в `__post_init__`, а в `DSAPagedMQALogitsBackend.resolve` при построении индексера (`sglang/python/sglang/srt/layers/attention/dsa/paged_mqa_logits_backend.py`). На ROCm любое значение из `auto`/`aiter` превращается в `aiter`, а `deepgemm`/`cutedsl` дают `ValueError`. На CUDA `auto` и `deepgemm` → `deepgemm`; `aiter` → `ValueError`; `cutedsl` → проверка `is_sm100_supported()`
+- Эффективное значение: разрешается не в шагах резолва `ServerArgs.resolve_once` (ни один его не декларирует), а в `DSAPagedMQALogitsBackend.resolve` при построении индексера (`sglang/python/sglang/srt/layers/attention/dsa/paged_mqa_logits_backend.py`). На ROCm любое значение из `auto`/`aiter` превращается в `aiter`, а `deepgemm`/`cutedsl` дают `ValueError`. На CUDA `auto` и `deepgemm` → `deepgemm`; `aiter` → `ValueError`; `cutedsl` → проверка `is_sm100_supported()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_paged_mqa_logits_backend`
 - Статус: обычный
 - Этап применения: разбор CLI → конструктор индексера DSA (`Indexer.__init__`) → каждый forward индексера

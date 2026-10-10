@@ -34,10 +34,10 @@ Disable RadixAttention for prefix caching.
 - Тип значения: булев флаг (`store_true`), парного `--no-...` нет
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false` — radix cache включен
-- Эффективное значение: движок принудительно поднимает флаг в `true` во многих ветках `__post_init__` (см. «Что меняет в движке»); опустить его обратно в `false` из CLI нельзя
+- Эффективное значение: `server_args.disable_radix_cache` хранит ввод оператора, а шаги резолва (`ServerArgs.resolve_once`) во многих ветках декларируют `true` (см. «Что меняет в движке»); итог виден в `resolved_dict()` и дампе `server_args=`. Опустить его обратно в `false` из CLI нельзя — исключение только у decode-сервера PD с `--disaggregation-decode-enable-radix-cache`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.disable_radix_cache`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (несколько `_handle_*` могут выставить его сами) → построение дерева кеша в `mem_cache/kv_cache_builder.py` при старте scheduler'а
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline` (несколько шагов могут задекларировать его сами) → построение дерева кеша в `mem_cache/kv_cache_builder.py` при старте scheduler'а
 
 ## Что меняет в движке
 
@@ -48,12 +48,14 @@ Disable RadixAttention for prefix caching.
 
 Практический итог один и тот же: совпадение префикса не ищется, `cached_tokens` в ответе всегда 0, слоты KV-пула освобождаются по завершении запроса.
 
-Движок выставляет флаг сам (каждый раз с записью в лог) в следующих ветках `server_args.py`:
+Движок выставляет флаг сам (каждый раз с записью в лог) в следующих шагах резолва (`python/sglang/srt/arg_groups/`):
 
-- `_handle_model_capability_adjustments`: модель HRM-Text с `prefix_lm` и EmbeddingGemma — двунаправленное внимание по промпту делает переиспользование префикса неверным;
-- `_handle_multi_item_scoring`: `--enable-mis` («Radix cache is disabled because --enable-mis is set.»);
-- `_handle_attention_backend_compatibility`: Whisper («Radix cache is disabled for Whisper») и attention backend `dual_chunk_flash_attn`;
-- `_handle_deterministic_inference`: attention backend вне списка `RADIX_SUPPORTED_DETERMINISTIC_ATTENTION_BACKEND` при детерминированном выводе;
+- `handle_model_capability_adjustments` (`model_hook.py`): модель HRM-Text с `prefix_lm` и EmbeddingGemma — двунаправленное внимание по промпту делает переиспользование префикса неверным;
+- `handle_multi_item_scoring` (`attention_hook.py`): `--enable-mis` («Radix cache is disabled because --enable-mis is set.»);
+- `handle_attention_backend_compatibility` (`attention_hook.py`): Whisper («Radix cache is disabled for Whisper»);
+- `handle_deterministic_inference` (`attention_hook.py`): attention backend вне списка `RADIX_SUPPORTED_DETERMINISTIC_ATTENTION_BACKEND` при детерминированном выводе;
+- `handle_pd_disaggregation` (`pd_disaggregation_hook.py`): decode-сервер PD без `--disaggregation-decode-enable-radix-cache` («KV cache is forced as chunk cache for decode server»); с этим флагом шаг, наоборот, декларирует `false`;
+- провайдер `_minicpm_sala_overrides` (`model_overrides/minicpm.py`, собирается в `handle_model_specific_adjustments`): MiniCPM с гибридным вниманием;
 - `mem_cache/kv_cache_builder.py`: мультимодальная модель на Transformers-backend — здесь флаг поднимается уже после `ServerArgs`, поэтому в дампе `server_args=` он останется `False`, а в логе появится «Radix cache is disabled for multimodal models with the Transformers backend».
 
 ## Значения и формат
@@ -79,7 +81,7 @@ Disable RadixAttention for prefix caching.
 
 ## Взаимодействие с другими аргументами
 
-- `--enable-hierarchical-cache`: взаимоисключающие. `_handle_cache_compatibility` бросает `ValueError` «The arguments enable-hierarchical-cache and disable-radix-cache are mutually exclusive…».
+- `--enable-hierarchical-cache`: взаимоисключающие. Шаг `handle_cache_compatibility` (`arg_groups/kv_cache_hook.py`) бросает `ValueError` «The arguments enable-hierarchical-cache and disable-radix-cache are mutually exclusive…».
 - `--enable-hisparse`, `--prefill-only-disable-kv-cache`: оба требуют этот флаг.
 - `--enable-mis`: сам его включает и заодно гасит CUDA graph и chunked prefill.
 - `--chunked-prefill-size`: определяет, какой именно класс подставит фабрика — `ChunkCache` при активном chunked prefill, `RadixCache(disable=True)` иначе.
@@ -109,6 +111,11 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --disable-radi
 
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/minicpm.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`
 - `sglang/python/sglang/srt/mem_cache/radix_cache.py`

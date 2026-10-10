@@ -32,10 +32,10 @@ The layout of host memory pool for hierarchical cache.
 - Тип значения: строка с фиксированным списком
 - Допустимые значения: `layer_first`, `page_first`, `page_first_direct`, `page_first_kv_split`, `page_head`
 - Значение по умолчанию: `page_first`
-- Эффективное значение: `_resolve_layout_io_compatibility` меняет `page_first` на `page_first_direct` при `--hicache-io-backend direct`; `_resolve_storage_layout_compatibility` меняет `layer_first` на `page_first`/`page_first_direct` при `--hicache-storage-backend mooncake`; на Ascend NPU платформа выставляет `page_first_kv_split` (MLA) или `page_first_direct`
+- Эффективное значение: `resolve_layout_io_compatibility` (`python/sglang/srt/arg_groups/hicache_hook.py`) меняет `page_first` на `page_first_direct` при `--hicache-io-backend direct`; `resolve_storage_layout_compatibility` (там же) меняет `layer_first` на `page_first`/`page_first_direct` при `--hicache-storage-backend mooncake`; на Ascend NPU платформа выставляет `page_first_kv_split` (MLA) или `page_first_direct`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_mem_layout`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_hicache`) → аллокация буфера host-пула → каждая операция переноса
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_hicache` (`python/sglang/srt/arg_groups/hicache_hook.py`; новые значения он декларирует через `declare_resolution`, сырое `server_args.hicache_mem_layout` хранит ввод оператора) → аллокация буфера host-пула → каждая операция переноса
 
 ## Что меняет в движке
 
@@ -78,7 +78,7 @@ Layout — это буквально форма тензора host-пула. Д
 
 ## Взаимодействие с другими аргументами
 
-- `--hicache-io-backend`: пара нормализуется в `__post_init__`. `page_first` + `direct` → layout становится `page_first_direct`; `page_first_direct` + `kernel` → IO становится `direct`.
+- `--hicache-io-backend`: пара нормализуется в шаге резолва `handle_hicache`. `page_first` + `direct` → layout становится `page_first_direct`; `page_first_direct` + `kernel` → IO становится `direct`.
 - `--hicache-storage-backend mooncake` + `layer_first` → layout меняется на `page_first` (для `kernel`) или `page_first_direct` (для `direct`); при `kernel_ascend` остается прежним.
 - `--hicache-storage-backend hf3fs`: размер страницы для backend'а считается по layout — `get_ksize_per_token()` для page-раскладок и `get_size_per_token()` для `layer_first` (`mem_cache/storage/backend_factory.py`).
 - `--hicache-storage-backend-extra-config`: ключ `tp_lcm_size` работает только с `page_head`.
@@ -107,6 +107,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mha.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mla.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`

@@ -39,7 +39,7 @@ The number of steps sampled from draft model in Speculative Decoding.
 - Эффективное значение: определяется в `handle_speculative_decoding` (`sglang/python/sglang/srt/arg_groups/speculative_hook.py`) по-разному для каждого алгоритма: EAGLE/EAGLE3/STANDALONE — `_auto_choose_speculative_params`; DFLASH и DSPARK — принудительно `1`; NGRAM — `num_draft_tokens // eagle_topk`; `--speculative-adaptive` — средний элемент `candidate_steps`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_num_steps`
 - Статус: обычный
-- Этап применения: `__post_init__` → `handle_speculative_decoding` → создание spec-воркера и draft-attention-бэкендов → выделение KV-пула (через `get_alloc_len_per_decode`) → захват CUDA graph draft-decode → forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` → создание spec-воркера и draft-attention-бэкендов → выделение KV-пула (через `get_alloc_len_per_decode`) → захват CUDA graph draft-decode → forward
 
 ## Что меняет в движке
 
@@ -101,7 +101,7 @@ The number of steps sampled from draft model in Speculative Decoding.
 
 ## Типовые проблемы и диагностика
 
-- Голый `AssertionError` из `_handle_eagle_family` сразу после разбора CLI — задан `--speculative-num-draft-tokens` и/или `--speculative-eagle-topk` без `--speculative-num-steps`. Задайте все три.
+- Голый `AssertionError` из `_handle_eagle_family` на резолве (`ServerArgs.resolve_once`), сразу после разбора CLI — задан `--speculative-num-draft-tokens` и/или `--speculative-eagle-topk` без `--speculative-num-steps`. Задайте все три.
 - `RuntimeError: selected index k out of range` из `torch.topk` при первом же запросе — `num_draft_tokens − 1` больше размера множества кандидатов. Увеличьте `--speculative-num-steps` или `--speculative-eagle-topk`, либо уменьшите `--speculative-num-draft-tokens`.
 - В логе `speculative_num_draft_tokens is adjusted to speculative_num_steps + 1 when speculative_eagle_topk == 1` — заданное число draft-токенов проигнорировано, потому что цепочка линейная. Это норма, но проверьте, что вы этого и хотели.
 - `DFLASH only supports speculative_num_steps == 1; overriding speculative_num_steps=… to 1` / та же строка для DSpark — значение молча понижено.

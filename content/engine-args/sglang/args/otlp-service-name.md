@@ -31,7 +31,7 @@ Service name for OTLP traces (displayed as 'service.name' in trace backends). If
 - Тип значения: optional str
 - Допустимые значения: любая строка
 - Значение по умолчанию: `null` (не задан)
-- Эффективное значение: `__post_init__` его не трогает; подстановка `OTEL_SERVICE_NAME` / `sglang` делается при инициализации трассировки в каждом процессе
+- Эффективное значение: ни один шаг резолва его не декларирует; подстановка `OTEL_SERVICE_NAME` / `sglang` делается при инициализации трассировки в каждом процессе
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.otlp_service_name`
 - Статус: обычный
 - Этап применения: `process_tracing_init` в каждом процессе, участвующем в трассировке (tokenizer manager, HTTP-сервер, scheduler на каждом rank'е, DP-контроллер, encode-сервер EPD)

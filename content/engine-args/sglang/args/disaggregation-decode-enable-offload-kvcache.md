@@ -38,10 +38,10 @@ Enable async KV cache offloading on decode server (PD mode).
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; движок его не переписывает, но при `true` активирует нормализацию hicache-настроек (`_handle_hicache` выполняется, даже если `--enable-hierarchical-cache` не задан)
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует, но при `true` активирует нормализацию hicache-настроек (шаг `handle_hicache` в `arg_groups/hicache_hook.py` выполняется, даже если `--enable-hierarchical-cache` не задан)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_enable_offload_kvcache`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_hicache` (согласование layout/IO/storage) → `_handle_cache_compatibility` (жесткие проверки) → создание `DecodeKVCacheOffloadManager` в scheduler'е (аллокация хостового пула) → на каждом шаге decode: `check_offload_progress` и `offload_kv_cache` при завершении запроса
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_hicache` (согласование layout/IO/storage) → `handle_cache_compatibility` (`arg_groups/kv_cache_hook.py`, жесткие проверки) → создание `DecodeKVCacheOffloadManager` в scheduler'е (аллокация хостового пула) → на каждом шаге decode: `check_offload_progress` и `offload_kv_cache` при завершении запроса
 
 ## Что меняет в движке
 
@@ -57,7 +57,7 @@ Enable async KV cache offloading on decode server (PD mode).
 ## Значения и формат
 
 - Флаг без значения. `--disaggregation-decode-enable-offload-kvcache` включает, отсутствие — выключает.
-- Два обязательных условия, проверяемых в `_handle_cache_compatibility`:
+- Два обязательных условия, проверяемых в `handle_cache_compatibility`:
   - `--disaggregation-mode decode`, иначе `ValueError: The argument disaggregation-decode-enable-offload-kvcache is only supported for decode side.`;
   - непустой `--hicache-storage-backend`, иначе `ValueError: The argument disaggregation-decode-enable-offload-kvcache is only supported when hicache-storage-backend is provided.`
 - Тип KV-пула должен быть MHA или MLA; иное — `ValueError: Unsupported KV cache type for decode offload` при создании менеджера.
@@ -81,7 +81,7 @@ Enable async KV cache offloading on decode server (PD mode).
 
 - `--disaggregation-mode decode`: обязателен.
 - `--hicache-storage-backend`: обязателен; определяет L3.
-- `--hicache-ratio` / `--hicache-size` / `--hicache-mem-layout` / `--hicache-io-backend`: полностью задают хостовый пул и путь копирования. `_handle_hicache` запускается из-за этого флага даже без `--enable-hierarchical-cache` и может переписать layout ради совместимости с backend'ом.
+- `--hicache-ratio` / `--hicache-size` / `--hicache-mem-layout` / `--hicache-io-backend`: полностью задают хостовый пул и путь копирования. `handle_hicache` запускается из-за этого флага даже без `--enable-hierarchical-cache` и может переписать layout ради совместимости с backend'ом.
 - `--disaggregation-decode-enable-radix-cache`: независимый флаг. Он включает radix-кеш **на устройстве**; в связке с `--enable-hierarchical-cache` еще и активирует `enable_decode_hicache` c проверкой событий HiCache. Выгрузка полезна именно тогда, когда попадания потом кто-то будет использовать.
 - `--page-size`: задает минимальный шаг выгрузки.
 - `--served-model-name`: входит в ключи хранилища; разные имена не увидят кеш друг друга.
@@ -111,6 +111,8 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --disaggrega
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
 - `sglang/python/sglang/srt/disaggregation/decode_kvcache_offload_manager.py`
 - `sglang/python/sglang/srt/disaggregation/decode.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

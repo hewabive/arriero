@@ -39,10 +39,10 @@ The host of the HTTP server.
 - Тип значения: str (IP-литерал или имя хоста)
 - Допустимые значения: `choices` нет; строка должна разрешаться в адрес локального интерфейса, иначе `bind` упадет
 - Значение по умолчанию: `127.0.0.1`
-- Эффективное значение: совпадает с заданным. Ни один `_handle_*` не переписывает `host`. Производные значения считаются от него: `ServerArgs.url()` подменяет `0.0.0.0` на `127.0.0.1` и `::` на `::1` для внутренних запросов (warmup, health-проверка самого себя), а `_resolve_dist_init_method` берет `self.host or "127.0.0.1"` как адрес TCPStore
+- Эффективное значение: совпадает с заданным. Ни один шаг резолва (`ServerArgs.resolve_once`) не декларирует `host`. Производные значения считаются от него по запросу: `ServerArgs.url()` подменяет `0.0.0.0` на `127.0.0.1` и `::` на `::1` для внутренних запросов (warmup, health-проверка самого себя), а `_resolve_dist_init_method` берет `get_serving().host or "127.0.0.1"` как адрес TCPStore
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.host`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (только производные URL) → запуск процессов и `init_torch_distributed` (адрес рандеву) → HTTP-слой (`uvicorn.run(host=...)` / `Granian(address=...)`)
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` (поле не меняется) → запуск процессов и `init_torch_distributed` (адрес рандеву) → HTTP-слой (`uvicorn.run(host=...)` / `Granian(address=...)`)
 
 ## Что меняет в движке
 
@@ -92,7 +92,7 @@ Auth-middleware подключается **только** если задан `-
 - `--dist-init-addr`: при заданном адресе рандеву `--host` перестает влиять на `torch.distributed`; без него адрес берется из `--host`.
 - `--nccl-port`: порт того же рандеву; вместе с `--host 0.0.0.0` это второй открытый наружу слушатель.
 - `--enable-dp-attention` на одном узле без `--dist-init-addr` дополнительно занимает шесть TCP-портов от `--port + 233` (при переполнении — `--port − 233`), но привязывает их к `127.0.0.1` жестко, независимо от `--host`.
-- `--grpc-port`: нативный gRPC поднимается на том же `--host`; `__post_init__` при этом запрещает комбинацию с `--api-key`/`--admin-api-key`, потому что gRPC-слушатель обходит HTTP-middleware.
+- `--grpc-port`: нативный gRPC поднимается на том же `--host`; шаг резолва `handle_deprecated_args` (`arg_groups/serving_hook.py`) при этом запрещает комбинацию с `--api-key`/`--admin-api-key`, потому что gRPC-слушатель обходит HTTP-middleware.
 - `--api-key` / `--admin-api-key`: единственная встроенная аутентификация, и она не покрывает `/health*` и `/metrics*`.
 - `--ssl-certfile` / `--ssl-keyfile`: если сервер слушает не петлю, трафик и заголовок `Authorization` должны идти по TLS.
 - `--enable-http2`: адрес передается в Granian как `address`, поведение по привязке то же.
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 10.0.0.
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`

@@ -20,7 +20,7 @@ related:
 
 `--ssl-ca-certs` — файл с доверенными CA. У него две роли, и первая важнее второй.
 
-1. **Проверка собственного сертификата внутренним клиентом.** `ServerArgs.ssl_verify()` возвращает этот путь как значение `verify=` для `requests`, которым сервер обращается сам к себе на warmup. Без него при включенном TLS верификация внутренних запросов **отключается** (`verify=False`) с однократным предупреждением в логе.
+1. **Проверка собственного сертификата внутренним клиентом.** `ssl_verify_of(server_args)` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`; до v0.5.19 — метод `ServerArgs.ssl_verify()`) возвращает этот путь как значение `verify=` для `requests`, которым сервер обращается сам к себе на warmup. Без него при включенном TLS верификация внутренних запросов **отключается** (`verify=False`) с однократным предупреждением в логе.
 2. **Передача в ASGI-сервер.** Значение уходит в `uvicorn.run(ssl_ca_certs=...)` и в Granian как `ssl_ca`. При этом Granian получает рядом `ssl_client_verify=False` с явным комментарием в коде «MTls is not supported», то есть на HTTP/2-пути проверка клиентских сертификатов заведомо не включается.
 
 Без `--ssl-certfile` и `--ssl-keyfile` аргумент не просто бесполезен — он приводит к ошибке на старте.
@@ -36,18 +36,18 @@ The CA certificates file.
 - Флаги: `--ssl-ca-certs`
 - Группа: `serving`
 - Тип значения: str — путь к существующему файлу (PEM-бандл)
-- Допустимые значения: `choices` нет; `os.path.isfile` проверяется в `_handle_ssl_validation`
+- Допустимые значения: `choices` нет; `os.path.isfile` проверяется в шаге резолва `handle_ssl_validation`
 - Значение по умолчанию: `None` — внутренний клиент использует системный CA-бандл (`verify=True`), пока TLS выключен, и `verify=False`, когда TLS включен
-- Эффективное значение: совпадает с заданным. Переписывания нет, но поведение `ssl_verify()` меняется скачкообразно: `ssl_ca_certs` → путь; иначе если задан `ssl_certfile` → `False` плюс предупреждение; иначе → `True`
+- Эффективное значение: совпадает с заданным. Ни один шаг резолва его не декларирует, но поведение `ssl_verify_of()` меняется скачкообразно: `ssl_ca_certs` → путь; иначе если задан `ssl_certfile` → `False` плюс предупреждение; иначе → `True`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_ca_certs`
 - Статус: обычный
-- Этап применения: `__post_init__` → `_handle_ssl_validation` → HTTP-слой и warmup-клиент
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_ssl_validation` (`python/sglang/srt/arg_groups/serving_hook.py`) → HTTP-слой и warmup-клиент
 
 ## Что меняет в движке
 
 ### Внутренний клиент
 
-`_execute_server_warmup` (`entrypoints/http_server.py`) берет `ssl_verify = server_args.ssl_verify()` и передает его в каждый `requests.get`/`requests.post` к собственному адресу — сначала опрос `/model_info`, затем warmup-генерация. Тот же механизм используется в `_send_disaggregation_warmup_requests`. Это и есть основной сценарий, ради которого аргумент существует: при самоподписанном сертификате без CA-бандла сервер вынужден ходить к себе без проверки, и в логе появляется
+`_execute_server_warmup` (`entrypoints/http_server.py`) берет `ssl_verify = ssl_verify_of(server_args)` и передает его в каждый `requests.get`/`requests.post` к собственному адресу — сначала опрос `/model_info`, затем warmup-генерация. Тот же механизм используется в `_send_disaggregation_warmup_requests`. Это и есть основной сценарий, ради которого аргумент существует: при самоподписанном сертификате без CA-бандла сервер вынужден ходить к себе без проверки, и в логе появляется
 
 ```text
 SSL is enabled but --ssl-ca-certs was not provided. Certificate verification is DISABLED for internal health checks. For production deployments, provide --ssl-ca-certs or use CA-signed certificates.
@@ -75,7 +75,7 @@ SSL is enabled but --ssl-ca-certs was not provided. Certificate verification is 
 ## Когда использовать
 
 - Всегда, когда включен TLS с самоподписанным или частным CA: иначе внутренние проверки самого сервера идут без верификации, о чем движок честно предупреждает.
-- Когда сертификат выписан публичным CA, аргумент не нужен — системного бандла достаточно, но учтите, что при заданном `--ssl-certfile` и незаданном `--ssl-ca-certs` `ssl_verify()` вернет `False`, а не `True`. То есть даже с публичным CA внутренние запросы пойдут без проверки. Если это важно, укажите системный бандл явно (`/etc/ssl/certs/ca-certificates.crt` на Debian/Ubuntu).
+- Когда сертификат выписан публичным CA, аргумент не нужен — системного бандла достаточно, но учтите, что при заданном `--ssl-certfile` и незаданном `--ssl-ca-certs` `ssl_verify_of()` вернет `False`, а не `True`. То есть даже с публичным CA внутренние запросы пойдут без проверки. Если это важно, укажите системный бандл явно (`/etc/ssl/certs/ca-certificates.crt` на Debian/Ubuntu).
 - Не используйте как способ включить mTLS: на Granian-пути он выключен явно, на uvicorn-пути SGLang не передает нужный параметр.
 
 ## Влияние на производительность и память
@@ -87,14 +87,14 @@ SSL is enabled but --ssl-ca-certs was not provided. Certificate verification is 
 - `--ssl-certfile` / `--ssl-keyfile`: обязательное условие; без них аргумент отвергается.
 - `--enable-ssl-refresh`: добавляет отслеживание CA-файла отдельной задачей.
 - `--enable-http2`: значение уходит в Granian как `ssl_ca` при `ssl_client_verify=False`.
-- `--skip-server-warmup`: отключает те самые внутренние HTTPS-запросы, ради которых `ssl_verify()` и вычисляется; с ним первая роль аргумента исчезает, остается только передача в ASGI-сервер.
+- `--skip-server-warmup`: отключает те самые внутренние HTTPS-запросы, ради которых `ssl_verify_of()` и вычисляется; с ним первая роль аргумента исчезает, остается только передача в ASGI-сервер.
 - `--ssl-keyfile-password`: независимый спутник той же пары.
 
 ## Типовые проблемы и диагностика
 
 - **Симптом:** `ValueError: --ssl-ca-certs has no effect without --ssl-certfile and --ssl-keyfile.` **Причина:** задан только CA-бандл. **Лечение:** либо убрать аргумент, либо добавить пару cert+key.
 - **Симптом:** `ValueError: SSL CA certificates file not found: '<путь>'.` **Проверка:** `test -f <путь>`.
-- **Симптом:** в логе предупреждение об отключенной верификации, хотя сертификат от публичного CA. **Причина:** `ssl_verify()` без `--ssl-ca-certs` возвращает `False` при любом включенном TLS. **Лечение:** указать системный бандл явно.
+- **Симптом:** в логе предупреждение об отключенной верификации, хотя сертификат от публичного CA. **Причина:** `ssl_verify_of()` без `--ssl-ca-certs` возвращает `False` при любом включенном TLS. **Лечение:** указать системный бандл явно.
 - **Симптом:** warmup падает с ошибкой проверки сертификата, сервер убивает сам себя (`kill_process_tree`) с сообщением `Initialization failed. warmup error: ...`. **Причина:** CA-бандл не содержит выдавшего сертификат CA, либо имя в сертификате не совпадает с адресом из `ServerArgs.url()` (а он подставляет петлю вместо `0.0.0.0`). **Лечение:** добавить `127.0.0.1` в SAN сертификата либо задать корректный CA-бандл.
 
 ## В arriero
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

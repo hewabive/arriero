@@ -40,10 +40,10 @@ Set admin API key for sensitive management endpoints (e.g. /hicache/storage-back
 - Тип значения: str (один ключ)
 - Допустимые значения: не ограничены argparse; практически — только ASCII, потому что сверка идет через `secrets.compare_digest` по строкам
 - Значение по умолчанию: `None` — отдельного admin-уровня нет, ADMIN_OPTIONAL-маршруты подчиняются `--api-key`
-- Эффективное значение: совпадает с заданным. Косвенно: вместе с `--grpc-port` `__post_init__` бросает `ValueError`; при `--tokenizer-worker-num > 1` middleware не подключается вовсе, и ключ молча перестает что-либо охранять
+- Эффективное значение: совпадает с заданным. Косвенно: вместе с `--grpc-port` шаг резолва `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`) бросает `ValueError`; при `--tokenizer-worker-num > 1` middleware не подключается вовсе, и ключ молча перестает что-либо охранять
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.admin_api_key`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка совместимости с gRPC) → HTTP-слой, `add_api_key_middleware` при сборке приложения
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` (проверка совместимости с gRPC) → HTTP-слой, `add_api_key_middleware` при сборке приложения
 
 ## Что меняет в движке
 
@@ -133,5 +133,6 @@ curl -sS -i -X POST -H "Authorization: Bearer 9d41c0b7ae23f158" http://127.0.0.1
 - `sglang/python/sglang/srt/utils/auth.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/KTRANSFORMERS_OPERATIONS.md`, `docs/CONFIG_GIT.md`

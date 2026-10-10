@@ -42,10 +42,10 @@ Enable deterministic inference mode with batch invariant ops.
 - Группа: `exec.deterministic`
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
-- Эффективное значение: становится `true` автоматически, если задан `--rl-on-policy-target` (с warning'ом `Enable deterministic inference because of rl_on_policy_target.`)
+- Эффективное значение: становится `true` автоматически, если задан `--rl-on-policy-target` (с warning'ом `Enable deterministic inference because of rl_on_policy_target.`): шаг резолва `handle_deterministic_inference` декларирует `true` через `declare_resolution`, а `server_args.enable_deterministic_inference` хранит ввод оператора — итог виден в `resolved_dict()` и дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDeterministic.enable_deterministic_inference`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_deterministic_inference`, `_handle_model_specific_adjustments`, `_handle_environment_variables`) → загрузка модели (`maybe_enable_batch_invariant_mode`) → создание backend'ов внимания → инициализация scheduler'а → каждый forward и sampling
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_model_specific_adjustments` (`python/sglang/srt/arg_groups/model_hook.py`), `handle_deterministic_inference` (`python/sglang/srt/arg_groups/attention_hook.py`) и `handle_environment_variables` (`python/sglang/srt/arg_groups/serving_hook.py`) → загрузка модели (`maybe_enable_batch_invariant_mode`) → создание backend'ов внимания → инициализация scheduler'а → каждый forward и sampling
 
 ## Что меняет в движке
 
@@ -62,12 +62,12 @@ Enable deterministic inference mode with batch invariant ops.
 | размер split-тайла Triton | `--triton-attention-split-tile-size` **игнорируется**: берется `SGLANG_TRITON_DECODE_SPLIT_TILE_SIZE` (256) и выключается `static_kv_splits` | `TritonAttnBackend.__init__` |
 | размеры тайлов FlashInfer | `SGLANG_FLASHINFER_PREFILL_SPLIT_TILE_SIZE` (4096) и `SGLANG_FLASHINFER_DECODE_SPLIT_TILE_SIZE` (2048), decode переводится на tensor cores, KV-split в CUDA graph отключается, workspace принудительно 2 ГиБ | `FlashInferAttnBackend.__init__` |
 | выравнивание усечения prefill | `truncation_align_size` = 4096 для `flashinfer` и `triton` | `Scheduler.init_deterministic_inference_config` |
-| `--disable-radix-cache` | включается принудительно, если backend внимания вне `["ascend", "fa3", "fa4", "triton"]` — то есть при `flashinfer` radix-кеш выключается с warning'ом | `_handle_deterministic_inference` |
-| `--enable-aiter-allreduce-fusion` | выключается | `_handle_deterministic_inference` |
-| `--flashinfer-allreduce-fusion-backend` | сбрасывается в `null`; дополнительно ставится `enforce_disable_flashinfer_allreduce_fusion = True` | `_deterministic_allreduce_fusion_disable`, `_handle_model_specific_adjustments` |
+| `--disable-radix-cache` | включается принудительно, если backend внимания вне `["ascend", "fa3", "fa4", "triton"]` — то есть при `flashinfer` radix-кеш выключается с warning'ом | `handle_deterministic_inference` |
+| `--enable-aiter-allreduce-fusion` | выключается | `handle_deterministic_inference` |
+| `--flashinfer-allreduce-fusion-backend` | сбрасывается в `null`; дополнительно ставится `enforce_disable_flashinfer_allreduce_fusion = True` | `_deterministic_allreduce_fusion_disable`, `handle_model_specific_adjustments` |
 | автотюнинг FlashInfer | не запускается: подобранные конфиги зависят от формы задачи, а значит и порядок редукции следовал бы за размером батча | `should_run_flashinfer_autotune` |
-| piecewise CUDA graph | не захватывается («deterministic inference» в списке причин) | `server_args.py` |
-| `SGLANG_ENABLE_DETERMINISTIC_INFERENCE` | выставляется в `1`/`0` — эту переменную читают custom all-reduce и `parallel_state` | `_handle_environment_variables` |
+| piecewise CUDA graph | не захватывается («deterministic inference» в списке причин) | `disable_tc_piecewise_cudagraph_if_incompatible` (`arg_groups/cuda_graph_hook.py`) |
+| `SGLANG_ENABLE_DETERMINISTIC_INFERENCE` | выставляется в `1`/`0` — эту переменную читают custom all-reduce и `parallel_state` | `handle_environment_variables` |
 
 ### При `--tp-size` больше 1
 
@@ -161,6 +161,10 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
 - `sglang/python/sglang/srt/batch_invariant_ops/batch_invariant_ops.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`

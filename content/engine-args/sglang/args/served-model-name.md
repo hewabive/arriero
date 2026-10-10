@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-`--served-model-name` переопределяет имя, под которым модель видна в OpenAI-совместимом API. Если аргумент не задан, `_handle_missing_default_values` подставляет `served_model_name = model_path` — то есть публичным именем становится строка пути целиком, включая абсолютный путь с косыми чертами. Для локальной модели это почти всегда стоит перебить.
+`--served-model-name` переопределяет имя, под которым модель видна в OpenAI-совместимом API. Если аргумент не задан, шаг резолва `handle_missing_default_values` декларирует `served_model_name = model_path` — то есть публичным именем становится строка пути целиком, включая абсолютный путь с косыми чертами. Для локальной модели это почти всегда стоит перебить.
 
 Два неочевидных момента. Первый: двоеточие в значении запрещено проверкой в `check_server_args`, потому что `model:adapter` — это синтаксис выбора LoRA-адаптера. Второй: то же значение используется как `model_name` при подключении внешнего бэкенда HiCache, то есть определяет пространство имен сохраненного префиксного кеша — смена имени обнуляет попадания в него.
 
@@ -36,10 +36,10 @@ Override the model name returned by the v1/models endpoint in OpenAI API server.
 - Тип значения: str (одно имя; списка, в отличие от vLLM, нет)
 - Допустимые значения: `choices` нет. Единственное ограничение — отсутствие символа `:`, если значение не является URI объектного хранилища (`is_runai_obj_uri`)
 - Значение по умолчанию: `None`
-- Эффективное значение: **переопределяется всегда, когда не задано**. `__post_init__` → `_handle_missing_default_values` выполняет `if self.served_model_name is None: self.served_model_name = self.model_path`. Кроме того, значение меняется в рантайме: успешный `POST /update_weights_from_disk` вызывает `_update_model_path_info`, который присваивает `served_model_name = <новый model_path>`
+- Эффективное значение: **переопределяется всегда, когда не задано**. Шаг резолва `handle_missing_default_values` (`python/sglang/srt/arg_groups/serving_hook.py`) при `served_model_name is None` декларирует `served_model_name=cfg.model_path` через `declare_resolution`; сырое `server_args.served_model_name` остается `None`, подставленное имя видно в `resolved_dict()` и дампе `server_args=`. Кроме того, значение меняется в рантайме: успешный `POST /update_weights_from_disk` вызывает `_update_model_path_info`, который присваивает `served_model_name = <новый model_path>`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.served_model_name`
 - Статус: обычный
-- Этап применения: `__post_init__` (подстановка дефолта) → `check_server_args` (проверка двоеточия) → HTTP-слой (`/v1/models`, ollama-маршруты) и подключение HiCache-хранилища
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_missing_default_values` (подстановка дефолта) → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, проверка двоеточия) → HTTP-слой (`/v1/models`, ollama-маршруты) и подключение HiCache-хранилища
 
 ## Что меняет в движке
 
@@ -109,6 +109,8 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --served-mod
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_base.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_chat.py`

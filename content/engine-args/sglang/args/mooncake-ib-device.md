@@ -31,10 +31,10 @@ The InfiniBand devices for Mooncake Backend transfer, accepts multiple comma-sep
 - Тип значения: str — список через запятую, JSON-карта «id GPU → список устройств» или путь к `.json` с такой картой
 - Допустимые значения: `choices` нет; имена устройств проверяются по содержимому `/sys/class/infiniband`
 - Значение по умолчанию: `null` — автоопределение на стороне Mooncake
-- Эффективное значение: при `--elastic-ep-backend mooncake` значение прогоняется через `_validate_ib_devices` в `__post_init__`, нормализуется (пробелы срезаются, дубликаты удаляются с предупреждением, JSON-карта переписывается компактно) и записывается обратно в поле. При других значениях `--elastic-ep-backend` (и без него) нормализация не выполняется — строка уходит в транспорт как есть
+- Эффективное значение: при `--elastic-ep-backend mooncake` шаг резолва `handle_elastic_ep` (`arg_groups/parallel_hook.py`) прогоняет значение через `validate_ib_devices` (`arg_groups/validation_hook.py`), нормализует (пробелы срезаются, дубликаты удаляются с предупреждением, JSON-карта переписывается компактно) и декларирует результат через `declare_resolution`: `server_args.mooncake_ib_device` хранит исходную строку, а транспорт читает нормализованную через `get_exec().moe.mooncake_ib_device`. При других значениях `--elastic-ep-backend` (и без него) нормализация не выполняется — строка уходит в транспорт как есть
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.mooncake_ib_device`
 - Статус: обычный
-- Этап применения: `__post_init__` (только ветка `mooncake`) → инициализация Mooncake transfer engine в воркерах и в процессе бэкапа экспертов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (только ветка `mooncake`) → инициализация Mooncake transfer engine в воркерах и в процессе бэкапа экспертов
 
 ## Что меняет в движке
 
@@ -44,7 +44,7 @@ The InfiniBand devices for Mooncake Backend transfer, accepts multiple comma-sep
 - строка, начинающаяся с `{`, разбирается как JSON-карта: ключи — целые номера GPU (допустимы строковые записи чисел), значения — списки устройств через запятую;
 - строка, оканчивающаяся на `.json`, читается как файл с такой картой; отсутствие файла дает `RuntimeError: File ... does not exist.`
 
-Валидация в `ServerArgs._validate_ib_devices` (выполняется только при `--elastic-ep-backend mooncake`) дополнительно:
+Валидация в `validate_ib_devices` (выполняется только при `--elastic-ep-backend mooncake`) дополнительно:
 
 - требует наличия каталога `/sys/class/infiniband` (`RuntimeError: InfiniBand sysfs path not found`) и непустого списка устройств в нем;
 - сверяет каждое имя со списком из sysfs и падает `ValueError: Invalid IB devices specified for ...: [...]. Available devices: [...]`;
@@ -75,7 +75,7 @@ The InfiniBand devices for Mooncake Backend transfer, accepts multiple comma-sep
 
 ## Взаимодействие с другими аргументами
 
-- `--disaggregation-ib-device`: имеет приоритет во всех местах, где транспорт инициализируется; проходит ту же нормализацию, но в своей ветке `__post_init__`.
+- `--disaggregation-ib-device`: имеет приоритет во всех местах, где транспорт инициализируется; проходит ту же нормализацию, но в своем шаге резолва — `handle_encoder_disaggregation`.
 - `--elastic-ep-backend`: только значение `mooncake` включает валидацию этого аргумента.
 - `--enable-elastic-expert-backup`: второй потребитель транспорта в группе `exec.moe`; процесс-хранитель читает тот же аргумент.
 - `--moe-a2a-backend mooncake`: отдельная настройка (a2a-диспетчер MoE), не путайте ее с `--elastic-ep-backend mooncake`; аргумент относится к транспорту, а не к a2a.
@@ -104,6 +104,8 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/mooncake_transfer_engine.py`
 - `sglang/python/sglang/srt/elastic_ep/expert_backup_manager.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

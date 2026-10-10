@@ -38,7 +38,7 @@ Number of extra decode req_to_token slots pre-allocated for in-transfer requests
 - Эффективное значение: при `--disaggregation-mode decode` и незаданном значении `handle_pd_disaggregation` подставляет число: `0`, если `--max-running-requests` не задан или если `max_running_requests // max(1, dp_size) > 32`; иначе `2 * (max_running_requests // dp_size)`. Вне режима `decode` поле остается `None` и всюду читается как `0`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_extra_slots`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_pd_disaggregation` (подстановка авто-значения) → `model_executor/pool_configurator.py` и `mem_cache/kv_cache_configurator.py` при расчете размеров пулов → построение `DecodeReqToTokenPool`
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_pd_disaggregation` (`python/sglang/srt/arg_groups/pd_disaggregation_hook.py`, подстановка авто-значения) → `model_executor/pool_configurator.py` и `mem_cache/kv_cache_configurator.py` при расчете размеров пулов → построение `DecodeReqToTokenPool`
 
 ## Что меняет в движке
 

@@ -32,12 +32,12 @@ Choose the backend for MoE A2A.
 - Флаги: `--moe-a2a-backend`
 - Группа: `exec.moe`
 - Тип значения: перечисление
-- Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`, `flashinfer_megamoe` (константа `MOE_A2A_BACKEND_CHOICES`). `ascend_tp` принимается argparse, но `_handle_a2a_moe` немедленно заменяет его на `none` — в коде это помечено как обход падения точности
+- Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`, `flashinfer_megamoe` (константа `MOE_A2A_BACKEND_CHOICES`). `ascend_tp` принимается argparse, но шаг резолва `handle_a2a_moe` немедленно декларирует вместо него `none` — в коде это помечено как обход падения точности
 - Значение по умолчанию: `none`
-- Эффективное значение: переопределяется `_a2a_backend_overrides` (Waterfill ⇒ `deepep`; переменная `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE` ⇒ `megamoe`), `_handle_dwdp` (DWDP ⇒ `none`) и правилом NPU (`none` на NPU и `ascend_tp` ⇒ `none`)
+- Эффективное значение: переопределяется пассом `_a2a_backend_overrides` (Waterfill ⇒ `deepep`; переменная `SGLANG_OPT_USE_DEEPGEMM_MEGA_MOE` ⇒ `megamoe`), шагом `handle_dwdp` (`arg_groups/parallel_hook.py`, DWDP ⇒ `none`) и правилом NPU в `handle_a2a_moe` (`none` на NPU и `ascend_tp` ⇒ `none`). Все они пишут через `declare_resolution`: `server_args.moe_a2a_backend` хранит ввод оператора, итог читается через `get_moe_a2a_backend()` и виден в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.moe_a2a_backend`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_a2a_moe`) → `initialize_moe_config` → создание диспетчера каждого MoE-слоя
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_a2a_moe` (`python/sglang/srt/arg_groups/moe_hook.py`) → `initialize_moe_config` → создание диспетчера каждого MoE-слоя
 
 ## Что меняет в движке
 
@@ -49,7 +49,7 @@ Choose the backend for MoE A2A.
 - `deepep`, `mooncake`, `mori`, `nixl`, `pplx` → `MaybeTboDeepEPDispatcher` с режимом из `--deepep-mode`;
 - `flashinfer` → `FlashinferDispatcher`.
 
-Параллельно `_handle_a2a_moe` навешивает правила:
+Параллельно шаг `handle_a2a_moe` навешивает правила:
 
 - **`--ep-size` перетирается.** `_a2a_ep_size`: для `megamoe`, `deepep`, `deepep_v2`, `mooncake`, `nixl`, `ascend_fuseep`, `flashinfer`, `mori`, `pplx` выставляется `ep_size = tp_size` с информационной строкой в логе. Гибрид `ep_size < tp_size` возможен только при `none`.
 - **`flashinfer`**: требует `--enable-dp-attention` и `dp_size == tp_size`; `--deepep-mode` игнорируется (об этом пишется предупреждение); раннер обязан быть `flashinfer_cutlass`, `flashinfer_cutedsl` или `flashinfer_trtllm_routed`; при NVFP4-весах включается `SGLANG_MOE_NVFP4_DISPATCH`.
@@ -59,7 +59,7 @@ Choose the backend for MoE A2A.
 - **`deepep`**: при `--deepep-mode normal` CUDA graph отключается (и для decode, и для prefill) с предупреждением в логе.
 - **`megamoe`**: включается `SGLANG_OPT_FIX_MEGA_MOE_MEMORY`, если она не задана явно.
 
-Значение влияет и на балансировку экспертов: `_handle_eplb_and_dispatch` считает `needs_rank_invariant_dispatch = (moe_a2a_backend == "none")` и в этом случае запрещает `--ep-dispatch-algorithm static` и `lp` — без a2a все ранги считают одни и те же токены и обязаны выбрать одну и ту же реплику эксперта.
+Значение влияет и на балансировку экспертов: шаг `handle_eplb_and_dispatch` (`arg_groups/parallel_hook.py`) считает `needs_rank_invariant_dispatch = (moe_a2a_backend == "none")` и в этом случае запрещает `--ep-dispatch-algorithm static` и `lp` — без a2a все ранги считают одни и те же токены и обязаны выбрать одну и ту же реплику эксперта.
 
 ## Значения и формат
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --moe-a2a-backend 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep.py`

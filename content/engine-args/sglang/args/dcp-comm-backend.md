@@ -35,7 +35,7 @@ Communication backend for the decode context-parallel (DCP) attention reduction:
 - Эффективное значение: при `dcp_size <= 1` — `ag_rs`; при большей группе — `fi_a2a` только если `is_fi_a2a_supported`, иначе `a2a` на CUDA/ROCm или `ag_rs` на других платформах. Лог: `DCP (dcp_size=...) selects communication backend '...'.`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_comm_backend`
 - Статус: обычный
-- Этап применения: валидация в `_handle_dcp_validation` → предварительное выделение MNNVL-workspace до захвата CUDA graph (только `fi_a2a`) → каждый слой decode
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_decode_context_parallelism` (`arg_groups/parallel_hook.py`: сначала pass `_dcp_comm_backend_default`, затем проверки) → предварительное выделение MNNVL-workspace до захвата CUDA graph (только `fi_a2a`) → каждый слой decode
 
 ## Что меняет в движке
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 - `sglang/python/sglang/srt/layers/dcp/comm.py`
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_runner.py`
 - `sglang/python/sglang/srt/models/deepseek_common/attention_forward_methods/forward_mla.py`
 - `sglang/python/sglang/srt/utils/common.py`

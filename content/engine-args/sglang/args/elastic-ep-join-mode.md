@@ -39,13 +39,13 @@ Join mode for elastic EP. 'recover' rejoins an existing slot after a fault. 'sca
 - Эффективное значение: совпадает с заданным. Прежний устаревший флаг `--elastic-ep-rejoin`, который транслировался в `recover`, из движка удален — режим восстановления задается только этим аргументом
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.ep_join_mode` (имя поля отличается от имени флага: `cli_name="--elastic-ep-join-mode"`)
 - Статус: обычный, часть молодой подсистемы elastic EP
-- Этап применения: `__post_init__` (`handle_elastic_ep`, `check_server_args`) → выделение портов → инициализация `ElasticEPStateManager` → загрузка весов → HTTP-прогрев
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (`python/sglang/srt/arg_groups/parallel_hook.py`) → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`) → выделение портов → инициализация `ElasticEPStateManager` → загрузка весов → HTTP-прогрев
 
 ## Что меняет в движке
 
-Значение читается через два свойства `ServerArgs`: `is_ep_joiner` (режим задан) и `is_ep_scale_joiner` (режим ровно `scale`). Дальше они разводят поведение:
+Значение читается через две функции `python/sglang/srt/arg_groups/model_override_base.py`: `ep_joiner_of` (режим задан) и `ep_scale_joiner_of` (режим ровно `scale`). В рантайме они же доступны как производные поля `get_exec().moe.is_ep_joiner` и `get_exec().moe.is_ep_scale_joiner`, вычисляемые при publish. Дальше они разводят поведение:
 
-- **Проверки геометрии.** `check_server_args` пропускает требование `tp_size * pp_size % nnodes == 0` для `scale`-присоединенца: его TP-группа не обязана делиться на исходное число узлов. По той же причине `_handle_eplb_and_dispatch` не требует `ep_size > 1` при `scale`.
+- **Проверки геометрии.** `check_server_args` пропускает требование `tp_size * pp_size % nnodes == 0` для `scale`-присоединенца: его TP-группа не обязана делиться на исходное число узлов. По той же причине шаг `handle_eplb_and_dispatch` (`arg_groups/parallel_hook.py`) не требует `ep_size > 1` при `scale`.
 - **Порты.** Для `scale`-присоединенца база ZMQ-портов считается от `--port`, а не от `--dist-init-addr`, чтобы не столкнуться с портами первичной развертки. Для любого присоединенца пропускается проверка занятости `dist_init_port` — этот порт уже слушает первичный процесс.
 - **Стартовое состояние.** `ElasticEPStateManager._init_joiner_state` обнуляет маску живых рангов и поднимает единицу только на своем глобальном ранге. Для `scale` эффективный размер группы считается как `--elastic-ep-join-rank-offset + --tp-size`, исходный — из `--elastic-ep-initial-size`, и сразу выставляется признак «расширение уже произошло». Для `recover` эффективный и исходный размеры равны текущему world size.
 - **Присоединение.** `scale`-процесс на старте регистрирует свою когорту в общем TCPStore (`register_scale_cohort`) и ждет, пока первичная группа примет ее; первичная сторона видит это в `maybe_join_ep_ranks`.
@@ -111,6 +111,9 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

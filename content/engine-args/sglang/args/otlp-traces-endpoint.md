@@ -39,7 +39,7 @@ Config opentelemetry collector endpoint if --enable-trace is set. format: <ip>:<
 - Тип значения: str
 - Допустимые значения: `choices` нет. Форма зависит от транспорта: для `grpc` — `<host>:<port>` без схемы (как в справке), для `http/protobuf` — полный URL, который ожидает `OTLPSpanExporter` HTTP-варианта
 - Значение по умолчанию: `localhost:4317` (стандартный gRPC-порт OTLP)
-- Эффективное значение: совпадает с заданным; `__post_init__` его не трогает. Действует только при `--enable-trace`
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует. Действует только при `--enable-trace`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.otlp_traces_endpoint`
 - Статус: обычный
 - Этап применения: инициализация каждого процесса, участвующего в трассировке (tokenizer, HTTP, scheduler, DP-контроллер, encode-сервер)

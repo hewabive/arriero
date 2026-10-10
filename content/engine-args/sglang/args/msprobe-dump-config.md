@@ -20,18 +20,32 @@ related:
 
 Путь к JSON-конфигурации msProbe (`PrecisionDebugger`). При заданном значении `ModelRunner` создает отладчик и оборачивает каждый forward парой `start()` / `stop() + step()`, выгружая тензоры по правилам из этого файла.
 
-Главное, что надо знать до включения: аргумент имеет побочные эффекты **на уровне разбора аргументов**, и они наступают независимо от того, установлен ли msProbe:
+Главное, что надо знать до включения: аргумент имеет побочные эффекты **на уровне резолва аргументов** (шаг `handle_other_validations` в `python/sglang/srt/arg_groups/serving_hook.py`), и они наступают независимо от того, установлен ли msProbe:
 
 ```python
-if self.msprobe_dump_config is not None:
+if cfg.msprobe_dump_config is not None:
     logger.warning(
         "When msProbe is enabled, "
         "cuda graph is disabled because msProbe only supports dump in eager mode, "
         "warmup is disabled(skip_server_warmup=True) because there is no need to dump data for this stage."
     )
-    self.cuda_graph_config.decode.backend = Backend.DISABLED
-    self.cuda_graph_config.prefill.backend = Backend.DISABLED
-    self.skip_server_warmup = True
+    declare_resolution(
+        server_args,
+        "_handle_other_validations",
+        cuda_graph_config=with_phase(
+            cfg.cuda_graph_config, Phase.DECODE, backend=Backend.DISABLED
+        ),
+    )
+    declare_resolution(
+        server_args,
+        "_handle_other_validations",
+        cuda_graph_config=with_phase(
+            cfg.cuda_graph_config, Phase.PREFILL, backend=Backend.DISABLED
+        ),
+    )
+    declare_resolution(
+        server_args, "_handle_other_validations", skip_server_warmup=True
+    )
 ```
 
 Если пакета в окружении нет, `create_msprobe_debugger` напечатает предупреждение и вернет `None` — дампа не будет, а CUDA graph и прогрев останутся выключенными. Это тихая и очень дорогая деградация производительности.
@@ -49,10 +63,10 @@ The path of the JSON configuration file for msProbe. If specified, enables msPro
 - Тип значения: str — путь к файлу JSON
 - Допустимые значения: `choices` нет. Существование файла SGLang не проверяет; путь передается в `PrecisionDebugger(config_path=...)`, и разбор — забота msProbe
 - Значение по умолчанию: `None` — интеграция выключена
-- Эффективное значение: значение не переписывается, но **переписывает другие**: `cuda_graph_config.decode.backend` и `cuda_graph_config.prefill.backend` становятся `DISABLED`, `skip_server_warmup` становится `True`
+- Эффективное значение: само значение ни один шаг резолва не декларирует, но оно **меняет эффективные значения других**: `cuda_graph_config.decode.backend` и `cuda_graph_config.prefill.backend` становятся `DISABLED`, `skip_server_warmup` становится `True`. Поля `server_args` при этом хранят ввод оператора, итог виден в `resolved_dict()` и дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.msprobe_dump_config`
 - Статус: обычный аргумент узкоспециальной отладочной интеграции, а не эксплуатационная настройка
-- Этап применения: `__post_init__` (выключение графов и прогрева) → `ModelRunner.init_msprobe` → каждый forward
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_other_validations` (выключение графов и прогрева) → `ModelRunner.init_msprobe` → каждый forward
 
 ## Что меняет в движке
 
@@ -92,7 +106,7 @@ return PrecisionDebugger(config_path=server_args.msprobe_dump_config)
 - Путь к существующему файлу JSON: `--msprobe-dump-config /root/msprobe/config.json`.
 - Относительный путь разрешается относительно рабочего каталога процесса.
 - Ошибки в файле проявятся как исключение из `PrecisionDebugger` при инициализации `ModelRunner`, то есть падением scheduler-процесса на старте.
-- Отключается только удалением аргумента; «пустого» значения, эквивалентного выключению, нет — пустая строка не равна `None`, а значит, побочные эффекты в `__post_init__` сработают.
+- Отключается только удалением аргумента; «пустого» значения, эквивалентного выключению, нет — пустая строка не равна `None`, а значит, побочные эффекты в шаге резолва `handle_other_validations` сработают.
 
 ## Когда использовать
 
@@ -118,7 +132,7 @@ return PrecisionDebugger(config_path=server_args.msprobe_dump_config)
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** в логе `Please install msprobe for tensor data dump: pip install mindstudio-probe --pre …`, дампа нет, а сервер стал заметно медленнее. **Причина:** пакет не установлен, но CUDA graph и прогрев уже выключены `__post_init__`. **Лечение:** убрать аргумент или установить пакет.
+- **Симптом:** в логе `Please install msprobe for tensor data dump: pip install mindstudio-probe --pre …`, дампа нет, а сервер стал заметно медленнее. **Причина:** пакет не установлен, но CUDA graph и прогрев уже выключены шагом резолва `handle_other_validations`. **Лечение:** убрать аргумент или установить пакет.
 - **Симптом:** при старте предупреждение `When msProbe is enabled, cuda graph is disabled …`. **Причина:** это ожидаемое поведение, а не ошибка.
 - **Симптом:** scheduler падает на инициализации `ModelRunner` с исключением из msProbe. **Причина:** файл конфигурации отсутствует или не соответствует схеме msProbe. **Лечение:** проверить путь и содержимое по документации msProbe.
 - **Симптом:** результаты генерации изменились после включения. **Причина:** `seed_all(mode=True)`. **Лечение:** сравнивать только между запусками с одинаковой настройкой.
@@ -146,4 +160,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/model_executor/model_runner_components/misc_utils.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - arriero: `docs/MEMORY_ESTIMATION.md`, `apps/api/src/process/log-parsers/sglang.ts`

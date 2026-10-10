@@ -31,7 +31,7 @@ Number of threads for multimodal data loading and decoding. 0 selects the model-
 - Флаги: `--mm-io-worker-num`
 - Группа: `mm`
 - Тип значения: int
-- Допустимые значения: неотрицательное целое; `assert self.mm_io_worker_num >= 0, "Multimodal I/O worker num must >= 0"` в `__post_init__`
+- Допустимые значения: неотрицательное целое; `assert cfg.mm_io_worker_num >= 0, "Multimodal I/O worker num must >= 0"` в `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, вызывается после пайплайна резолва `ServerArgs.resolve_once`)
 - Значение по умолчанию: `0` — «модель-специфичный дефолт»
 - Эффективное значение: разрешается в конструкторе `BaseMultimodalProcessor` по цепочке «аргумент → переменная окружения `SGLANG_IO_WORKERS` → `auto_mm_io_worker_num` процессора»
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_io_worker_num`
@@ -43,7 +43,7 @@ Number of threads for multimodal data loading and decoding. 0 selects the model-
 Разрешение значения (`sglang/python/sglang/srt/multimodal/processors/base_processor.py`):
 
 ```python
-requested_mm_io_worker_num = self.server_args.mm_io_worker_num
+requested_mm_io_worker_num = get_mm().mm_io_worker_num
 env_mm_io_worker_num = os.environ.get("SGLANG_IO_WORKERS")
 if requested_mm_io_worker_num:
     self.mm_io_worker_num = requested_mm_io_worker_num   # explicit
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-io
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/qwen_vl.py`
 - `sglang/python/sglang/srt/multimodal/processors/kimi_k3.py`

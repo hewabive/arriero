@@ -33,7 +33,7 @@ Include usage in every streaming response (even when stream_options is not speci
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` не переопределяет
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.stream_response_default_include_usage`
 - Статус: обычный
 - Этап применения: HTTP-слой, формирование стримингового ответа `/v1/chat/completions` и `/v1/completions`

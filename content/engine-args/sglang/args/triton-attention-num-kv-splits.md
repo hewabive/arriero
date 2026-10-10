@@ -33,10 +33,10 @@ The number of KV splits in flash decoding Triton kernel. Larger value is better 
 - Тип значения: целое
 - Допустимые значения: `choices` нет; практический смысл имеют степени двойки, потому что и `_mla_decode_kv_splits_cap`, и планировщик split'ов округляют вверх до степени двойки
 - Значение по умолчанию: `8`
-- Эффективное значение: на ROCm `_handle_amd_specifics` в `__post_init__` безусловно переписывает поле на `16`, независимо от заданного значения. Дальше уже в backend'е (`TritonAttnBackend.__init__`) для MLA-моделей значение поднимается до `_mla_decode_kv_splits_cap(...)` — `max(заданное, min(next_pow2(число SM), next_pow2(ceil(context_len / 32))))`, а на gfx942 дополнительно ограничивается сверху 256. Если задан `--triton-attention-split-tile-size`, `max_kv_splits` пересчитывается из него как `ceil(context_len / split_tile_size)` и заданное здесь значение теряет силу
+- Эффективное значение: на ROCm шаг резолва `handle_amd_specifics` (`arg_groups/platform_hook.py`) безусловно декларирует `16`, независимо от заданного значения; сырое поле хранит ввод оператора, а backend читает разрешенное из `get_exec().kernel`. Дальше уже в backend'е (`TritonAttnBackend.__init__`) для MLA-моделей значение поднимается до `_mla_decode_kv_splits_cap(...)` — `max(заданное, min(next_pow2(число SM), next_pow2(ceil(context_len / 32))))`, а на gfx942 дополнительно ограничивается сверху 256. Если задан `--triton-attention-split-tile-size`, `max_kv_splits` пересчитывается из него как `ceil(context_len / split_tile_size)` и заданное здесь значение теряет силу
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.triton_attention_num_kv_splits`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_amd_specifics` (ROCm) → конструктор `TritonAttnBackend` / `WaveAttnBackend` → выделение буферов CUDA graph → каждый decode-forward
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_amd_specifics` (ROCm) → конструктор `TritonAttnBackend` / `WaveAttnBackend` → выделение буферов CUDA graph → каждый decode-forward
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ Backend `wave` (`sglang/python/sglang/srt/layers/attention/wave_backend.py`) ч�
 
 - Поднимайте (16, 32, 64), когда decode идет через `triton`, контекст длинный, батч маленький и GPU недозагружен: это классический случай, когда параллелизма по батчу не хватает и его добирают split'ами по KV.
 - Не трогайте на MLA-моделях, пока не посмотрели, что реально выбрал `_mla_decode_kv_splits_cap`: там значение и так поднимается по числу SM и длине контекста.
-- Не трогайте на ROCm: `_handle_amd_specifics` все равно поставит 16.
+- Не трогайте на ROCm: `handle_amd_specifics` все равно поставит 16.
 - Уменьшайте (4), только если упираетесь в память под CUDA graph на модели с большим `v_head_dim` и большим `--cuda-graph-max-bs-decode`.
 
 ## Влияние на производительность и память
@@ -82,7 +82,7 @@ Backend `wave` (`sglang/python/sglang/srt/layers/attention/wave_backend.py`) ч�
 - **Симптом:** OOM на этапе захвата CUDA graph после увеличения значения. **Причина:** персистентный fp32-буфер. **Решение:** вернуть меньшее число split'ов либо уменьшить `--cuda-graph-max-bs-decode`.
 - **Симптом:** значение задано, а поведение не изменилось. **Причина:** декод обслуживает не `triton`; либо ROCm перетер значение на 16; либо MLA-потолок и так был выше.
 - **Симптом:** на ROCm gfx942 при длинном контексте были падения в graph replay. **Причина/решение:** это как раз тот случай, ради которого код ограничивает значение 256 — не пытайтесь обойти ограничение вручную.
-- **Проверка:** дамп `server_args=` при старте показывает значение после `_handle_amd_specifics`, но **не** показывает потолок MLA — тот применяется уже внутри backend'а. Косвенно эффект виден по размеру `graph_memory_usage` в логе захвата графов.
+- **Проверка:** дамп `server_args=` при старте показывает разрешенное значение (после `handle_amd_specifics`), но **не** показывает потолок MLA — тот применяется уже внутри backend'а. Косвенно эффект виден по размеру `graph_memory_usage` в логе захвата графов.
 
 ## Примеры
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --decode-atten
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/python/sglang/srt/layers/attention/wave_backend.py`
 - `sglang/docs/docs/advanced_features/hyperparameter_tuning.mdx`

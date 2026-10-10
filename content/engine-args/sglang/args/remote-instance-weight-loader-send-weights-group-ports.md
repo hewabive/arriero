@@ -33,10 +33,10 @@ The communication group ports for loading weights from remote instance.
 - Тип значения: JSON-список целых (`Optional[List[int]]`, парсер `json_list_type`)
 - Допустимые значения: не ограничены; проверяется только то, что строка разбирается как JSON
 - Значение по умолчанию: `null`
-- Эффективное значение: не переопределяется; его отсутствие при `--load-format remote_instance` и backend `nccl` переводит `load_format` в `auto`
+- Эффективное значение: не переопределяется; его отсутствие при `--load-format remote_instance` и backend `nccl` заставляет шаг резолва декларировать `load_format=auto`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_send_weights_group_ports`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format` — проверка полноты) → HTTP-запросы к seed'у и построение коннектора при загрузке весов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` (`python/sglang/srt/arg_groups/model_path_hook.py` — проверка полноты) → HTTP-запросы к seed'у и построение коннектора при загрузке весов
 
 ## Что меняет в движке
 
@@ -47,7 +47,7 @@ The communication group ports for loading weights from remote instance.
 
 Из второго пункта следует жесткое требование: элементов в списке должно быть не меньше, чем `--tp-size`. Проверки на длину в коде нет — при коротком списке будет `IndexError` в момент загрузки весов на старшем ранге.
 
-Проверка полноты в `_handle_load_format`: если формат `remote_instance`, backend `nccl` и список не задан — `Fallback load_format to 'auto' due to incomplete remote instance weight loader NCCL group ports settings.`
+Проверка полноты в шаге резолва `handle_load_format`: если формат `remote_instance`, backend `nccl` и список не задан — `Fallback load_format to 'auto' due to incomplete remote instance weight loader NCCL group ports settings.`
 
 Для backend'ов `transfer_engine` и `modelexpress` список не читается: там адресация другая (RDMA-сессия и метаданные весов, либо конфиг ModelExpress).
 
@@ -101,6 +101,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --tp-size 4 --load-
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

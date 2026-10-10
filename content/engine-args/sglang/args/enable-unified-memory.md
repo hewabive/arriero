@@ -50,7 +50,7 @@ Replace the statically-partitioned hybrid-model pools (full-attn KV + SWA/Mamba 
 - Эффективное значение: сам флаг не переопределяется, но он **переопределяет чужой**: `handle_page_major_kv_layout` принудительно выставляет `enable_page_major_kv_layout = True`; при FULL-backend'е prefill CUDA graph без fa3/fa4 `handle_unified_memory_pool` переводит prefill-захват в `disabled`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_unified_memory`
 - Статус: экспериментальный; набор допустимых сочетаний расширяется по мере аудита отдельных путей
-- Этап применения: `__post_init__` (`handle_kv4_compatibility`, `handle_page_major_kv_layout`, `handle_unified_memory_pool` в `arg_groups/kv_cache_hook.py`) → построение пулов в `KVCacheConfigurator._init_pools` → forward и захват CUDA graph; часть PD-ограничений проверяется только при первой передаче KV
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (`handle_kv4_compatibility`, `handle_page_major_kv_layout`, `handle_unified_memory_pool` в `arg_groups/kv_cache_hook.py`) → построение пулов в `KVCacheConfigurator._init_pools` → forward и захват CUDA graph; часть PD-ограничений проверяется только при первой передаче KV
 
 ## Что меняет в движке
 

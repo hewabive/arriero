@@ -16,7 +16,7 @@ related:
 
 ## Кратко
 
-`--hicache-io-backend` — это выбор транспорта для уровня L2↔L1: `kernel` использует специализированные GPU-ядра переноса KV, `direct` — обычные асинхронные копии памяти. Значение имеет смысл только вместе с `--hicache-mem-layout`: допустимы не все четыре комбинации, и `__post_init__` приводит их к валидной паре сам, печатая предупреждение. Третье значение `kernel_ascend` — не альтернатива для NVIDIA/AMD, а внутренний путь Ascend NPU, который платформа выставляет себе сама.
+`--hicache-io-backend` — это выбор транспорта для уровня L2↔L1: `kernel` использует специализированные GPU-ядра переноса KV, `direct` — обычные асинхронные копии памяти. Значение имеет смысл только вместе с `--hicache-mem-layout`: допустимы не все четыре комбинации, и резолв аргументов на старте (шаг `handle_hicache`) приводит их к валидной паре сам, печатая предупреждение. Третье значение `kernel_ascend` — не альтернатива для NVIDIA/AMD, а внутренний путь Ascend NPU, который платформа выставляет себе сама.
 
 ## Оригинальная справка
 
@@ -31,10 +31,10 @@ The IO backend for KV cache transfer between CPU and GPU
 - Тип значения: строка с фиксированным списком
 - Допустимые значения: `direct`, `kernel`, `kernel_ascend`
 - Значение по умолчанию: `kernel`
-- Эффективное значение: `_resolve_layout_io_compatibility` в `__post_init__` меняет `kernel` на `direct`, если задан layout `page_first_direct`; на Ascend NPU `hardware_backend/npu/utils.py` принудительно выставляет `kernel_ascend` вместе с соответствующим layout
+- Эффективное значение: `resolve_layout_io_compatibility` (вызывается из шага `handle_hicache`, `arg_groups/hicache_hook.py`) декларирует `direct` вместо `kernel`, если задан layout `page_first_direct`; на Ascend NPU `hardware_backend/npu/utils.py` принудительно выставляет `kernel_ascend` вместе с соответствующим layout
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.hicache_io_backend`
 - Статус: обычный; значение `kernel_ascend` — платформенное, для CUDA/ROCm непригодно
-- Этап применения: `__post_init__` (`_handle_hicache`) → создание `HiCacheController` → каждая операция загрузки/выгрузки KV
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_hicache` (`arg_groups/hicache_hook.py`) → создание `HiCacheController` → каждая операция загрузки/выгрузки KV
 
 ## Что меняет в движке
 
@@ -43,7 +43,7 @@ The IO backend for KV cache transfer between CPU and GPU
 - `HiCacheController.move_indices` (`sglang/python/sglang/srt/managers/cache_controller.py`) — где именно должны лежать индексные тензоры. Для `kernel` индексы уходят на GPU, для `direct` они остаются на CPU (и при `layer_first` дополнительно сортируются), для `kernel_ascend` — device-индексы переводятся на CPU;
 - пулы хоста (`mem_cache/pool_host/mha.py`, `mla.py`, `memory_pool_host.py`) — какой примитив переноса вызвать: `transfer_kv_*` (GPU-ядра) для `kernel`, `transfer_kv_*_direct` для `direct`, `transfer_kv_dim_exchange` и родственные для `kernel_ascend`.
 
-Нормализация пары layout/IO происходит до этого, в `_handle_hicache`:
+Нормализация пары layout/IO происходит до этого, в `handle_hicache`:
 
 - `page_first_direct` + `kernel` → IO переключается на `direct` («Kernel io backend does not support page first direct layout, switching to direct io backend»);
 - `page_first` + `direct` → меняется **layout**, а не IO: он становится `page_first_direct` («Page first layout is not supported with direct IO backend, switching to page first direct layout»).
@@ -72,9 +72,9 @@ The IO backend for KV cache transfer between CPU and GPU
 
 ## Взаимодействие с другими аргументами
 
-- `--enable-hierarchical-cache`: без него (и без `--disaggregation-decode-enable-offload-kvcache`) нормализация `_handle_hicache` не выполняется и значение не читается.
+- `--enable-hierarchical-cache`: без него (и без `--disaggregation-decode-enable-offload-kvcache`) нормализация `handle_hicache` не выполняется и значение не читается.
 - `--hicache-mem-layout`: связаны жестко, см. правила нормализации выше. Изменение одного часто меняет второе.
-- `--hicache-storage-backend mooncake`: при `layer_first` layout переписывается на `page_first` для `kernel` и на `page_first_direct` для `direct` (`_resolve_storage_layout_compatibility`); при `kernel_ascend` layout остается как есть.
+- `--hicache-storage-backend mooncake`: при `layer_first` layout переписывается на `page_first` для `kernel` и на `page_first_direct` для `direct` (`resolve_storage_layout_compatibility`); при `kernel_ascend` layout остается как есть.
 - `--disaggregation-decode-enable-offload-kvcache`: активирует ту же нормализацию, даже если сам HiCache не включен.
 
 ## Типовые проблемы и диагностика
@@ -82,7 +82,7 @@ The IO backend for KV cache transfer between CPU and GPU
 - В логе «Kernel io backend does not support page first direct layout, switching to direct io backend» — ваш `kernel` заменен на `direct`. Это не ошибка, но если вы рассчитывали на GPU-ядра, поменяйте layout.
 - В логе «Page first layout is not supported with direct IO backend, switching to page first direct layout» — заменен layout, IO остался вашим.
 - `ValueError: Unsupported io_backend: kernel_ascend` или `Unsupported layout … for io backend 'direct'` в рантайме при первой передаче — выбрана комбинация, для которой нет пути переноса.
-- Итоговую пару layout/IO показывает дамп `server_args=` при старте: он печатается уже после `__post_init__`, то есть с учетом всех автозамен.
+- Итоговую пару layout/IO показывает дамп `server_args=` при старте: он строится из `resolved_dict()`, то есть с учетом всех автозамен, тогда как сам `server_args.hicache_io_backend` хранит исходный ввод.
 - Пропускную способность L2↔L1 удобно сравнивать по TTFT на запросах, целиком попадающих в L2, при `--enable-cache-report`.
 
 ## Примеры
@@ -99,6 +99,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mha.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mla.py`

@@ -39,7 +39,7 @@ Read CLI options from a config file. Must be a YAML file with configuration opti
 - Эффективное значение: значение никуда не сохраняется — в `ServerArgs` нет поля `config`, и `from_cli_args` его отбрасывает. Единственный эффект — подстановка аргументов до разбора
 - Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`; вся логика слияния — `sglang/python/sglang/srt/server_args_config_parser.py`
 - Статус: обычный
-- Этап применения: до разбора CLI, в `prepare_server_args`; на `__post_init__` и дальше уже никак не влияет
+- Этап применения: до разбора CLI, в `prepare_server_args`; на резолв (`ServerArgs.resolve_once` → `run_resolution_pipeline`) и дальше уже никак не влияет
 
 ## Что меняет в движке
 

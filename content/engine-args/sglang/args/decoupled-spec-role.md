@@ -34,7 +34,7 @@ Role in decoupled speculative decoding: 'null' disables it, 'verifier' runs the 
 - Тип значения: str; поле объявлено как `Literal["null", "verifier", "drafter"]`, из чего argparse выводит `choices`
 - Допустимые значения: `null`, `verifier`, `drafter`. `null` — строка, а не отсутствие значения
 - Значение по умолчанию: `"null"`
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.decoupled_spec_role`. Обратите внимание: соседние поля датакласса относятся к спекуляции, но группа у всех четырех аргументов — `disagg`
 - Статус: обычный флаг незавершенной функциональности — в checkout'е нет ни одного потребителя собранной конфигурации
 - Этап применения: `PortArgs.init_new` при подготовке портов и IPC-каналов — единственное место, где значение читается
@@ -63,7 +63,7 @@ Role in decoupled speculative decoding: 'null' disables it, 'verifier' runs the 
 - `null` эквивалентно незаданному аргументу: ветка в `PortArgs.init_new` не выполняется, три остальных `--decoupled-spec-*` не требуются и не проверяются.
 - `verifier` и `drafter` — половины одной сетки, запускаются как отдельные процессы `sglang.launch_server` со своими `--decoupled-spec-bind-endpoint` и списками `--decoupled-spec-connect-endpoints`.
 - Ранговое пространство у ролей раздельное: `--decoupled-spec-rank` нумерует процессы **внутри своей роли**.
-- Кросс-проверок с `--speculative-algorithm` в `__post_init__` нет: аргументы независимы, и согласованность лежит на операторе.
+- Кросс-проверок с `--speculative-algorithm` в шагах резолва (`resolve_once`) нет: аргументы независимы, и согласованность лежит на операторе.
 
 ## Когда использовать
 
@@ -80,7 +80,7 @@ Role in decoupled speculative decoding: 'null' disables it, 'verifier' runs the 
 
 - `--decoupled-spec-bind-endpoint`, `--decoupled-spec-connect-endpoints`, `--decoupled-spec-rank`: обязательны при ненулевой роли; отсутствие любого из трех — отказ на старте.
 - `--spec-trace-dir`: каталог для трассировок decoupled-спекуляции (объявлен в группе `spec`), логически связан с этой схемой.
-- `--speculative-algorithm` и остальные `--speculative-*`: относятся к встроенной спекуляции внутри одного процесса; никаких проверок совместимости с decoupled-ролями в `__post_init__` нет.
+- `--speculative-algorithm` и остальные `--speculative-*`: относятся к встроенной спекуляции внутри одного процесса; никаких проверок совместимости с decoupled-ролями в шагах резолва (`resolve_once`) нет.
 - `--disaggregation-mode`: независимая ось. Обе группы аргументов лежат в `disagg`, но это разные топологии — PD делит фазы, decoupled spec делит draft/verify.
 
 ## Типовые проблемы и диагностика

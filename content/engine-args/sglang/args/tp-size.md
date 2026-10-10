@@ -41,10 +41,10 @@ The tensor parallelism size.
 - Тип значения: int
 - Допустимые значения: `choices` нет; практический предел — число видимых GPU на узел, умноженное на `--nnodes`
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным. Ни один `_handle_*` и ни одно правило из `arg_groups/overrides.py` не переписывает `tp_size` — это редкий для SGLang случай, когда декларативный default и есть эффективное значение. Обратное неверно: `tp_size` сам служит источником для `--ep-size` (при a2a-backend), `--dcp-size`, `--attn-cp-size` и для резерва в `--mem-fraction-static`
+- Эффективное значение: совпадает с заданным. Ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`), ни одно правило из `arg_groups/overrides.py` или `arg_groups/model_overrides/` не декларирует `tp_size` — это редкий для SGLang случай, когда декларативный default и есть эффективное значение. Обратное неверно: `tp_size` сам служит источником для `--ep-size` (при a2a-backend), `--dcp-size`, `--attn-cp-size` и для резерва в `--mem-fraction-static`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.tp_size`
 - Статус: обычный
-- Этап применения: разбор CLI → `check_server_args` (делимость на `--nnodes`) → запуск `tp_size` scheduler-процессов → `init_torch_distributed` (создание world/TP/PP-групп) → загрузка и шардирование весов → выделение KV-пула → захват CUDA graph
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `check_server_args` (`arg_groups/validation_hook.py`, вызывается из `Engine._launch_subprocesses` после резолва; делимость на `--nnodes`) → запуск `tp_size` scheduler-процессов → `init_torch_distributed` (создание world/TP/PP-групп) → загрузка и шардирование весов → выделение KV-пула → захват CUDA graph
 
 ## Что меняет в движке
 
@@ -146,6 +146,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/distributed/utils.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

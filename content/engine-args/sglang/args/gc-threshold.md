@@ -30,7 +30,7 @@ Set the garbage collection thresholds (the collection frequency). Accepts 1 to 3
 - Флаги: `--gc-threshold`
 - Группа: `device`
 - Тип значения: список int (`Optional[List[int]]`, argparse `nargs="+"` — значения через пробел)
-- Допустимые значения: длина от 1 до 3, проверяется в `check_server_args`: `ValueError: When setting gc_threshold, it must contain 1 to 3 integers.` Значения элементов не проверяются
+- Допустимые значения: длина от 1 до 3, проверяется в `check_server_args` (`arg_groups/validation_hook.py`; вызывается из `Engine._launch_subprocesses` после `ServerArgs.resolve_once`): `ValueError: When setting gc_threshold, it must contain 1 to 3 integers.` Значения элементов не проверяются
 - Значение по умолчанию: `null` — пороги CPython остаются как есть (`(700, 10, 10)`, если их не менял никто другой; текущее значение можно посмотреть через `python -c "import gc; print(gc.get_threshold())"`)
 - Эффективное значение: совпадает с заданным; автоподбора нет
 - Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.gc_threshold`
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --gc-threshold 5000
 - `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

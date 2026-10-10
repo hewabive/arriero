@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-`--ssl-keyfile` — приватный ключ к сертификату из `--ssl-certfile`. Аргументы взаимно обязательны: любой без пары отвергается в `__post_init__` с явным сообщением, до того как процесс начнет читать веса.
+`--ssl-keyfile` — приватный ключ к сертификату из `--ssl-certfile`. Аргументы взаимно обязательны: любой без пары отвергается шагом резолва `handle_ssl_validation` (`ServerArgs.resolve_once`) с явным сообщением, до того как процесс начнет читать веса.
 
 Отдельный практический момент — права на файл. SGLang проверяет только `os.path.isfile`; недоступный по правам ключ пройдет валидацию и уронит процесс позже, при создании SSL-контекста.
 
@@ -34,12 +34,12 @@ The file path to the SSL key file.
 - Флаги: `--ssl-keyfile`
 - Группа: `serving`
 - Тип значения: str — путь к существующему файлу (PEM с приватным ключом)
-- Допустимые значения: `choices` нет; `os.path.isfile` проверяется в `_handle_ssl_validation`
+- Допустимые значения: `choices` нет; `os.path.isfile` проверяется в шаге резолва `handle_ssl_validation`
 - Значение по умолчанию: `None` — TLS выключен
-- Эффективное значение: совпадает с заданным, переписывания нет. В отличие от `--ssl-certfile`, на схему внутренних URL не влияет: `ServerArgs.url()` смотрит только на `ssl_certfile`
+- Эффективное значение: совпадает с заданным, ни один шаг резолва его не декларирует. В отличие от `--ssl-certfile`, на схему внутренних URL не влияет: `ServerArgs.url()` смотрит только на `ssl_certfile`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_keyfile`
 - Статус: обычный
-- Этап применения: `__post_init__` → `_handle_ssl_validation` → HTTP-слой (`uvicorn.run(ssl_keyfile=...)` либо `Granian(ssl_key=...)`)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_ssl_validation` (`python/sglang/srt/arg_groups/serving_hook.py`) → HTTP-слой (`uvicorn.run(ssl_keyfile=...)` либо `Granian(ssl_key=...)`)
 
 ## Что меняет в движке
 
@@ -49,13 +49,13 @@ The file path to the SSL key file.
 - в `_run_granian_server(..., ssl_key=ssl_keyfile, ...)` при `--enable-http2`;
 - в `SSLCertRefresher` (`entrypoints/ssl_utils.py`) при `--enable-ssl-refresh` — там путь отслеживается через `watchfiles.awatch` и при изменении файла контекст перезагружается вызовом `load_cert_chain(cert, key)`.
 
-Валидация в `_handle_ssl_validation` выполняется в таком порядке: сначала парность (`--ssl-keyfile requires --ssl-certfile to be specified as well.`), затем осмысленность спутников (`--ssl-ca-certs` и `--ssl-keyfile-password` без пары cert+key дают отдельные `ValueError`), затем существование каждого файла (`SSL key file not found: '<путь>'. Please check the --ssl-keyfile path.`), затем требование `--enable-ssl-refresh` и совместимость с `--enable-http2`.
+Валидация в шаге `handle_ssl_validation` выполняется в таком порядке: сначала парность (`--ssl-keyfile requires --ssl-certfile to be specified as well.`), затем осмысленность спутников (`--ssl-ca-certs` и `--ssl-keyfile-password` без пары cert+key дают отдельные `ValueError`), затем существование каждого файла (`SSL key file not found: '<путь>'. Please check the --ssl-keyfile path.`), затем требование `--enable-ssl-refresh` и совместимость с `--enable-http2`.
 
 ## Значения и формат
 
 - PEM-файл с приватным ключом; RSA и EC поддерживаются TLS-библиотекой, SGLang содержимое не разбирает.
 - Зашифрованный ключ требует `--ssl-keyfile-password`; без пароля процесс упадет при создании контекста, а не на валидации.
-- Проверяется именно файл: каталог или отсутствующий путь дают `ValueError` на этапе `__post_init__`.
+- Проверяется именно файл: каталог или отсутствующий путь дают `ValueError` на этапе резолва (`handle_ssl_validation`).
 - Права доступа не проверяются. Ключ, читаемый только `root`, при запуске от другого пользователя приведет к `PermissionError` в конце старта.
 - Ключ и сертификат в одном PEM-файле формально допустимы (можно указать один и тот же путь в оба аргумента), но парность аргументов при этом все равно обязательна.
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

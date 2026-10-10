@@ -38,7 +38,7 @@ The password to decrypt the SSL keyfile.
 - Эффективное значение: совпадает с заданным; переписывания нет
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.ssl_keyfile_password`
 - Статус: обычный
-- Этап применения: `__post_init__` → `_handle_ssl_validation` (проверка осмысленности) → HTTP-слой (`uvicorn.run(ssl_keyfile_password=...)` либо `Granian(ssl_key_password=...)`)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_ssl_validation` (`arg_groups/serving_hook.py`, проверка осмысленности) → HTTP-слой (`uvicorn.run(ssl_keyfile_password=...)` либо `Granian(ssl_key_password=...)`)
 
 ## Что меняет в движке
 
@@ -47,11 +47,11 @@ The password to decrypt the SSL keyfile.
 - во всех трех uvicorn-ветках `_setup_and_run_http_server` как `ssl_keyfile_password`;
 - в `_run_granian_server` как `ssl_key_password` при `--enable-http2`.
 
-Единственная собственная логика SGLang — проверка в `_handle_ssl_validation`:
+Единственная собственная логика SGLang — проверка в шаге резолва `handle_ssl_validation`:
 
 ```python
-if not self.ssl_certfile and not self.ssl_keyfile:
-    if self.ssl_keyfile_password:
+if not cfg.ssl_certfile and not cfg.ssl_keyfile:
+    if cfg.ssl_keyfile_password:
         raise ValueError(
             "--ssl-keyfile-password has no effect without --ssl-certfile and --ssl-keyfile."
         )
@@ -112,6 +112,7 @@ openssl rsa -in /etc/ssl/sglang/server-encrypted.key -out /etc/ssl/sglang/server
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

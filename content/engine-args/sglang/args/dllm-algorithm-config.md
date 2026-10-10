@@ -37,7 +37,7 @@ The diffusion LLM algorithm configurations. Must be a YAML file.
 - Эффективное значение: словарь из файла попадает в `DllmConfig.algorithm_config`; ключ `block_size` из него перекрывает значение из таблицы архитектур
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_algorithm_config`
 - Статус: обычный
-- Этап применения: `__post_init__` (при резолюции `--page-size` через `DllmConfig.from_server_args`) → инициализация scheduler'а (создание алгоритма)
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_dllm_inference` (`python/sglang/srt/arg_groups/dllm_hook.py`), где пасс `_dllm_page_size` резолвит `--page-size` через `DllmConfig.from_server_args` → инициализация scheduler'а (создание алгоритма)
 
 ## Что меняет в движке
 
@@ -137,3 +137,4 @@ python -m sglang.launch_server --model-path /models/LLaDA2.0-mini-preview --dllm
 - `sglang/python/sglang/srt/dllm/algorithm/joint_threshold.py`
 - `sglang/python/sglang/srt/dllm/algorithm/base.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`

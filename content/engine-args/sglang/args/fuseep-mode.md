@@ -31,10 +31,10 @@ Select the mode when enable Ascend FuseEP MoE, 1 -> dispatch_gmm_combine_decode 
 - Тип значения: int
 - Допустимые значения: `1`, `2`
 - Значение по умолчанию: `2`
-- Эффективное значение: перед созданием `ServerArgs` функция `_apply_fuseep_mode_env_compat` подставляет значение устаревшей переменной окружения `SGLANG_NPU_FUSED_MOE_MODE`, если она выставлена **и** флага нет в командной строке. Переменная принимает только 1 и 2, иначе `ValueError: Wrong value of SGLANG_NPU_FUSED_MOE_MODE=..., the NPU only supports 1 or 2.`; при подстановке печатается предупреждение об устаревании. Подстановка живет в `prepare_server_args`, то есть работает на пути `python -m sglang.launch_server` / `sglang serve`, а не при программном создании `ServerArgs`
+- Эффективное значение: совпадает с заданным — ни один шаг резолва его не декларирует. Прежняя подстановка устаревшей переменной окружения `SGLANG_NPU_FUSED_MOE_MODE` в `prepare_server_args` (`_apply_fuseep_mode_env_compat`) удалена еще в v0.5.18: в checkout'е переменная нигде не читается, единственный вход — `--fuseep-mode`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.fuseep_mode`
 - Статус: обычный, но платформо-специфичный: за пределами Ascend NPU не читается
-- Этап применения: разбор CLI (совместимость с переменной окружения) → `process_weights_after_loading` (раскладка весов) → каждый forward MoE
+- Этап применения: разбор CLI → `process_weights_after_loading` (раскладка весов) → каждый forward MoE
 
 ## Что меняет в движке
 
@@ -57,7 +57,7 @@ Select the mode when enable Ascend FuseEP MoE, 1 -> dispatch_gmm_combine_decode 
 ## Когда использовать
 
 - Развертывание на Ascend NPU с `--moe-a2a-backend ascend_fuseep`, где вы сравниваете два варианта ядра на своем профиле нагрузки.
-- Миграция со старой конфигурации, где режим задавался переменной `SGLANG_NPU_FUSED_MOE_MODE`: перенесите значение во флаг и уберите переменную.
+- Миграция со старой конфигурации, где режим задавался переменной `SGLANG_NPU_FUSED_MOE_MODE`: перенесите значение во флаг и уберите переменную — сама она больше ничего не меняет.
 - Не трогайте на GPU-развертке: значение не будет прочитано, а конфигурация станет вводить в заблуждение.
 - Не рассчитывайте подобрать режим на живом сервере: раскладка весов готовится один раз после загрузки.
 
@@ -77,9 +77,7 @@ Select the mode when enable Ascend FuseEP MoE, 1 -> dispatch_gmm_combine_decode 
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: Wrong value of SGLANG_NPU_FUSED_MOE_MODE=3, the NPU only supports 1 or 2.` — некорректная устаревшая переменная окружения.
-- Предупреждение `The env variable SGLANG_NPU_FUSED_MOE_MODE is deprecated and will be removed in a future release. Please use --fuseep-mode instead.` — сигнал перенести значение во флаг.
-- Флаг задан, а переменная окружения проигнорирована — так и задумано: явный флаг имеет приоритет.
+- Режим не совпадает с тем, что выставлен в `SGLANG_NPU_FUSED_MOE_MODE`, — так и должно быть: переменная больше не читается, поэтому ни ошибки на неверное значение, ни предупреждения об устаревании не будет; действует только `--fuseep-mode` (по умолчанию `2`).
 - Ошибки формы весов в NPU-ядре сразу после загрузки — режим не совпадает с тем, под который готовились веса; убедитесь, что процесс перезапущен, а не переконфигурирован.
 - Ошибки вида «неподдерживаемый dtype» в dispatch — модель загружена не в bf16.
 - Итоговое значение видно в дампе `server_args=` при старте.
@@ -103,3 +101,4 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/launch_server.py`
+- upstream PR #35060 «Clean up environ.py: remove dead env vars, unify deprecation handling, move examples to a unit test» (коммит `af743371cc` в checkout) — удаление `_apply_fuseep_mode_env_compat`

@@ -37,7 +37,7 @@ Split DSA (DeepSeek Sparse Attention) GPU KV/indexer cache layers across context
 - Эффективное значение: совпадает с заданным; автоматически не включается никогда. Значение уходит и в протокол PD-передачи — оно сериализуется в handshake (`enable_dsa_cache_layer_split` в `disaggregation/common/conn.py`), чтобы decode-сторона знала о раскладке
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dsa_cache_layer_split`
 - Статус: обычный, с частичной поддержкой транспортов (mori/nixl обещаны позже)
-- Этап применения: валидация в `_handle_model_specific_adjustments` → выбор класса пула в `KVCacheConfigurator` → чтение/запись слоев на forward → handshake PD-передачи
+- Этап применения: валидация в шаге резолва `handle_model_specific_adjustments` (`ServerArgs.resolve_once`) → выбор класса пула в `KVCacheConfigurator` → чтение/запись слоев на forward → handshake PD-передачи
 
 ## Что меняет в движке
 
@@ -47,7 +47,7 @@ Split DSA (DeepSeek Sparse Attention) GPU KV/indexer cache layers across context
 - при обращении к чужому слою получает его broadcast'ом от владельца в отдельный `remote_buffer` — по одному слою за раз, а не целиком;
 - то же самое делает для кеша индексатора DSA (`LayerSplitIndexKeyCache`).
 
-Пять проверок в `_handle_model_specific_adjustments` очерчивают область применимости; каждая дает свой отказ на старте:
+Пять проверок в шаге `handle_model_specific_adjustments` (`python/sglang/srt/arg_groups/model_hook.py`) очерчивают область применимости; каждая дает свой отказ на старте:
 
 - модель обязана быть DSA (`is_deepseek_dsa`), иначе `--enable-dsa-cache-layer-split is only supported for DSA (DeepSeek Sparse Attention) models.`;
 - `--disaggregation-mode prefill` обязателен: на decode-воркере запрещено явно («decode receives full cache shards through PD transfer»), а на не-PD-воркере — потому что он же выполняет обычный локальный decode;
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/mem_cache/dsa_cache_layer_split.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/layers/cp/utils.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/disaggregation/common/conn.py`

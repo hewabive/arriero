@@ -17,7 +17,7 @@ related:
 
 ## Кратко
 
-`--random-seed` задает единое зерно для `random`, `numpy`, `torch` и CUDA-генераторов во всех процессах экземпляра. Значение по умолчанию — не константа: при незаданном аргументе `__post_init__` подставляет `random.randint(0, 1 << 30)`, поэтому каждый перезапуск получает свое зерно, и оно попадает в дамп `server_args=`. Само по себе фиксированное зерно **не делает выдачу воспроизводимой**: для этого существует `--enable-deterministic-inference`, потому что на результат влияют еще и состав батча, порядок редукций и выбранные ядра.
+`--random-seed` задает единое зерно для `random`, `numpy`, `torch` и CUDA-генераторов во всех процессах экземпляра. Значение по умолчанию — не константа: при незаданном аргументе шаг резолва `handle_missing_default_values` декларирует `random.randint(0, 1 << 30)`, поэтому каждый перезапуск получает свое зерно, и оно попадает в дамп `server_args=`. Само по себе фиксированное зерно **не делает выдачу воспроизводимой**: для этого существует `--enable-deterministic-inference`, потому что на результат влияют еще и состав батча, порядок редукций и выбранные ядра.
 
 ## Оригинальная справка
 
@@ -32,10 +32,10 @@ The random seed.
 - Тип значения: int (`Optional[int]`)
 - Допустимые значения: `choices` нет; диапазон не проверяется. Автоподставляемое значение лежит в `[0, 2^30]`
 - Значение по умолчанию: `null`
-- Эффективное значение: `_handle_missing_default_values` заменяет `null` на `random.randint(0, 1 << 30)`. Дальше значение **синхронизируется по группе**: `TpModelWorker` делает `broadcast_pyobj([server_args.random_seed], …, src=world_group.ranks[0])`, то есть эффективным становится зерно нулевого ранга — даже если на других рангах в аргументах стояло другое число. Исключение — elastic-EP-присоединители (`is_ep_joiner`), которые не участвуют в стартовом broadcast и берут свое значение
+- Эффективное значение: шаг резолва `handle_missing_default_values` (`arg_groups/serving_hook.py`) декларирует вместо `null` значение `random.randint(0, 1 << 30)`; сам `server_args.random_seed` остается `None`, а сгенерированное зерно читается из `get_device().random_seed`. Дальше значение **синхронизируется по группе**: `TpModelWorker` делает `broadcast_pyobj([get_device().random_seed], …, src=world_group.ranks[0])`, то есть эффективным становится зерно нулевого ранга — даже если на других рангах в аргументах стояло другое число. Исключение — elastic-EP-присоединители (`get_exec().moe.is_ep_joiner`, производное поле на основе `ep_joiner_of` из `arg_groups/model_override_base.py`), которые не участвуют в стартовом broadcast и берут свое значение
 - Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.random_seed`
 - Статус: обычный
-- Этап применения: `__post_init__` → `TpModelWorker.__init__` (broadcast + `set_random_seed`) → `Scheduler` (`set_random_seed` еще раз, уже полученным от воркера значением)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_missing_default_values` → `TpModelWorker.__init__` (broadcast + `set_random_seed`) → `Scheduler` (`set_random_seed` еще раз, уже полученным от воркера значением)
 
 ## Что меняет в движке
 
@@ -105,6 +105,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --random-seed 42 --
 
 - `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

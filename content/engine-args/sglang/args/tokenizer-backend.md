@@ -36,7 +36,7 @@ Tokenizer backend. 'huggingface' uses the default HuggingFace tokenizers library
 - Тип значения: str
 - Допустимые значения: `huggingface`, `fastokens` (закрытый список `choices`)
 - Значение по умолчанию: `huggingface`
-- Эффективное значение: совпадает с заданным; `__post_init__` его не трогает. Фактически игнорируется в двух случаях загрузки: путь на `.json` (tiktoken-формат) и «голый» tekken-чекпойнт — во втором случае в лог пишется явное `... ignoring tokenizer_backend=<значение>`
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. Фактически игнорируется в двух случаях загрузки: путь на `.json` (tiktoken-формат) и «голый» tekken-чекпойнт — во втором случае в лог пишется явное `... ignoring tokenizer_backend=<значение>`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_backend`
 - Статус: обычный
 - Этап применения: инициализация каждого процесса, которому нужен токенизатор (tokenizer manager, detokenizer, scheduler, tp-worker, мультимодальный процессор)

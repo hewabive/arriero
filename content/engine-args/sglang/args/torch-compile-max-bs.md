@@ -36,10 +36,10 @@ Set the maximum batch size when using torch compile.
 - Тип значения: int
 - Допустимые значения: положительное целое; argparse границ не проверяет
 - Значение по умолчанию: `32`
-- Эффективное значение: на GPU-устройствах остается заданным. На `--device cpu` в `_handle_gpu_memory_settings` **переписывается**: при заданном `--cuda-graph-bs-decode` становится `max(bs)`, иначе `torch_compile_max_bs or decode.max_bs`, после чего `decode.max_bs` приравнивается к нему; там же стоит ассерт `torch_compile_max_bs > 0`
+- Эффективное значение: на GPU-устройствах остается заданным. На `--device cpu` шаг резолва `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`) его **переопределяет** (через `declare_resolution`: сырое поле хранит ввод оператора, рантайм читает разрешенное из `get_exec().graph`): при заданном `--cuda-graph-bs-decode` становится `max(bs)`, иначе `torch_compile_max_bs or decode.max_bs`, после чего `decode.max_bs` приравнивается к нему; там же стоит ассерт `torch_compile_max_bs > 0`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.torch_compile_max_bs`
 - Статус: обычный
-- Этап применения: `__post_init__` (только для `--device cpu`) → `get_batch_sizes_to_capture` при создании decode-runner'а → захват графов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_gpu_memory_settings` (только для `--device cpu`) → `get_batch_sizes_to_capture` при создании decode-runner'а → захват графов
 
 ## Что меняет в движке
 
@@ -49,7 +49,7 @@ Set the maximum batch size when using torch compile.
 
 ```python
 compile_bs = (
-    [bs for bs in capture_bs if bs <= server_args.torch_compile_max_bs]
+    [bs for bs in capture_bs if bs <= get_exec().graph.torch_compile_max_bs]
     if get_flags().capture.enable_torch_compile
     else []
 )
@@ -66,7 +66,7 @@ compile_bs = (
 На `--device cpu` CUDA graph отсутствует, а его роль играет CPU-граф на базе `torch.compile` (`model_executor/cpu_graph_runner.py`). Там `--torch-compile-max-bs` становится основным ограничителем:
 
 - если задан `--cuda-graph-bs-decode`, флаг переписывается на максимум этого списка;
-- иначе из флага (или из `decode.max_bs`, если флаг пуст) генерируется список форм `_generate_cpu_graph_batch_sizes()`: `range(1, 17)` + `range(18, 31, 2)` + `range(32, 81, 4)` + `range(84, max+1, 8)`, плюс сам максимум;
+- иначе из флага (или из `decode.max_bs`, если флаг пуст) генерируется список форм `generate_cpu_graph_batch_sizes(server_args)` (`arg_groups/cuda_graph_hook.py`): `range(1, 17)` + `range(18, 31, 2)` + `range(32, 81, 4)` + `range(84, max+1, 8)`, плюс сам максимум;
 - `decode.max_bs` приравнивается к флагу;
 - в `cpu_graph_runner.get_batch_sizes_to_capture` стоит ассерт `max(capture_bs) <= torch_compile_max_bs`.
 
@@ -104,7 +104,7 @@ compile_bs = (
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** `AssertionError: capture_bs=…, server_args.torch_compile_max_bs=…` на `--device cpu`. **Причина:** заданный `--cuda-graph-bs-decode` содержит форму больше границы. **Решение:** поднять флаг до максимума списка.
+- **Симптом:** `AssertionError: capture_bs=…, get_exec().graph.torch_compile_max_bs=…` на `--device cpu`. **Причина:** заданный `--cuda-graph-bs-decode` содержит форму больше границы. **Решение:** поднять флаг до максимума списка.
 - **Симптом:** `--enable-torch-compile` задан, старт быстрый, эффекта нет. **Причина:** граница ниже реальных батчей. **Проверка:** сопоставьте `--torch-compile-max-bs` с `#running-req` в строках `Decode batch, …`.
 - **Симптом:** старт вырос в разы после подъема границы. Ожидаемо: скомпилировано больше форм.
 - **Симптом:** `AssertionError: cuda_graph_config[decode].bs should contain positive batch sizes`. **Причина:** нулевое или отрицательное значение на CPU-пути.
@@ -124,6 +124,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --device cpu --enab
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/cpu_graph_runner.py`

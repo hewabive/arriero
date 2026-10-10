@@ -34,9 +34,9 @@ related:
 - Флаги: `--dynamic-batch-tokenizer-batch-size`
 - Группа: `serving`
 - Тип значения: int
-- Допустимые значения: `choices` нет; отдельной проверки в `check_server_args` тоже нет. Осмысленный диапазон — от единиц до сотен
+- Допустимые значения: `choices` нет; отдельной проверки нет ни в шагах резолва, ни в `check_server_args` (`arg_groups/validation_hook.py`). Осмысленный диапазон — от единиц до сотен
 - Значение по умолчанию: `32`
-- Эффективное значение: совпадает с заданным. Ни один `_handle_*` его не переписывает; при выключенном `--enable-dynamic-batch-tokenizer` значение просто никуда не попадает, потому что объект батчера не создается
+- Эффективное значение: совпадает с заданным. Ни один шаг резолва его не декларирует; при выключенном `--enable-dynamic-batch-tokenizer` значение просто никуда не попадает, потому что объект батчера не создается
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.dynamic_batch_tokenizer_batch_size`
 - Статус: обычный
 - Этап применения: инициализация `TokenizerManager` — передается в конструктор `AsyncDynamicbatchTokenizer(tokenizer, max_batch_size=..., batch_wait_timeout_s=...)`
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --host 127.0.0.1 --
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/managers/async_dynamic_batch_tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

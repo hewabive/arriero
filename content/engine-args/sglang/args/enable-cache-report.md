@@ -34,7 +34,7 @@ Return number of cached tokens in usage.prompt_tokens_details for each openai re
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` не переопределяет
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_cache_report`
 - Статус: обычный
 - Этап применения: HTTP-слой, сборка `usage` в ответе (`/v1/chat/completions`, `/v1/completions`, `/v1/responses`)

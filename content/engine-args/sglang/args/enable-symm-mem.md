@@ -22,7 +22,7 @@ related:
 
 ## Кратко
 
-`--enable-symm-mem` включает симметричную память NCCL для коллективов TP-группы. Практически это значит три вещи: NCCL запускается с `NCCL_CUMEM_ENABLE=1` и `NCCL_NVLS_ENABLE=1`, тензоры коммуникации выделяются в отдельном `torch.cuda.MemPool` поверх `ncclMemAlloc` и регистрируются через `ncclCommWindowRegister`, а сам all-reduce идет через pynccl **раньше** custom-ядра. Это путь для NVSwitch-хостов (H100/H200/B200 в составе HGX, GB200) — на карточной сборке без NVLS он либо не даст выигрыша, либо упадет на регистрации окна. Цена входа известна заранее: предвыделяется 4 ГиБ VRAM на карту, и это надо вычесть из бюджета до того, как считать `--mem-fraction-static`.
+`--enable-symm-mem` включает симметричную память NCCL для коллективов TP-группы. Практически это значит три вещи: NCCL запускается с `NCCL_CUMEM_ENABLE=1` и `NCCL_NVLS_ENABLE=1`, тензоры коммуникации выделяются в отдельном `torch.cuda.MemPool` поверх `ncclMemAlloc` и регистрируются через `ncclCommWindowRegister`, а all-reduce, который не взяли mscclpp и custom-ядро, идет через pynccl. Это путь для NVSwitch-хостов (H100/H200/B200 в составе HGX, GB200) — на карточной сборке без NVLS он либо не даст выигрыша, либо упадет на регистрации окна. Цена входа известна заранее: предвыделяется 4 ГиБ VRAM на карту, и это надо вычесть из бюджета до того, как считать `--mem-fraction-static`.
 
 ## Оригинальная справка
 
@@ -37,10 +37,10 @@ Enable NCCL symmetric memory for fast collectives.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: может быть сброшен в `False` для гибридных моделей Kimi (`KimiLinearForCausalLM`, `KimiK3ForConditionalGeneration`), если включен хотя бы один CUDA graph — `disable_kimi_k3_symm_mem` в `arg_groups/kimi_k3_hook.py` вызывается из `_handle_cuda_graph_config` и печатает предупреждение. Второй сброс — `_kimi_k3_overrides` при `--dcp-size > 1` («Kimi-K3 DCP disables --enable-symm-mem due to decode CUDA graph correctness issues»). В остальных случаях значение остается тем, что задали
+- Эффективное значение: резолв декларирует `False` в двух случаях. Первый — шаг `handle_symm_mem_device_support` (`arg_groups/platform_hook.py`) на устройствах не CUDA/HIP, с предупреждением «--enable-symm-mem is not supported on non CUDA/HIP devices (NCCL symmetric memory is unavailable). Disabling symmetric memory.». Второй — model override `_kimi_k3_overrides` (`arg_groups/model_overrides/kimi_k3.py`, собирается в шаге `handle_model_specific_adjustments`) для Kimi-K3 при `--dcp-size > 1` («Kimi-K3 DCP disables --enable-symm-mem due to decode CUDA graph correctness issues»). Сброс для гибридных моделей Kimi при включенных CUDA graph (`disable_kimi_k3_symm_mem`) апстрим откатил в v0.5.19 (#34842), так что сейчас его нет. В остальных случаях значение остается тем, что задали
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_symm_mem`; поле помечено `resolvable=True`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → Kimi-хук; `_handle_gpu_memory_settings` → установка `SGLANG_SYMM_MEM_PREALLOC_GB_SIZE`) → `_set_envs_and_config` (переменные NCCL, `sglang/python/sglang/srt/entrypoints/engine.py`) → `initialize_model_parallel(enable_symm_mem=…)` → выделение весов и буферов внутри `use_symmetric_memory(...)` → предвыделение пула после захвата CUDA graph → каждый forward
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_symm_mem_device_support` (`arg_groups/platform_hook.py`) → `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`, установка `SGLANG_SYMM_MEM_PREALLOC_GB_SIZE`) → `handle_model_specific_adjustments` (Kimi-K3 при DCP) → `_set_envs_and_config` (переменные NCCL, `sglang/python/sglang/srt/entrypoints/engine.py`) → `initialize_model_parallel(enable_symm_mem=…)` → выделение весов и буферов внутри `use_symmetric_memory(...)` → предвыделение пула после захвата CUDA graph → каждый forward
 
 ## Что меняет в движке
 
@@ -58,25 +58,25 @@ Enable NCCL symmetric memory for fast collectives.
 
 ### Выбор пути all-reduce
 
-В `GroupCoordinator.all_reduce` симметричная память проверяется **до** custom-ядра:
+В `GroupCoordinator.all_reduce` симметричная память проверяется **после** mscclpp и custom-ядра:
 
 ```python
 if (self.pynccl_comm is not None
         and self.is_symmetric_memory_enabled()
         and not should_use_pymscclpp_allreduce
-        and not _ca_takes_input):
+        and not should_use_custom_allreduce):
     with self.pynccl_comm.change_state(enable=True):
         self.pynccl_comm.all_reduce(input_)
         return input_
 ```
 
-`_ca_takes_input` истинно только при явном опте `SGLANG_ENABLE_CUSTOM_ALL_REDUCE_V2_MULTINODE`. Практический вывод: с `--enable-symm-mem` на одноузловой конфигурации pynccl забирает **все** редукции, а custom all-reduce и `--enable-torch-symm-mem` перестают участвовать, даже если включены. Исключение — mscclpp, он проверяется раньше.
+`should_use_custom_allreduce` истинно, когда custom all-reduce включен и сам берет этот тензор (`should_custom_ar`). Опт-ин `SGLANG_ENABLE_CUSTOM_ALL_REDUCE_V2_MULTINODE`, без которого раньше pynccl забирал все редукции, убран в v0.5.19 (#35061): переменная больше не существует, версию custom all-reduce движок выбирает в рантайме по возможностям топологии, а подходящие тензоры custom-ядро забирает всегда. Практический вывод: с `--enable-symm-mem` pynccl получает то, что не взяли mscclpp и custom all-reduce, — обычно крупные тензоры, а при `--disable-custom-all-reduce` все остальные редукции. `--enable-torch-symm-mem` для этих тензоров не вызывается: его путь проверяется позже.
 
 Отдельно `--enable-symm-mem` влияет на attention-TP-группу: `initialize_model_parallel` создает ее с `use_pynccl=SYNC_TOKEN_IDS_ACROSS_TP or enable_symm_mem`, то есть иначе pynccl-коммуникатор в этой группе мог бы вообще не создаваться.
 
 ### Предвыделение пула
 
-`_handle_gpu_memory_settings` при незаданном `SGLANG_SYMM_MEM_PREALLOC_GB_SIZE` ставит его в 4 и печатает предупреждение. После захвата CUDA graph `prealloc_symmetric_memory_pool` выделяет один блок такого размера в симметричном пуле (`model_runner_components/cuda_graph_setup.py`). Смысл — PyTorch-мемпулы не дефрагментируются, поэтому фрагментацию ограничивают одним большим куском заранее. Draft-воркер спекуляции предвыделение пропускает.
+Шаг резолва `handle_gpu_memory_settings` при незаданном `SGLANG_SYMM_MEM_PREALLOC_GB_SIZE` ставит его в 4 и печатает предупреждение. После захвата CUDA graph `prealloc_symmetric_memory_pool` выделяет один блок такого размера в симметричном пуле (`model_runner_components/cuda_graph_setup.py`). Смысл — PyTorch-мемпулы не дефрагментируются, поэтому фрагментацию ограничивают одним большим куском заранее. Draft-воркер спекуляции предвыделение пропускает.
 
 ## Значения и формат
 
@@ -89,15 +89,15 @@ if (self.pynccl_comm is not None
 
 - Хост с NVSwitch и рабочим NVLS (HGX H100/H200, B200, GB200 NVL), `--tp-size` 4 и больше, decode-нагрузка с заметной долей времени в коллективах. Апстрим прямо рекомендует флаг для Qwen3.5 на H100 FP8 (`sglang/docs/cookbook/autoregressive/Qwen/Qwen3.5.mdx`).
 - Не включайте на хосте без NVSwitch: даже если регистрация окон пройдет, выигрыша от multicast не будет, а 4 ГиБ VRAM на карту вы уже потеряли.
-- Не включайте вместе с гибридными моделями Kimi при работающих CUDA graph — движок все равно выключит флаг, и это правильно: адреса в симметричном пуле выделяются на каждый forward и не валидны для захваченного графа, из-за чего спекулятивное декодирование начинает молча выдавать мусор с accept, приколоченным к потолку.
-- Не рассчитывайте, что флаг заменит `--enable-torch-symm-mem` или custom AR: он их вытесняет из пути, а не дополняет.
+- С гибридными моделями Kimi при работающих CUDA graph движок флаг больше не выключает (защиту откатили в #34842). Ее исходное обоснование — адреса в симметричном пуле выделяются на каждый forward и не валидны для захваченного графа, из-за чего спекулятивное декодирование может молча выдавать мусор с accept, приколоченным к потолку. Если включаете такую связку, следите за accept rate. Для Kimi-K3 с `--dcp-size > 1` флаг по-прежнему сбрасывается.
+- Не рассчитывайте, что флаг заменит custom AR: подходящие по размеру тензоры custom AR забирает раньше. `--enable-torch-symm-mem` он, наоборот, вытесняет из пути, а не дополняет.
 
 ## Влияние на производительность и память
 
 - **VRAM.** Минус 4 ГиБ на карту по умолчанию (предвыделенный пул) плюс сами буферы коллективов. При явно заданном `--mem-fraction-static` это прямой вычет из свободной памяти уже после расчета пула, то есть источник OOM на захвате графов. Проверяйте строку `Pre-allocating symmetric memory pool with 4 GiB` в логе.
-- **Latency.** Ради этого флаг и существует: multicast-редукция по NVLink/NVSwitch на мелких decode-тензорах короче и NCCL-ring, и custom-ядра.
+- **Latency.** Ради этого флаг и существует: multicast-редукция по NVLink/NVSwitch короче NCCL-ring. Действует она только на тензоры, которые не забрал custom AR.
 - **Throughput.** Выигрыш растет с `--tp-size`; при `--tp-size 2` он обычно в пределах шума.
-- **CUDA graph.** Симметричная память входит в список несовместимостей `tc_piecewise`-графа prefill (`_disable_tc_piecewise_cudagraph_if_incompatible`, причина «symmetric memory») — prefill-граф будет отключен. Это заметная потеря на коротких запросах.
+- **CUDA graph.** Симметричная память входит в список несовместимостей `tc_piecewise`-графа prefill (`disable_tc_piecewise_cudagraph_if_incompatible` в `arg_groups/cuda_graph_hook.py`, причина «symmetric memory») — prefill-граф будет отключен. Это заметная потеря на коротких запросах.
 - **Время старта.** Плюс компиляция C-расширения аллокатора (кешируется в `tempdir/symm_allocator`), плюс предвыделение пула.
 - **Хост.** Не меняется.
 
@@ -106,7 +106,7 @@ if (self.pynccl_comm is not None
 - `--enable-nccl-nvls`: включается автоматически вместе с этим флагом; отдельно задавать не нужно.
 - `--enable-torch-symm-mem`: другой механизм (torch symmetric memory, не NCCL-окна). Одновременное включение бессмысленно — pynccl-ветка с NCCL symm mem срабатывает раньше и torch-путь просто не вызывается.
 - `--enable-mscclpp`: проверяется **раньше** симметричной памяти, поэтому подходящие по размеру тензоры уйдут в mscclpp; кроме того, mscclpp сам смотрит на `enable_symm_mem`, чтобы разрешить алгоритм `default_allreduce_nvls_zero_copy`.
-- `--disable-custom-all-reduce`: при включенной симметричной памяти custom AR и так не участвует на одноузловой конфигурации.
+- `--disable-custom-all-reduce`: без него custom AR забирает подходящие тензоры раньше симметричной памяти; с ним в NCCL symm mem уходят все редукции, кроме взятых mscclpp.
 - `--dcp-size`: при значении больше 1 добавляется `NCCL_GRAPH_MIXING_SUPPORT=0`; для Kimi-K3 сочетание, наоборот, выключает симметричную память.
 - `--cuda-graph-backend-prefill`: `tc_piecewise` будет отключен.
 - `--mem-fraction-static`: 4 ГиБ предвыделения не учитываются автоподбором доли — при явно заданном значении уменьшайте его руками.
@@ -116,7 +116,8 @@ if (self.pynccl_comm is not None
 
 - **Симптом:** `AssertionError: nccl_allocator_register_segments_with_comm failed with return code: …`, в stderr перед ним `ERROR: NCCL symmetric memory registration failed. '<текст NCCL>'`. **Причина:** NCCL не поддерживает симметричные окна на этом хосте/версии. **Решение:** убрать флаг.
 - **Симптом:** OOM на захвате CUDA graph, которого не было без флага. **Причина:** 4 ГиБ предвыделения. **Решение:** уменьшить `--mem-fraction-static` или `SGLANG_SYMM_MEM_PREALLOC_GB_SIZE`.
-- **Симптом:** предупреждение `Kimi hybrid model: ignoring --enable-symm-mem because CUDA graphs are on.` **Причина:** защита от порчи вывода; флаг проигнорирован. **Решение:** ничего не делать либо, если симметричная память действительно нужна, отключить захват на обеих фазах.
+- **Симптом:** предупреждение `Kimi-K3 DCP disables --enable-symm-mem due to decode CUDA graph correctness issues.` **Причина:** Kimi-K3 с `--dcp-size > 1`; флаг сброшен резолвом. **Решение:** ничего не делать либо отказаться от DCP, если симметричная память важнее.
+- **Симптом:** предупреждение `--enable-symm-mem is not supported on non CUDA/HIP devices (NCCL symmetric memory is unavailable). Disabling symmetric memory.` **Причина:** платформа не CUDA/HIP. **Решение:** убрать флаг.
 - **Симптом:** prefill стал медленнее после включения флага. **Причина:** отключен `tc_piecewise`-граф prefill. **Проверка:** сообщение о выключении prefill-графа в логе старта.
 - **Что смотреть:** `Symmetric memory is enabled, setting symmetric memory prealloc size to 4GB as default.`, `Pre-allocating symmetric memory pool with 4 GiB`, итоговый дамп `server_args=`.
 - **В arriero:** предвыделенные 4 ГиБ на карту входят в фактическое потребление процесса, но не выводятся аналитической оценкой памяти — при включенном флаге ориентируйтесь на measured-эвиденс (`docs/MEMORY_ESTIMATION.md`) и увеличивайте GPU-draw инстанса.
@@ -135,6 +136,10 @@ python -m sglang.launch_server --model-path /models/Qwen3.5-A3B-FP8 --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/pynccl_allocator.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

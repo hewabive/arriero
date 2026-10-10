@@ -34,10 +34,10 @@ With DP-attention, send control messages to every DP group leader and broadcast 
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: принудительно `True` при `--dwdp-size > 1` (`_handle_dwdp`) и при активном elastic EP scale-up (`_handle_elastic_ep`, ветка `scaling_active`). В остальном действует заданное значение
+- Эффективное значение: принудительно `True` при `--dwdp-size > 1` (шаг `handle_dwdp`) и при активном elastic EP scale-up (шаг `handle_elastic_ep`, ветка `scaling_active`), оба в `arg_groups/parallel_hook.py`. Шаги декларируют значение через `declare_resolution`, поле `server_args` хранит ввод оператора, а итог виден в `resolved_dict()` и дампе `server_args=`. В остальном действует заданное значение
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_attention_local_control_broadcast`
 - Статус: обычный, оптимизационный
-- Этап применения: `__post_init__` (принудительные включения) → конструктор `DataParallelController` (выбор `control_message_step`) → каждая рассылка управляющего сообщения в течение работы
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (принудительные включения) → конструктор `DataParallelController` (выбор `control_message_step`) → каждая рассылка управляющего сообщения в течение работы
 
 ## Что меняет в движке
 
@@ -112,6 +112,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/dp_attn.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`

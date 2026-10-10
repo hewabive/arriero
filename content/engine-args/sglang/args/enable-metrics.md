@@ -40,7 +40,7 @@ Enable log prometheus metrics.
 - Тип значения: bool, `action="store_true"` — значения не принимает
 - Допустимые значения: `choices` нет; флаг либо задан, либо нет. Парной формы `--no-enable-metrics` не существует
 - Значение по умолчанию: `False`
-- Эффективное значение: совпадает с заданным, ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным, ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_metrics`
 - Статус: обычный
 - Этап применения: `_set_envs_and_config` до запуска подпроцессов (переменная окружения) → конструктор `TokenizerManager` → конструктор `Scheduler` → lifespan FastAPI (монтирование `/metrics`)

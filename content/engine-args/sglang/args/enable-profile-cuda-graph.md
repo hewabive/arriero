@@ -35,7 +35,7 @@ Enable profiling of cuda graph capture.
 - Тип значения: bool, `action="store_true"` — значение не принимает
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется в `__post_init__`
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_profile_cuda_graph`
 - Статус: обычный, диагностический
 - Этап применения: захват графов — `DecodeCudaGraphRunner.capture()` и одноименные методы спекулятивных и CPU-runner'ов

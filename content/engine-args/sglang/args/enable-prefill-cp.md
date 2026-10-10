@@ -42,13 +42,13 @@ Enable context parallelism for the prefill phase. Select the layout with --cp-st
 - Эффективное значение: задаётся этим флагом; стратегия выбирается через `--cp-strategy`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_prefill_cp`
 - Статус: обычный флаг, но экспериментальная функция — предупреждение печатается при включении
-- Этап применения: `__post_init__` (`_handle_legacy_cp_arguments` → модельные override'ы в `arg_groups/overrides.py` → `_handle_context_parallelism` → `init_cp_strategy`) → выбор attention backend → forward на фазе extend
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (`validate_prefill_cp_platform` — отказ на HIP/MUSA еще до чтения модели → модельные override'ы из `arg_groups/model_overrides/` в шаге `handle_model_specific_adjustments` → `handle_context_parallelism` → `init_cp_strategy`) → выбор attention backend → forward на фазе extend
 
 ## Что меняет в движке
 
 ### Обязательная пара с `--cp-strategy`
 
-`_handle_context_parallelism` отвергает запуск без раскладки:
+Шаг резолва `handle_context_parallelism` (`sglang/python/sglang/srt/arg_groups/parallel_hook.py`) отвергает запуск без раскладки:
 
 ```text
 ValueError: --cp-strategy must be set when --enable-prefill-cp is enabled.
@@ -58,7 +58,7 @@ ValueError: --cp-strategy must be set when --enable-prefill-cp is enabled.
 
 ### Модельные override'ы (DeepSeek и родственники)
 
-Для семейства DeepSeek `_deepseek_family_overrides` (`sglang/python/sglang/srt/arg_groups/overrides.py`) при включенном флаге **сам** переписывает конфигурацию:
+Для семейства DeepSeek провайдер `_deepseek_family_overrides` (`sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`) при включенном флаге **сам** декларирует конфигурацию (поля `server_args` хранят ввод оператора, итог виден в дампе `server_args=`):
 
 - `enable_dp_attention = True`, `moe_dense_tp_size = 1`;
 - `attn_cp_size = tp_size // dp_size` — то есть размер CP-группы задается автоматически, даже если `--attn-cp-size` не указан;
@@ -68,7 +68,7 @@ ValueError: --cp-strategy must be set when --enable-prefill-cp is enabled.
 
 Для MLA-моделей DeepSeek V3/R1 действует зеркальный блок с тем же набором ограничений (`moe_dense_tp_size == 1`, `moe_a2a_backend == deepep`, `ep_size == tp_size`, `batch_size == 1`).
 
-Отдельно, для архитектур из `CP_V2_DEFAULT_MODEL_CLASSES` (`DeepseekV3ForCausalLM`, `DeepseekV32ForCausalLM`, `GlmMoeDsaForCausalLM`, `GptOssForCausalLM`, `Qwen3MoeForCausalLM`, `MiMoV2*`) включается вторая версия реализации через переменную `SGLANG_ENABLE_CP_V2`, если оператор не задал ее сам. Для MiMo V2 под CP-v2 допустима только стратегия `zigzag`, а мультимодальная модель требует `--language-only`.
+Прежнего переключения на «CP v2» больше нет: стратегия CP (`--cp-strategy`) — единственная универсальная реализация, `SGLANG_ENABLE_CP_V2` числится в `_DEPRECATED_ENVS` (`sglang/python/sglang/srt/environ.py`) без замены и при установке дает только предупреждение. Шаг `handle_context_parallelism` сам проверяет модельные ограничения: для MiMo V2 допустима только стратегия `zigzag`, а мультимодальная модель требует `--language-only`; DeepSeek V3.2 `zigzag` не поддерживает.
 
 ### Что происходит на forward
 
@@ -135,7 +135,9 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
+- `sglang/python/sglang/srt/environ.py`
 - `sglang/python/sglang/srt/layers/cp/base.py`
 - `sglang/python/sglang/srt/layers/cp/zigzag.py`
 - `sglang/python/sglang/srt/layers/cp/interleave.py`

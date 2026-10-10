@@ -37,7 +37,7 @@ Skip the multimodal encoder entirely: its weights are never loaded and the tower
 
 ## Что меняет в движке
 
-`_handle_language_model_only` сейчас разрешает CLI-флаг только для `MuseGlimmerForConditionalGeneration`. Затем `ModelConfig` записывает `hf_config.language_model_only=True`. Конструктор Muse Glimmer не создает `vision_tower`, `vision_adapter`, `vision_projection` и `perception_emb_norm`, а forward сразу использует language model embeddings.
+`handle_language_model_only` (`sglang/python/sglang/srt/arg_groups/model_hook.py`; его вызывает шаг резолва `handle_encoder_disaggregation`) разрешает CLI-флаг только для архитектур из `ServerArgs.LANGUAGE_MODEL_ONLY_ARCHITECTURES`: `MuseGlimmerForConditionalGeneration`, `Cosmos3ForConditionalGeneration`, `Cosmos3EdgeForConditionalGeneration`; несовместимые сочетания (`--encoder-only`, `--language-only`, `--disaggregation-mode prefill/decode` и др.) он отвергает `ValueError`. Затем `ModelConfig` записывает `hf_config.language_model_only=True`. Конструктор Muse Glimmer не создает `vision_tower`, `vision_adapter`, `vision_projection` и `perception_emb_norm`, а forward сразу использует language model embeddings.
 
 Tokenizer manager и scheduler пропускают multimodal processor. Если запрос все же содержит media, tokenizer manager возвращает `ValueError` до model forward. Checkpoint, уже помеченный `language_model_only=True`, также остается text-only даже без CLI-флага.
 
@@ -76,6 +76,8 @@ python -m sglang.launch_server --model-path /models/Muse-Glimmer --language-mode
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

@@ -71,7 +71,7 @@ The port for NCCL distributed environment setup. Defaults to a random port.
 - Целое, обычный порт. Задавайте выше 1024, чтобы не требовать привилегий.
 - Не задавать — и есть «случайный»; значения `0` как «авто» не предусмотрено, оно будет принято как настоящий порт.
 - Порт должен быть **одинаковым** на всех узлах многоузлового запуска, если рандеву идет через него (то есть когда `--dist-init-addr` не задан).
-- Не должен совпадать с `--port` HTTP-сервера, `--grpc-port` и портами метрик. Проверки этого движок не делает: в `check_server_args` сверяются только `--grpc-port` и `--port`, а сравнение с `nccl_port` и портом метрик оставлено на будущее — их умолчания вычисляются позже и на момент проверки еще не разрешены.
+- Не должен совпадать с `--port` HTTP-сервера, `--grpc-port` и портами метрик. Проверки этого движок не делает: в `check_server_args` (`arg_groups/validation_hook.py`) сверяются только `--grpc-port` и `--port`, а сравнение с `nccl_port` и портом метрик оставлено на будущее — их умолчания вычисляются позже и на момент проверки еще не разрешены.
 - В режиме DP-attention от `dist_init_port` дополнительно отсчитывается блок производных портов (`port_base`, detokenizer, rpc, metrics и др.) — планируйте диапазон, а не один номер.
 
 ## Когда использовать
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-32B --port 30001 --ten
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

@@ -37,14 +37,14 @@ Explicit list of batch sizes to capture for the decode cuda graph.
 - Тип значения: список целых, `nargs="+"` — значения разделяются пробелами
 - Допустимые значения: положительные целые; argparse содержимое списка не проверяет
 - Значение по умолчанию: `null` — список генерируется из `cuda_graph_config[decode].max_bs`
-- Эффективное значение: если список задан, `_handle_gpu_memory_settings` ставит `decode.max_bs = max(bs)`; на `--device cpu` вместо этого `torch_compile_max_bs = max(bs)`. Затем `get_batch_sizes_to_capture` фильтрует список по выравниванию и по размеру `req_to_token_pool`, добавляет туда фактический предел запросов, сортирует и дедуплицирует
+- Эффективное значение: если список задан, шаг `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`) ставит `decode.max_bs = max(bs)`; на `--device cpu` вместо этого декларирует `torch_compile_max_bs = max(bs)`. Итог попадает в разрешенный `cuda_graph_config` через `declare_resolution` и виден в дампе `server_args=` (`resolved_dict()`); сырое поле хранит ввод оператора. Затем `get_batch_sizes_to_capture` фильтрует список по выравниванию и по размеру `req_to_token_pool`, добавляет туда фактический предел запросов, сортирует и дедуплицирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_bs_decode`
 - Статус: обычный; прежний общий флаг размера decode-батча удалён
-- Этап применения: разбор CLI → `__post_init__` → `get_batch_sizes_to_capture` → захват графов
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) и `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`) → `get_batch_sizes_to_capture` → захват графов
 
 ## Что меняет в движке
 
-Заданный список подменяет собой результат `_generate_decode_cuda_graph_batch_sizes`, то есть отключает и сеточную логику, и влияние `--disable-cuda-graph-padding` на состав форм (флаг padding при этом продолжает работать на выборе графа во время исполнения).
+Заданный список подменяет собой результат `generate_decode_cuda_graph_batch_sizes` (`arg_groups/cuda_graph_hook.py`), то есть отключает и сеточную логику, и влияние `--disable-cuda-graph-padding` на состав форм (флаг padding при этом продолжает работать на выборе графа во время исполнения).
 
 Перед захватом `get_batch_sizes_to_capture` (`model_executor/runner/base_cuda_graph_runner.py`) приводит список к исполнимому виду:
 
@@ -97,7 +97,7 @@ Explicit list of batch sizes to capture for the decode cuda graph.
 
 - **Симптом:** `AssertionError: capture_bs=[]` или `capture_bs[0] > 0` при старте. **Причина:** все формы отфильтрованы выравниванием или пределом запросов, либо в списке ноль/отрицательное число.
 - **Симптом:** в логе `bs=[…]` содержит числа, которых вы не писали. **Причина:** движок добавил фактический предел запросов, чтобы максимальный батч был захвачен.
-- **Симптом:** `AssertionError: capture_bs=…, server_args.torch_compile_max_bs=…` на `--device cpu`. **Решение:** поднять `--torch-compile-max-bs` до максимума списка.
+- **Симптом:** `AssertionError: capture_bs=…, get_exec().graph.torch_compile_max_bs=…` на `--device cpu`. **Решение:** поднять `--torch-compile-max-bs` до максимума списка.
 - **Симптом:** старт быстрый, но декодирование медленное. **Причина:** реальные батчи больше максимума списка и идут в eager. **Проверка:** сопоставьте `bs=[…]` из лога с `Decode batch, #running-req: …`.
 - **Что смотреть:** `Capture target decode CUDA graph begin. backend=…, num_tokens_per_req=…, bs=[…]` — итоговый список после всех фильтров.
 
@@ -115,6 +115,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`

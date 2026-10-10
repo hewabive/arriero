@@ -34,7 +34,7 @@ Enable --enable-metrics-for-all-schedulers when you want schedulers on all TP ra
 - Тип значения: bool, `action="store_true"` — значения не принимает
 - Допустимые значения: `choices` нет; парной формы `--no-*` не существует
 - Значение по умолчанию: `False`
-- Эффективное значение: совпадает с заданным; никакой `_handle_*` его не трогает. Но действует он только в связке — без `--enable-metrics` не меняет ничего
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует. Но действует он только в связке — без `--enable-metrics` не меняет ничего
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.enable_metrics_for_all_schedulers`
 - Статус: обычный
 - Этап применения: конструктор `Scheduler` (создание IPC-каналов и `SchedulerMetricsCollectorContext`) в каждом scheduler-процессе

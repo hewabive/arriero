@@ -32,18 +32,18 @@ The threshold for long GC warning. If a GC takes longer than this, a warning wil
 - Тип значения: float (секунды)
 - Допустимые значения: `choices` нет, границы не проверяются. Любое значение `<= 0` эквивалентно «выключено»
 - Значение по умолчанию: `0.0` — механизм выключен
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.gc_warning_threshold_secs`
 - Статус: обычный
 - Этап применения: конструктор `TokenizerManager` (регистрация callback), далее — каждый цикл GC в этом процессе
 
 ## Что меняет в движке
 
-Единственная точка чтения — `TokenizerManager.__init__`:
+Единственная точка чтения — `TokenizerManager.__init__` (через `init_metric_collector_watchdog`), значение берется из опубликованного конфига:
 
 ```python
-if self.server_args.gc_warning_threshold_secs > 0.0:
-    configure_gc_warning(self.server_args.gc_warning_threshold_secs)
+if get_observability().gc_warning_threshold_secs > 0.0:
+    configure_gc_warning(get_observability().gc_warning_threshold_secs)
 ```
 
 `configure_gc_warning` (`sglang/python/sglang/srt/utils/common.py`) добавляет функцию в `gc.callbacks`. На фазе `start` она запоминает время по поколению, на фазе `stop` считает длительность и при превышении порога печатает:

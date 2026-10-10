@@ -31,7 +31,7 @@ The custom dataloader which used to update the model. Should be set with a valid
 - Тип значения: список строк (`Optional[List[str]]`, объявлен с `nargs="*"`)
 - Допустимые значения: import-пути, разрешимые в окружении сервера
 - Значение по умолчанию: `null`
-- Эффективное значение: `_handle_load_format` в `__post_init__` заменяет `None` на пустой список, поэтому в рантайме поле всегда список
+- Эффективное значение: шаг резолва `handle_load_format` (`python/sglang/srt/arg_groups/model_path_hook.py`, вызывается из `ServerArgs.resolve_once`) декларирует вместо `None` пустой список, поэтому рантайм (`get_model().custom_weight_loader`) всегда получает список
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.custom_weight_loader`
 - Статус: обычный, но узкоспециальный
 - Этап применения: инициализация `WeightUpdater` в `ModelRunner`; фактическое использование — при обработке запроса обновления весов
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --custom-weight-loa
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/weight_updater.py`
 - arriero: `docs/ENVIRONMENTS.md`

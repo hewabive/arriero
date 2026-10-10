@@ -33,27 +33,27 @@ If specified, it limits the maximum number of LoRA adapters loaded in CPU memory
 - Тип значения: `Optional[int]`
 - Допустимые значения: целое ≥ `--max-loras-per-batch`; при `--enable-lora-overlap-loading` дополнительно ≤ `2 × --max-loras-per-batch`
 - Значение по умолчанию: `null` — лимита нет
-- Эффективное значение: не переопределяется; `check_lora_server_args` только проверяет соотношения
+- Эффективное значение: ни один шаг резолва его не декларирует; `check_lora_server_args` только проверяет соотношения
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.max_loaded_loras`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → `TokenizerManager` при каждой загрузке адаптера и при разборе `lora_path` запроса
+- Этап применения: `ServerArgs.check_server_args` → `check_lora_server_args` (`arg_groups/lora_hook.py`, валидация; не шаг резолва, а проверка из `arg_groups/validation_hook.py:check_server_args`, которую `Engine._launch_subprocesses` вызывает после `resolve_once`) → `TokenizerManager` при каждой загрузке адаптера и при разборе `lora_path` запроса
 
 ## Что меняет в движке
 
 ### Проверки на старте
 
-В `check_lora_server_args`:
+В `check_lora_server_args` (`arg_groups/lora_hook.py`):
 
 ```python
-assert self.max_loaded_loras >= self.max_loras_per_batch, ...
-assert len(self.lora_paths) <= self.max_loaded_loras, ...
+assert cfg.max_loaded_loras >= cfg.max_loras_per_batch, ...
+assert len(cfg.lora_paths) <= cfg.max_loaded_loras, ...
 ```
 
 и отдельно для overlap-загрузки:
 
 ```python
-max_loaded_loras_limit = self.max_loras_per_batch * 2
-assert self.max_loaded_loras is not None and self.max_loaded_loras <= max_loaded_loras_limit, (
+max_loaded_loras_limit = cfg.max_loras_per_batch * 2
+assert cfg.max_loaded_loras is not None and cfg.max_loaded_loras <= max_loaded_loras_limit, (
     "Enabling LoRA overlap loading requires pinning LoRA adapter weights in CPU memory, "
     f"so --max-loaded-loras must be less than or equal to double --max-loras-per-batch: {max_loaded_loras_limit}"
 )
@@ -66,7 +66,7 @@ assert self.max_loaded_loras is not None and self.max_loaded_loras <= max_loaded
 `tokenizer_control_mixin.py`, сразу после успешной регистрации нового адаптера:
 
 ```python
-while self.lora_registry.num_registered_loras > self.server_args.max_loaded_loras:
+while self.lora_registry.num_registered_loras > get_lora().max_loaded_loras:
     lru_lora_name = await self.lora_registry.lru_lora_name(exclude_pinned=True)
     ...
     unload_result = await self._unload_lora_adapter_locked(...)
@@ -139,6 +139,8 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 - `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_control_mixin.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/lora/lora_registry.py`

@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-`--tokenizer-path` указывает, откуда грузить токенизатор. Если аргумент не задан, `_handle_missing_default_values` присваивает `tokenizer_path = model_path` — обычный и правильный случай.
+`--tokenizer-path` указывает, откуда грузить токенизатор. Если аргумент не задан, шаг резолва `handle_missing_default_values` декларирует `tokenizer_path = model_path` — обычный и правильный случай.
 
 Особенность, ради которой стоит держать этот аргумент в голове: **несовпадающий токенизатор не диагностируется**. Движок загрузит его без ошибок, сервер поднимется, `/health` вернет 200, а генерация будет выдавать связный на вид, но неправильный текст. Никакой сверки словаря с `config.json` модели на этом пути нет.
 
@@ -37,10 +37,10 @@ The path of the tokenizer.
 - Тип значения: str — локальный каталог, HF repo ID, `.json`-файл в формате tiktoken или URI объектного хранилища
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `None`
-- Эффективное значение: **переопределяется всегда, когда не задано.** `__post_init__` → `_handle_missing_default_values`: `if self.tokenizer_path is None: self.tokenizer_path = self.model_path`. Дополнительно значение переписывается при `SGLANG_USE_MODELSCOPE=1` (`_handle_modelscope_paths` скачивает snapshot с `ignore_patterns=["*.bin", "*.safetensors"]`, то есть только файлы токенизатора) и предварительно прогревается `_handle_model_source_paths`, если это `s3://`/`gs://`/`az://`
+- Эффективное значение: **переопределяется всегда, когда не задано.** Шаг резолва `handle_missing_default_values` (`python/sglang/srt/arg_groups/serving_hook.py`): `if cfg.tokenizer_path is None: declare_resolution(..., tokenizer_path=cfg.model_path)` — само поле `server_args.tokenizer_path` остается `None`, а процессы читают итог через `get_serving().tokenizer_path` (он же в дампе `server_args=`). Дополнительно значение декларируется заново при `SGLANG_USE_MODELSCOPE=1` (`handle_modelscope_paths` из `arg_groups/model_path_hook.py` скачивает snapshot с `ignore_patterns=["*.bin", "*.safetensors"]`, то есть только файлы токенизатора) и предварительно прогревается шагом `handle_model_source_paths`, если это `s3://`/`gs://`/`az://`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_path`
 - Статус: обычный
-- Этап применения: `__post_init__` (подстановка и резолв путей) → инициализация процессов tokenizer, detokenizer, scheduler и tp-worker — каждый читает токенизатор независимо
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (подстановка и резолв путей) → инициализация процессов tokenizer, detokenizer, scheduler и tp-worker — каждый читает токенизатор независимо
 
 ## Что меняет в движке
 
@@ -60,7 +60,7 @@ The path of the tokenizer.
 - **Локальный каталог** с `tokenizer.json` / `tokenizer_config.json` — основной случай.
 - **HF repo ID** (`org/name`) — тянется через стандартный кеш HuggingFace; `--download-dir` на это **не** влияет (он относится к весам), а `--revision` — влияет.
 - **`.json`-файл** — формат tiktoken; загружается специальным классом, backend и mode не применяются.
-- **`s3://`, `gs://`, `az://`** — метаданные предварительно скачиваются в `_handle_model_source_paths`.
+- **`s3://`, `gs://`, `az://`** — метаданные предварительно скачиваются в шаге резолва `handle_model_source_paths`.
 - Существование пути отдельно не проверяется: ошибка приходит уже из `transformers`.
 - Пустая строка — ложное значение, но не `None`; подстановка дефолта ее не поймает, и загрузка упадет с невнятной ошибкой из `transformers`. Не используйте.
 
@@ -81,7 +81,7 @@ The path of the tokenizer.
 ## Взаимодействие с другими аргументами
 
 - `--model-path`: источник значения по умолчанию.
-- `--skip-tokenizer-init`: токенизатор не загружается вовсе, путь перестает использоваться (хотя резолв путей в `__post_init__` все равно происходит).
+- `--skip-tokenizer-init`: токенизатор не загружается вовсе, путь перестает использоваться (хотя резолв путей в `ServerArgs.resolve_once` все равно происходит).
 - `--tokenizer-mode`, `--tokenizer-backend`: применяются к загрузке по этому пути, кроме tiktoken-ветки.
 - `--revision`: версия, с которой резолвится удаленный путь.
 - `--trust-remote-code`: нужен, если токенизатор содержит собственный код.
@@ -116,6 +116,8 @@ python -m sglang.launch_server --model-path /models/converted/qwen3-30b-weights 
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/detokenizer_manager.py`

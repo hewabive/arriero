@@ -37,10 +37,10 @@ Enable adaptive speculative decoding that dynamically adjusts num_steps based on
 - Тип значения: bool (`action="store_true"`, парного `--no-…` нет)
 - Допустимые значения: флаг присутствует — включено, отсутствует — выключено
 - Значение по умолчанию: `false`
-- Эффективное значение: **может быть сброшено в `false`** самим движком в `_maybe_disable_adaptive`, если конфигурация не поддержана; в лог печатается `speculative_adaptive disabled: <причина>. Falling back to static speculative params.`
+- Эффективное значение: **может быть сброшено в `false`** самим движком в `_maybe_disable_adaptive` (`python/sglang/srt/arg_groups/speculative_hook.py`, декларация через `declare_resolution`), если конфигурация не поддержана; в лог печатается `speculative_adaptive disabled: <причина>. Falling back to static speculative params.`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_adaptive`
 - Статус: обычный
-- Этап применения: `__post_init__` (`handle_speculative_decoding` → `_maybe_disable_adaptive` → `_init_adaptive_speculative_params`) → захват CUDA graph по всем ступеням лестницы → каждый decode-шаг (выбор ступени) и каждый verify (обновление EMA)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` (→ `_maybe_disable_adaptive` → `_init_adaptive_speculative_params`) → захват CUDA graph по всем ступеням лестницы → каждый decode-шаг (выбор ступени) и каждый verify (обновление EMA)
 
 ## Что меняет в движке
 
@@ -52,7 +52,7 @@ Enable adaptive speculative decoding that dynamically adjusts num_steps based on
 - `--speculative-num-steps` при `None` становится средним элементом лестницы (`candidate_steps[len//2]`); если он задан и **не входит** в лестницу — `ValueError`;
 - `--speculative-num-draft-tokens` жёстко приравнивается к `num_steps + 1`.
 
-Далее буферы и графы размеряются не по текущей ступени, а по максимальной: `max_speculative_num_draft_tokens` для adaptive-режима возвращает `max(candidate_steps) + 1`, и eager-runner берёт именно это число токенов на запрос. Для каждой ступени захватывается свой набор графов (draft-decode, draft-extend, target-decode); ступени, недостижимые ни для одного диапазона BS, из захвата исключаются.
+Далее буферы и графы размеряются не по текущей ступени, а по максимальной: `max_speculative_num_draft_tokens` (функция в `arg_groups/overrides.py`, в рантайме — `runtime_context.max_speculative_num_draft_tokens()`) для adaptive-режима возвращает `max(candidate_steps) + 1`, и eager-runner берёт именно это число токенов на запрос. Для каждой ступени захватывается свой набор графов (draft-decode, draft-extend, target-decode); ступени, недостижимые ни для одного диапазона BS, из захвата исключаются.
 
 ### В runtime
 

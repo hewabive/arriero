@@ -19,7 +19,7 @@ related:
 
 Обычная проверка KV-канарейки смотрит только на слоты, затронутые текущим forward (голова и хвост записанного диапазона). Полный обход (sweep) проверяет **все** слоты, которые сейчас удерживает дерево префиксов, — то есть ловит порчу давно закешированных блоков, к которым в этом шаге никто не обращался.
 
-Аргумент задает период такого обхода в шагах forward. Значение `0` (по умолчанию) отключает его полностью. Любое положительное значение требует включенной канарейки: `--kv-canary-sweep-interval N` при `--kv-canary none` дает `ValueError: --kv-canary-sweep-interval requires --kv-canary in {log, raise}` еще на разборе аргументов.
+Аргумент задает период такого обхода в шагах forward. Значение `0` (по умолчанию) отключает его полностью. Любое положительное значение требует включенной канарейки: `--kv-canary-sweep-interval N` при `--kv-canary none` дает `ValueError: --kv-canary-sweep-interval requires --kv-canary in {log, raise}` еще до запуска процессов движка, в проверке `check_server_args`.
 
 ## Оригинальная справка
 
@@ -37,7 +37,7 @@ Every N forward steps, run a full-pool sweep.
 - Эффективное значение: попадает в `CanaryConfig.sweep_interval` без преобразований; при `--kv-canary none` канарейка не устанавливается вовсе и значение не читается
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.kv_canary_sweep_interval`
 - Статус: обычный аргумент узкоспециального диагностического механизма
-- Этап применения: `__post_init__` (проверка связки с `--kv-canary`) → `SweepOrchestrator` внутри менеджера канарейки, на каждом forward
+- Этап применения: `ServerArgs.check_server_args` → `arg_groups/validation_hook.py:check_server_args` (проверка связки с `--kv-canary`; не шаг резолва, вызывается из `Engine._launch_subprocesses` после `resolve_once`) → `SweepOrchestrator` внутри менеджера канарейки, на каждом forward
 
 ## Что меняет в движке
 
@@ -57,7 +57,7 @@ Every N forward steps, run a full-pool sweep.
 
 - `0` — обход выключен, остается только пофорвардная проверка.
 - Положительное `N` — обход раз в `N` шагов forward. Ориентир: при decode-нагрузке шаг forward это один токен на батч, то есть `N = 200` дает обход примерно раз в две сотни токенов.
-- Отрицательное значение: `ValueError` не срабатывает (проверка в `__post_init__` смотрит только `> 0`), а сравнение `outer_step - last_sweep_step < sweep_interval` при отрицательном пороге всегда ложно — обход выполняется **на каждом шаге**. Это самый дорогой из возможных режимов и почти наверняка не то, чего вы хотели.
+- Отрицательное значение: `ValueError` не срабатывает (проверка в `check_server_args` смотрит только `> 0`), а сравнение `outer_step - last_sweep_step < sweep_interval` при отрицательном пороге всегда ложно — обход выполняется **на каждом шаге**. Это самый дорогой из возможных режимов и почти наверняка не то, чего вы хотели.
 - Единица измерения — шаги forward, а не запросы, не токены на запрос и не секунды.
 
 ## Когда использовать
@@ -117,4 +117,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/kv_canary/config.py`
 - `sglang/python/sglang/srt/kv_canary/api.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - arriero: `docs/RESOURCE_MANAGEMENT.md`, `apps/api/src/process/log-summary.ts`

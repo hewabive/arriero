@@ -32,12 +32,12 @@ How conservative the schedule policy is. A larger value means more conservative 
 - Флаги: `--schedule-conservativeness`
 - Группа: `schedule`
 - Тип значения: число с плавающей точкой
-- Допустимые значения: любое неотрицательное; `assert self.schedule_conservativeness >= 0` в `__post_init__`
+- Допустимые значения: любое неотрицательное; `assert cfg.schedule_conservativeness >= 0` в `check_server_args` (`arg_groups/validation_hook.py`; вызывается из `Engine._launch_subprocesses` после `ServerArgs.resolve_once`)
 - Значение по умолчанию: `1.0`
-- Эффективное значение: при `--enable-dp-attention` умножается на `0.3` (`self.schedule_conservativeness = self.schedule_conservativeness * 0.3` в `_handle_data_parallelism`) — то есть с DP attention значение по умолчанию фактически `0.3`
+- Эффективное значение: при `--enable-dp-attention` умножается на `0.3` (шаг резолва `handle_data_parallelism` в `arg_groups/parallel_hook.py` декларирует `schedule_conservativeness=cfg.schedule_conservativeness * 0.3`; поле `server_args` хранит ввод оператора, планировщик получает итог) — то есть с DP attention значение по умолчанию фактически `0.3`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.schedule_conservativeness`
 - Статус: обычный
-- Этап применения: `__post_init__` (корректировка под DP) → создание `NewTokenRatioTracker` при инициализации планировщика → каждый проход сборки prefill-батча
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_data_parallelism` (корректировка под DP) → `check_server_args` (проверка знака) → создание `NewTokenRatioTracker` при инициализации планировщика → каждый проход сборки prefill-батча
 
 ## Что меняет в движке
 
@@ -73,7 +73,7 @@ min(max_new_tokens - len(output_ids), CLIP_MAX_NEW_TOKENS) * new_token_ratio
 - Значения ниже 1 (типично `0.3`) — агрессивнее: под запущенные запросы резервируется меньше, в батч входит больше новых.
 - Значения выше 1 (типично `1.3`) — консервативнее. Обратите внимание на `min(..., 1.0)`: при `--schedule-conservativeness >= 1.43` стартовое ratio упирается в `1.0` и дальнейший рост значения не меняет ничего — резервируется полный оставшийся `max_new_tokens` (с клипом 4096).
 - `0` формально допустимо: ratio станет нулевым, резерв под запущенные запросы исчезнет полностью, и retraction будет практически гарантирован под нагрузкой. Практического смысла не имеет.
-- Отрицательное значение отвергает assert в `__post_init__`.
+- Отрицательное значение отвергает assert в `check_server_args`, до запуска процессов.
 
 ## Когда использовать
 
@@ -120,6 +120,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --schedule-con
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/new_token_ratio_tracker.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

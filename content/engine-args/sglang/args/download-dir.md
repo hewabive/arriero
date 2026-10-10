@@ -33,10 +33,10 @@ Model download directory for huggingface.
 - Тип значения: строка — путь к каталогу
 - Допустимые значения: не ограничены; каталог создается библиотекой HF при необходимости
 - Значение по умолчанию: `null` — используются дефолты `huggingface_hub`
-- Эффективное значение: не переопределяется движком
+- Эффективное значение: не переопределяется движком — ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.download_dir`
 - Статус: обычный
-- Этап применения: `__post_init__` (только для ModelScope) и загрузка весов в каждом воркере
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_missing_default_values` (только для ModelScope) и загрузка весов в каждом воркере
 
 ## Что меняет в движке
 
@@ -44,7 +44,7 @@ Model download directory for huggingface.
 
 1. `DefaultModelLoader._prepare_weights` → `download_weights_from_hf(model_name_or_path, cache_dir=self.load_config.download_dir, …)`. Если `--model-path` — существующий локальный каталог, функция возвращает его сразу и `--download-dir` не участвует вообще.
 2. `RunaiModelStreamerLoader._prepare_weights` — то же самое для safetensors-паттерна.
-3. `_handle_modelscope_paths` в `__post_init__` (только при `SGLANG_USE_MODELSCOPE=1`): сначала ищет модель в `os.path.join(download_dir, path)`, затем передает `cache_dir=download_dir` в `snapshot_download`.
+3. `handle_modelscope_paths` (`python/sglang/srt/arg_groups/model_path_hook.py`), который шаг резолва `handle_missing_default_values` вызывает только при `SGLANG_USE_MODELSCOPE=1`: сначала ищет модель в кеше ModelScope по умолчанию, затем в `os.path.join(download_dir, path)`, и при промахе передает `cache_dir=download_dir` в `snapshot_download`. Найденный путь декларируется через `declare_resolution`: `server_args.model_path` хранит исходный repo id, итоговый путь виден в дампе `server_args=`.
 
 Кроме того, `np_cache_weights_iterator` при `--load-format npcache` кладет свой numpy-кеш относительно того же каталога.
 
@@ -100,6 +100,8 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --download-dir /d
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`

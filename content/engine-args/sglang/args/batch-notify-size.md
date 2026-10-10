@@ -33,7 +33,7 @@ Number of streaming notifications to batch before yielding to the event loop. Re
 - Тип значения: целое, единица измерения — запросы
 - Допустимые значения: `choices` нет; осмысленный диапазон — целые ≥ 1
 - Значение по умолчанию: `16`
-- Эффективное значение: `__post_init__` не переопределяет и не валидирует
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует и не валидирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.batch_notify_size`
 - Статус: обычный
 - Этап применения: `TokenizerManager._handle_batch_output`, то есть на каждом выходном батче планировщика

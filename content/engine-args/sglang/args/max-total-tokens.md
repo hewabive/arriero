@@ -47,7 +47,7 @@ Examples:
 - Эффективное значение: `min(профилированная емкость, заданное значение)`, затем округление вниз до целого числа страниц (`--page-size`) и, при `--pp-size > 1`, минимум по всем PP-рангам
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_total_tokens`
 - Статус: обычный; апстрим сам помечает его как отладочный
-- Этап применения: разбор CLI → `_handle_gpu_memory_settings` (ограничение prefill-графа) → `KVCacheConfigurator._apply_token_constraints` при выделении KV-пула
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_gpu_memory_settings` (ограничение prefill-графа) → `KVCacheConfigurator._apply_token_constraints` при выделении KV-пула
 
 ## Что меняет в движке
 
@@ -68,7 +68,7 @@ if user_limit is not None:
 
 После этого конфигуратор пересчитывает раскладку пула уже от ограниченного числа токенов (`calculate_pool_sizes_from_max_tokens`), выравнивая по странице. Для hybrid-SWA моделей ограниченное значение становится размером full-пула, а SWA-пул считается от него через `--swa-full-tokens-ratio`. Для DSV4 раскладка по под-пулам пересчитывается целиком.
 
-`_handle_gpu_memory_settings` использует значение раньше, еще до загрузки модели: если `cuda_graph_config.prefill.max_bs` не задан явно, он ограничивается `min(chunked_prefill_size, max_total_tokens)` — то есть маленький `--max-total-tokens` заодно уменьшает захватываемые prefill-графы.
+Шаг резолва `handle_gpu_memory_settings` (`python/sglang/srt/arg_groups/memory_hook.py`) использует значение раньше, еще до загрузки модели: если `cuda_graph_config.prefill.max_bs` не задан явно, он ограничивается `min(chunked_prefill_size, max_total_tokens)` — то есть маленький `--max-total-tokens` заодно уменьшает захватываемые prefill-графы.
 
 Освободившаяся память не возвращается: SGLang просто не выделяет ее под KV. Она остается свободной на карте — этим `--max-total-tokens` и полезен, когда на GPU должен поместиться второй процесс.
 
@@ -127,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-total-to
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`

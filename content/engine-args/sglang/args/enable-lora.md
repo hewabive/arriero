@@ -36,18 +36,18 @@ Enable LoRA support for the model. This argument is automatically set to True if
 - Тип значения: `Optional[bool]`; в argparse — `action="store_true"` с `default=None`
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `null`
-- Эффективное значение: `check_lora_server_args` переводит `None` в `True`, если задан `--lora-paths`; кроме того, при diffusion-LLM инференсе (`--dllm-algorithm`) значение принудительно сбрасывается в `False` с предупреждением
+- Эффективное значение: `check_lora_server_args` декларирует `True` вместо `None`, если задан `--lora-paths`; кроме того, при diffusion-LLM инференсе (`--dllm-algorithm`) шаг резолва `handle_dllm_inference` (`python/sglang/srt/arg_groups/dllm_hook.py`) с предупреждением декларирует `False`. Сырое `server_args.enable_lora` в обоих случаях хранит ввод оператора, итог — в `resolved_dict()` и `get_<bag>()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.enable_lora`
 - Статус: обычный
-- Этап применения: `__post_init__` → `check_lora_server_args` (валидация и разрешение) → `ModelRunner.maybe_init_lora_manager` после загрузки весов → планировщик и forward
+- Этап применения: `ServerArgs.resolve_once` (пайплайн резолва, в том числе `handle_dllm_inference`) → `ServerArgs.check_server_args` → `check_lora_server_args` (валидация и разрешение; вызывается из `Engine._launch_subprocesses` после `resolve_once` и до `publish`) → `ModelRunner.maybe_init_lora_manager` после загрузки весов → планировщик и forward
 
 ## Что меняет в движке
 
 ### Разрешение значения
 
-`check_lora_server_args` (`sglang/python/sglang/srt/server_args.py`):
+`check_lora_server_args` (`python/sglang/srt/arg_groups/lora_hook.py`, вызов из `check_server_args` в `python/sglang/srt/arg_groups/validation_hook.py`):
 
-- если `--lora-paths` непустой и `enable_lora is None` — значение поднимается до `True` через механизм поздней резолюции, в лог уходит `--enable-lora is set to True because --lora-paths is provided.`;
+- если `--lora-paths` непустой и `enable_lora is None` — значение поднимается до `True` через `declare_resolution` (поздняя резолюция: проверка идет после `resolve_once`, но до `publish`), в лог уходит `--enable-lora is set to True because --lora-paths is provided.`;
 - если `--lora-paths` задан, а `enable_lora` явно `False` (это достижимо только из Python-API, см. ниже) — предупреждение `--enable-lora is set to False, any provided lora_paths will be ignored.`;
 - при включенном LoRA `--enable-lora-overlap-loading`, если он не задан, фиксируется в `False`.
 
@@ -126,6 +126,10 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 - `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
+- `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

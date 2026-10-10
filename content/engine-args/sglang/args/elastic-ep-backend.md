@@ -39,10 +39,10 @@ Specify the collective communication backend for elastic EP. Supports 'mooncake'
 - Тип значения: перечисление (строка)
 - Допустимые значения: `none`, `mooncake`, `nixl`. Внимание: поле объявлено как `Literal[None, "mooncake", "nixl"]`, а `choices` заданы явно строками, поэтому argparse сохраняет именно строку `"none"` — это не то же самое, что не передать аргумент
 - Значение по умолчанию: `null` (аргумент не задан — elastic EP выключен)
-- Эффективное значение: не переопределяется; сам переопределяет `--eplb-algorithm` (`auto` → `elasticity_aware` при включенном `--enable-eplb`) и нормализует `--mooncake-ib-device` при значении `mooncake`
+- Эффективное значение: ни один шаг резолва его не декларирует; сам шаг `handle_elastic_ep` по нему декларирует `--eplb-algorithm` (`auto` → `elasticity_aware` при включенном `--enable-eplb`) и нормализует `--mooncake-ib-device` при значении `mooncake`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.elastic_ep_backend`
-- Статус: обычный, но подсистема молодая — набор проверок в `_handle_elastic_ep` меняется от релиза к релизу
-- Этап применения: `__post_init__` (`_handle_elastic_ep`) → выбор backend'а `init_process_group` → инициализация `ElasticEPStateManager` в model runner → конец каждого forward-прохода → HTTP `/scale_elastic_ep`
+- Статус: обычный, но подсистема молодая — набор проверок в `handle_elastic_ep` меняется от релиза к релизу
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (`arg_groups/parallel_hook.py`) → выбор backend'а `init_process_group` → инициализация `ElasticEPStateManager` в model runner → конец каждого forward-прохода → HTTP `/scale_elastic_ep`
 
 ## Что меняет в движке
 
@@ -52,7 +52,7 @@ Specify the collective communication backend for elastic EP. Supports 'mooncake'
 
 **Реакция на падение ранга.** В конце каждого forward-прохода при включенном elastic EP вызывается `maybe_join_ep_ranks`. Если масштабирование не идет, отрабатывает `maybe_recover_ep_ranks`: неактивные ранги опрашиваются через `mooncake.pg.get_peer_state`, и, если пир снова готов, выполняется `recover_ranks` для WORLD и всех живых параллельных групп, метаданные раскладки экспертов рассылаются заново, состояние сбрасывается, в лог уходит `recover ranks [...] done`. Отдельно `maybe_rebalance_after_rank_fault` запускает полную перебалансировку EPLB, как только маска живых рангов изменилась (`EPLB due to rank faults`). Обратите внимание: путь восстановления импортирует `mooncake.pg` независимо от выбранного значения аргумента.
 
-**Расширение в рантайме.** `POST /scale_elastic_ep {"new_ep_size": N}` переводит состояние в `waiting_for_cohort`; присоединяющаяся группа стартует отдельным процессом с `--elastic-ep-join-mode scale`. Расширение считается активным только когда задан `--max-ep-size` больше локального `--tp-size`; в этом случае `_handle_elastic_ep` добавляет длинный список проверок, среди которых: `--elastic-ep-backend mooncake` (nixl как транспорт WORLD для расширения не годится), `--moe-a2a-backend nixl`, `--load-balance-method round_robin`, `--tokenizer-worker-num 1`, запрет `--use-ray`, запрет `--enable-elastic-expert-backup`, отключенные CUDA graph для prefill и decode, включенные `--enable-dp-attention` и `--enable-dp-lm-head`, равенства `ep_size == tp_size == dp_size`, `--attn-cp-size 1`, `--moe-dp-size 1`, `--pp-size 1`. Дополнительно принудительно включается `--enable-dp-attention-local-control-broadcast`.
+**Расширение в рантайме.** `POST /scale_elastic_ep {"new_ep_size": N}` переводит состояние в `waiting_for_cohort`; присоединяющаяся группа стартует отдельным процессом с `--elastic-ep-join-mode scale`. Расширение считается активным только когда задан `--max-ep-size` больше локального `--tp-size`; в этом случае `handle_elastic_ep` добавляет длинный список проверок, среди которых: `--elastic-ep-backend mooncake` (nixl как транспорт WORLD для расширения не годится), `--moe-a2a-backend nixl`, `--load-balance-method round_robin`, `--tokenizer-worker-num 1`, запрет `--use-ray`, запрет `--enable-elastic-expert-backup`, отключенные CUDA graph для prefill и decode, включенные `--enable-dp-attention` и `--enable-dp-lm-head`, равенства `ep_size == tp_size == dp_size`, `--attn-cp-size 1`, `--moe-dp-size 1`, `--pp-size 1`. Дополнительно принудительно включается `--enable-dp-attention-local-control-broadcast`.
 
 ## Значения и формат
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/entrypoints/elastic_ep.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`

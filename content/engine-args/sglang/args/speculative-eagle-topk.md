@@ -41,7 +41,7 @@ The number of tokens sampled from the draft model in eagle2 each step.
 - Эффективное значение: EAGLE/EAGLE3/STANDALONE без явных значений получают `1` или `4` из `_auto_choose_speculative_params`; DFLASH и DSPARK принудительно понижают до `1` с предупреждением; NGRAM **перезаписывает** значение на `--speculative-ngram-max-bfs-breadth`; `--speculative-adaptive` ставит `1`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_eagle_topk`
 - Статус: обычный
-- Этап применения: `__post_init__` → `handle_speculative_decoding` (валидации по backend/page_size) → создание draft-воркера → захват CUDA graph draft-decode → forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` (`python/sglang/srt/arg_groups/speculative_hook.py`, валидации по backend/page_size) → создание draft-воркера → захват CUDA graph draft-decode → forward
 
 ## Что меняет в движке
 
@@ -66,7 +66,7 @@ The number of tokens sampled from the draft model in eagle2 each step.
 - `1` — линейная цепочка. Это режим MTP/NEXTN и единственный, совместимый с `--speculative-use-rejection-sampling`, `--speculative-adaptive`, `--enable-unified-memory`, `--enable-linear-replayssm-spec` и attention-бэкендом `trtllm_mha`.
 - `> 1` — дерево. Требует, чтобы при `--page-size` больше единицы attention-бэкенд был одним из `flashinfer`, `fa3`, `triton` (для NGRAM — только `flashinfer`), иначе `ValueError` на старте.
 - Отдельного «авто» нет: не задавать аргумент — и есть авто, но только вместе с `--speculative-num-steps` и `--speculative-num-draft-tokens`.
-- Под NGRAM аргумент бесполезен: `_handle_ngram` безусловно присваивает `speculative_eagle_topk = speculative_ngram_max_bfs_breadth`, никакого предупреждения при этом не печатается.
+- Под NGRAM аргумент бесполезен: `_handle_ngram` безусловно декларирует `speculative_eagle_topk = speculative_ngram_max_bfs_breadth` (через `declare_resolution`), никакого предупреждения при этом не печатается.
 
 ## Когда использовать
 

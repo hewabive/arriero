@@ -34,7 +34,7 @@ Choose the kernels for sampling layers.
 - Эффективное значение: `_sampling_backend_default` (`sglang/python/sglang/srt/arg_groups/overrides.py`) подставляет `flashinfer`, если FlashInfer доступен, иначе `pytorch`. Дальше значение может быть перезаписано: `--device cpu` и `--device hpu` жестко ставят `pytorch` (даже поверх явно заданного значения), а `--enable-deterministic-inference` через `_deterministic_sampling_backend` ставит `pytorch` для всего, кроме `ascend`, с логом `Sampling backend is set to pytorch for deterministic inference.`
 - Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args` (поле `ExecKernel.sampling_backend` в `sglang/python/sglang/srt/arg_groups/fields/exec_.py` помечено `no_cli=True`)
 - Статус: обычный; CLI choices собираются при регистрации parser
-- Этап применения: разбор CLI → платформенные обработчики `__post_init__` → `_handle_sampling_backend` → создание `Sampler` в model runner (`create_sampler`) → каждый шаг сэмплирования
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`: платформенные шаги `handle_hpu_backends` / `handle_cpu_backends` / `handle_xpu_backends` (`arg_groups/platform_hook.py`) → пасс `_sampling_backend_default`, который `arg_groups/pipeline.py` запускает напрямую после `handle_model_specific_adjustments` → шаг `handle_deterministic_inference` (пасс `_deterministic_sampling_backend`) → создание `Sampler` в model runner (`create_sampler`) → каждый шаг сэмплирования
 
 ## Что меняет в движке
 
@@ -98,6 +98,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --sampling-bac
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/pipeline.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
 - `sglang/python/sglang/srt/layers/sampler.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/docs/docs/advanced_features/deterministic_inference.mdx`

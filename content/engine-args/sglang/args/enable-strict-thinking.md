@@ -37,7 +37,7 @@ Enable strict token filtering during the thinking phase. Blocks model-specific e
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` не переопределяет, но `create_grammar_backend` при несовместимом backend'е не деградирует, а бросает исключение
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует, но `create_grammar_backend` при несовместимом backend'е не деградирует, а бросает исключение
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_strict_thinking`
 - Статус: обычный
 - Этап применения: создание grammar-backend при инициализации планировщика → подготовка grammar-объекта для каждого запроса → маскирование словаря на каждом шаге декодирования
@@ -51,7 +51,7 @@ Enable strict token filtering during the thinking phase. Blocks model-specific e
 - `--grammar-backend none` → `ValueError: --enable-strict-thinking requires a grammar backend that supports token filtering, but grammar_backend='none' was specified. Use --grammar-backend xgrammar or another backend that supports token filtering.`
 - xgrammar не смог инициализироваться на данном токенизаторе (`TokenizerNotSupportedError`) → вместо обычного отката на `grammar_backend='none'` бросается `ValueError` с текстом «Cannot fall back to grammar_backend='none' with strict thinking enabled».
 
-Поддержка фильтра объявляется свойством `is_support_token_filter`; в базовом классе оно `False`, `True` его возвращает только `XGrammarGrammarBackend`. Дефолтный backend и так xgrammar (`_handle_grammar_backend` подставляет его при `None`), так что специально указывать `--grammar-backend` обычно не нужно.
+Поддержка фильтра объявляется свойством `is_support_token_filter`; в базовом классе оно `False`, `True` его возвращает только `XGrammarGrammarBackend`. Дефолтный backend и так xgrammar (шаг резолва `handle_grammar_backend` в `python/sglang/srt/arg_groups/serving_hook.py` декларирует его при `None`), так что специально указывать `--grammar-backend` обычно не нужно.
 
 ### Что именно фильтруется
 
@@ -147,6 +147,7 @@ SGLANG_MAX_THINK_TOKENS=2048 python -m sglang.launch_server --model-path /models
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/constrained/base_grammar_backend.py`
 - `sglang/python/sglang/srt/constrained/reasoner_grammar_backend.py`
 - `sglang/python/sglang/srt/constrained/grammar_manager.py`

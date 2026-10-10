@@ -39,10 +39,10 @@ The path of the draft model weights. This can be a local folder or a Hugging Fac
 - Тип значения: строка (`Optional[str]`) — локальный каталог, HF repo id или URI объектного хранилища
 - Допустимые значения: не ограничены argparse; существование пути проверяет уже загрузчик
 - Значение по умолчанию: `null`
-- Эффективное значение: для EAGLE-семейства на архитектурах с MTP-головами (`DeepseekV3/V32/V4ForCausalLM`, `Glm4MoeForCausalLM`, `Glm4MoeLiteForCausalLM`, `GlmMoeDsaForCausalLM`, `BailingMoe*`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration`, `HYV3ForCausalLM`) подставляется `--model-path` вместе с `--revision`; для `DSPARK` то же самое происходит, если целевой чекпоинт несёт ключи `dspark_*`. При `SGLANG_USE_MODELSCOPE=1` путь дополнительно резолвится/скачивается через ModelScope
+- Эффективное значение: для EAGLE-семейства на архитектурах с MTP-головами (`DeepseekV3/V32/V4ForCausalLM`, `Glm4MoeForCausalLM`, `Glm4MoeLiteForCausalLM`, `GlmMoeDsaForCausalLM`, `BailingMoe*`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration`, `HYV3ForCausalLM`) подставляется `--model-path` вместе с `--revision`; для `DSPARK` то же самое происходит, если целевой чекпоинт несёт ключи `dspark_*`. При `SGLANG_USE_MODELSCOPE=1` путь дополнительно резолвится/скачивается через ModelScope. Подстановку декларируют шаги резолва (`declare_resolution`): `server_args.speculative_draft_model_path` хранит ввод оператора, итог виден в `resolved_dict()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_model_path`
 - Статус: обычный
-- Этап применения: `__post_init__` (`handle_speculative_decoding` → `_handle_*`, `_handle_missing_default_values`, `_handle_model_source_paths`) → расчёт KV-пула → создание draft-воркера
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_model_source_paths`, `handle_missing_default_values`, затем `handle_speculative_decoding` → per-algorithm `_handle_*` из `arg_groups/speculative_hook.py`) → расчёт KV-пула → создание draft-воркера
 
 ## Что меняет в движке
 
@@ -59,8 +59,8 @@ The path of the draft model weights. This can be a local folder or a Hugging Fac
 
 - Локальный каталог: должен существовать на момент старта на **каждом** узле, где поднимается воркер.
 - HF repo id: скачивается стандартным путём huggingface_hub с учётом `--speculative-draft-model-revision` и `--download-dir`.
-- URI объектного хранилища (RunAI): распознаётся `is_runai_obj_uri`, тогда `--speculative-draft-load-format` автоматически становится `runai_streamer`, а объект предзагружается в `_handle_model_source_paths`.
-- Пустая строка не эквивалентна «не задан»: `_handle_missing_default_values` проверяет истинность значения, а `_handle_dflash`/`_handle_dspark` — `is None`, так что `""` пройдёт проверку обязательности и упадёт позже при загрузке конфига.
+- URI объектного хранилища (RunAI): распознаётся `is_runai_obj_uri`, тогда `--speculative-draft-load-format` автоматически становится `runai_streamer`, а объект предзагружается в шаге резолва `handle_model_source_paths` (`arg_groups/model_path_hook.py`).
+- Пустая строка не эквивалентна «не задан»: `handle_modelscope_paths` (из шага `handle_missing_default_values`, только при `SGLANG_USE_MODELSCOPE`) проверяет истинность значения, а `_handle_dflash`/`_handle_dspark` — `is None`, так что `""` пройдёт проверку обязательности и упадёт позже при загрузке конфига.
 - Специальных значений (`auto`, `none`) нет.
 
 ## Когда использовать
@@ -83,7 +83,7 @@ The path of the draft model weights. This can be a local folder or a Hugging Fac
 - `--speculative-draft-model-revision`: при заданном пути и пустой ревизии подставляется `main`.
 - `--speculative-draft-model-quantization` / `--speculative-draft-load-format`: как именно грузятся эти веса; без них наследуются `--quantization` и `--load-format` target'а.
 - `--decrypted-draft-config-file`: подменяет файл конфигурации draft'а (аналог `--decrypted-config-file` для target'а) и используется уже на шаге разрешения алиаса алгоритма.
-- `--trust-remote-code`: нужен, если конфиг/код draft-архитектуры кастомный, — иначе `get_config` упадёт ещё в `__post_init__`.
+- `--trust-remote-code`: нужен, если конфиг/код draft-архитектуры кастомный, — иначе `get_config` упадёт ещё в `ServerArgs.resolve_once`.
 - `--speculative-token-map`: FR-Spec-таблица частотных токенов к этому же draft'у (только EAGLE-2).
 - `--mem-fraction-static`: тот же бюджет теперь держит две модели.
 - `--model-path` / `--revision`: источник значения по умолчанию для MTP-чекпоинтов.
@@ -112,6 +112,8 @@ python -m sglang.launch_server --model-path /models/Llama-3.1-8B-Instruct --spec
 - `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/tp_worker.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/spec_aux_hidden_state.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`

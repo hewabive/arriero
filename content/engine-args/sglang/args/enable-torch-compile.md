@@ -38,10 +38,10 @@ Optimize the model with torch.compile. Experimental feature.
 - Тип значения: bool, `action="store_true"` — значение не принимает
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
-- Эффективное значение: `_handle_environment_variables` копирует его в переменную окружения `SGLANG_ENABLE_TORCH_COMPILE`. Во время прогрева `BaseRunner.warmup` может выключить компиляцию, если модель через Transformers-backend сообщает `_can_torch_compile = False` (лог «Transformers backend model reports it is not torch.compile compatible (e.g. dynamic rope scaling). Disabling torch.compile.»); `DecodeCudaGraphRunner.capture()` в этом случае пересчитывает список компилируемых форм
+- Эффективное значение: шаг резолва `handle_environment_variables` (`python/sglang/srt/arg_groups/serving_hook.py`) копирует его в переменную окружения `SGLANG_ENABLE_TORCH_COMPILE`. Во время прогрева `BaseRunner.warmup` может выключить компиляцию, если модель через Transformers-backend сообщает `_can_torch_compile = False` (лог «Transformers backend model reports it is not torch.compile compatible (e.g. dynamic rope scaling). Disabling torch.compile.»); `DecodeCudaGraphRunner.capture()` в этом случае пересчитывает список компилируемых форм
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_torch_compile`
 - Статус: обычный, помечен экспериментальным в собственной справке
-- Этап применения: `__post_init__` (правило каскада prefill, установка env, ассерт совместимости) → прогрев и захват decode-графа (`patch_model` на каждую компилируемую форму) → реплей
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (правило каскада prefill в шаге `handle_cuda_graph_config`, установка env в `handle_environment_variables`) → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, ассерт совместимости) → прогрев и захват decode-графа (`patch_model` на каждую компилируемую форму) → реплей
 
 ## Что меняет в движке
 
@@ -81,7 +81,7 @@ torch.compile(
 
 ### Что флаг выключает
 
-`--enable-torch-compile` входит в правила `_disable_tc_piecewise_cudagraph_if_incompatible` («full torch.compile mode»): при незаданном `--cuda-graph-backend-prefill` и prefill-backend'е `tc_piecewise` prefill-граф выключается. Два механизма компиляции не складываются.
+`--enable-torch-compile` входит в правила `disable_tc_piecewise_cudagraph_if_incompatible` (`python/sglang/srt/arg_groups/cuda_graph_hook.py`, вызывается из `apply_cuda_graph_compatibility` в шаге `handle_cuda_graph_config`; правило «full torch.compile mode»): при незаданном `--cuda-graph-backend-prefill` и prefill-backend'е `tc_piecewise` prefill-граф выключается. Два механизма компиляции не складываются.
 
 ## Значения и формат
 
@@ -140,6 +140,9 @@ SGLANG_CACHE_DIR=/var/cache/sglang python -m sglang.launch_server --model-path /
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/compilation/torch_compile_decoration.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`

@@ -35,10 +35,10 @@ Enable using torch symm mem for all-reduce kernel and fall back to NCCL. Only su
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: `--enable-deterministic-inference` при `tp_size > 1` на CUDA принудительно ставит `False` с явным обоснованием в коде — порог `should_torch_symm_mem_allreduce` зависит от размера тензора, значит выбор пути редукции зависел бы от числа токенов, что ломает воспроизводимость
+- Эффективное значение: `--enable-deterministic-inference` при `tp_size > 1` на CUDA принудительно ставит `False` (шаг резолва `handle_deterministic_inference` в `python/sglang/srt/arg_groups/attention_hook.py` декларирует его через `declare_resolution`; `server_args.enable_torch_symm_mem` хранит ввод оператора) с явным обоснованием в коде — порог `should_torch_symm_mem_allreduce` зависит от размера тензора, значит выбор пути редукции зависел бы от числа токенов, что ломает воспроизводимость
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_torch_symm_mem`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (сброс в детерминированном режиме) → `_set_all_reduce_flags` → конструктор `GroupCoordinator` (создание `TorchSymmMemCommunicator` и rendezvous буфера) → каждый forward
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deterministic_inference` (сброс в детерминированном режиме) → `_set_all_reduce_flags` → конструктор `GroupCoordinator` (создание `TorchSymmMemCommunicator` и rendezvous буфера) → каждый forward
 
 ## Что меняет в движке
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-235B-A22B --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/torch_symm_mem.py`
 - `sglang/python/sglang/srt/distributed/device_communicators/all_reduce_utils.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`

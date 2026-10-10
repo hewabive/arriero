@@ -37,7 +37,7 @@ The specific model version to use. It can be a branch name, a tag name, or a com
 - Эффективное значение: не переопределяется. Косвенное следствие есть у драфт-модели: когда `--speculative-draft-model-path` не задан и драфт-веса лежат в самом целевом чекпойнте, спекулятивный hook подставляет `speculative_draft_model_path = model_path` и вместе с ним `speculative_draft_model_revision = revision`; в ModelScope-пути драфт скачивается по `speculative_draft_model_revision or "main"`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.revision`
 - Статус: обычный
-- Этап применения: построение `ModelConfig` (чтение конфига), скачивание весов в `DefaultModelLoader._prepare_weights`, инициализация токенизатора/процессора, `__post_init__` при `SGLANG_USE_MODELSCOPE`
+- Этап применения: построение `ModelConfig` (чтение конфига), скачивание весов в `DefaultModelLoader._prepare_weights`, инициализация токенизатора/процессора, а при `SGLANG_USE_MODELSCOPE` — еще шаг резолва `handle_missing_default_values` (`ServerArgs.resolve_once`)
 
 ## Что меняет в движке
 
@@ -49,7 +49,7 @@ The specific model version to use. It can be a branch name, a tag name, or a com
 
 Отдельно ревизия участвует в отпечатке IPC-кеша весов: `CacheConfig.revision` заполняется как `model_config.revision or ""`, и несовпадение ревизии между демоном и клиентом даст отказ подключения, а не тихую подмену весов (`sglang/python/sglang/srt/weight_cache/ipc_loader.py`). Инженерно это важно: движок явно считает ревизию частью идентичности весов.
 
-При `SGLANG_USE_MODELSCOPE` ревизия используется в `_handle_modelscope_paths` для `snapshot_download` модели и токенизатора.
+При `SGLANG_USE_MODELSCOPE` ревизия используется в `handle_modelscope_paths` (`python/sglang/srt/arg_groups/model_path_hook.py`, вызывается из шага `handle_missing_default_values`) для `snapshot_download` модели и токенизатора; полученные локальные пути шаг декларирует как эффективные `model_path` и `tokenizer_path`.
 
 При `--weight-cache-mode daemon` значение добавляется в командную строку каждого порожденного демона.
 
@@ -102,6 +102,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-8B --revision 0e9e39f249a
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/weight_utils.py`

@@ -36,10 +36,10 @@ Start a locally managed sidecar against the native gRPC server. The selected mod
 - Тип значения: строка — полное имя импортируемого Python-модуля (например `my_provider.sidecar`)
 - Допустимые значения: `choices` нет; любое непустое имя модуля, импортируемое в окружении процесса
 - Значение по умолчанию: `null` — sidecar не запускается
-- Эффективное значение: `__post_init__` не переопределяет, но валидирует: пустая строка, legacy-режим и отсутствие gRPC-порта — три отдельные ошибки старта
+- Эффективное значение: совпадает с заданным — ни один шаг резолва его не декларирует, но шаг `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`) валидирует: пустая строка, legacy-режим и отсутствие gRPC-порта — три отдельные ошибки старта
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.sidecar`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → `lifespan` HTTP-сервера, сразу после запуска нативного gRPC и до прогрева → остановка в `finally` при завершении
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` (валидация) → `lifespan` HTTP-сервера, сразу после запуска нативного gRPC и до прогрева → остановка в `finally` при завершении
 
 ## Что меняет в движке
 
@@ -156,6 +156,7 @@ SGLANG_GRPC_PORT=40000 python -m sglang.launch_server --model-path /models/Qwen3
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/sidecar.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/test/registered/unit/server_args/test_server_args.py`

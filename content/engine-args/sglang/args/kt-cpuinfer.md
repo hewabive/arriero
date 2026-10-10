@@ -31,7 +31,7 @@ related:
 - Тип значения: целое (`Optional[int]`)
 - Допустимые значения: не ограничены на уровне argparse; смысл имеют значения от 1 до числа физических ядер, доступных процессу
 - Значение по умолчанию: `null` — SGLang ничего не подставляет
-- Эффективное значение: не переопределяется; `ServerArgs.__post_init__` это поле не читает. При включенном KT (`--kt-weight-path` задан) незаданное значение уходит в kt-kernel как `None` и попадает в целочисленное деление `cpuinfer_threads // threadpool_count` (`_get_cpu_infer` в `ktransformers/kt-kernel/python/experts_base.py`) — то есть значение обязано быть задано явно
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) это поле не читает и не декларирует. При включенном KT (`--kt-weight-path` задан) незаданное значение уходит в kt-kernel как `None` и попадает в целочисленное деление `cpuinfer_threads // threadpool_count` (`_get_cpu_infer` в `ktransformers/kt-kernel/python/experts_base.py`) — то есть значение обязано быть задано явно
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.kt_cpuinfer`
 - Статус: обычный, реализация целиком во внешнем пакете `kt_kernel`
 - Этап применения: создание синглтона `CPUInfer` при инициализации первого MoE-слоя

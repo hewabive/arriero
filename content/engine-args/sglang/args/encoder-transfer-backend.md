@@ -39,10 +39,10 @@ The backend for encoder disaggregation transfer. Auto selects a model- and TP-aw
 - Тип значения: str
 - Допустимые значения: `auto`, `zmq_to_scheduler`, `zmq_to_tokenizer`, `mooncake`
 - Значение по умолчанию: литерал `"auto"`
-- Эффективное значение: `auto` **всегда** переписывается в `_handle_encoder_disaggregation` функцией `resolve_encoder_transfer_backend(backend, model_arch, tp_size)`: для `KimiK3ForConditionalGeneration` при `--tp-size > 1` — `zmq_to_tokenizer`, во всех остальных случаях — `zmq_to_scheduler`. Разрешение выполняется на любом сервере, но в лог (`Encoder transfer backend auto-resolved to %s for %s at TP%d.`) попадает только при `--encoder-only` или `--language-only`
+- Эффективное значение: `auto` **всегда** разрешается шагом резолва `handle_encoder_disaggregation` (`python/sglang/srt/arg_groups/pd_disaggregation_hook.py`) через функцию `resolve_encoder_transfer_backend(backend, model_arch, tp_size)` из `server_args.py` и записывается через `declare_resolution` (в `server_args.encoder_transfer_backend` остается `auto`, итог — в `resolved_dict()`): для `KimiK3ForConditionalGeneration` при `--tp-size > 1` — `zmq_to_tokenizer`, во всех остальных случаях — `zmq_to_scheduler`. Разрешение выполняется на любом сервере, но в лог (`Encoder transfer backend auto-resolved to %s for %s at TP%d.`) попадает только при `--encoder-only` или `--language-only`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_transfer_backend`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_encoder_disaggregation` (разрешение `auto`, валидация IB-устройств при `mooncake`) → создание MM-receiver'а в tokenizer manager и/или scheduler'е → обработка каждого мультимодального запроса
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_encoder_disaggregation` (разрешение `auto`, валидация IB-устройств `validate_ib_devices` при `mooncake`) → создание MM-receiver'а в tokenizer manager и/или scheduler'е → обработка каждого мультимодального запроса
 
 ## Что меняет в движке
 
@@ -126,6 +126,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
 - `sglang/python/sglang/srt/disaggregation/encoder/server.py`
 - `sglang/python/sglang/srt/disaggregation/encoder/grpc_server.py`

@@ -33,10 +33,10 @@ json-formatted sampling settings that will be returned in /get_model_info
 - Тип значения: JSON-объект (в extract `type: json`), разбирается `json.loads` на этапе argparse; поле объявлено как `Optional[str]`, но после разбора хранит словарь
 - Допустимые значения: `choices` нет; ключи — поля датакласса `SamplingParams` (`sglang/python/sglang/srt/sampling/sampling_params.py`)
 - Значение по умолчанию: `null` — слой отсутствует
-- Эффективное значение: `_handle_other_validations` повторно применяет `json.loads`, если значение осталось строкой, и при `--skip-tokenizer-init` дополнительно прогоняет его через `SamplingParams(**value).normalize(None)` — это отсеивает параметры, требующие токенизатор
+- Эффективное значение: шаг резолва `handle_other_validations` (`python/sglang/srt/arg_groups/serving_hook.py`) повторно применяет `json.loads`, если значение осталось строкой (результат декларируется через `declare_resolution`), и при `--skip-tokenizer-init` дополнительно прогоняет его через `SamplingParams(**value).normalize(None)` — это отсеивает параметры, требующие токенизатор
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.preferred_sampling_params`
 - Статус: обычный
-- Этап применения: разбор CLI → валидация в `__post_init__` → `TokenizerManager` (на каждом запросе) и HTTP-эндпоинт `/model_info`
+- Этап применения: разбор CLI (`prepare_server_args`) → валидация в `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_other_validations` → `TokenizerManager` (на каждом запросе) и HTTP-эндпоинт `/model_info`
 
 ## Что меняет в движке
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --preferred-sa
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/sampling/sampling_params.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`

@@ -35,7 +35,7 @@ Sharding strategy for prefill CP. 'zigzag' assigns each rank one early and one l
 - Эффективное значение: автоподбора «по модели» нет: если `--enable-prefill-cp` задан, а стратегия — нет, запуск отвергается. Старые режимы `in-seq-split` и `round-robin-split` более не принимаются как флаги CLI.
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.cp_strategy`
 - Статус: обычный; прежние раздельные режимы CP удалены
-- Этап применения: `__post_init__` (`_handle_legacy_cp_arguments` → модельные override'ы → `_handle_context_parallelism` → `init_cp_strategy`) → forward на extend-шагах
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаг `validate_prefill_cp_platform` (до проверки dummy-модели) → модельные override'ы в шаге `handle_model_specific_adjustments` → шаг `handle_context_parallelism` (`arg_groups/parallel_hook.py`: отказ без стратегии, затем `init_cp_strategy`) → forward на extend-шагах
 
 ## Что меняет в движке
 
@@ -78,7 +78,7 @@ cp1: token1, token5, token9,  …
 
 - Ровно одна из двух строк: `zigzag` или `interleave`. Иное значение argparse отвергнет со списком допустимых.
 - Значения по умолчанию нет; без `--enable-prefill-cp` аргумент ни на что не влияет, с ним — обязателен.
-- Старые имена режимов (`in-seq-split`, `round-robin-split`) в этом аргументе не принимаются: они остались только у устаревших флагов и транслируются автоматически.
+- Старые имена режимов (`in-seq-split`, `round-robin-split`) в этом аргументе не принимаются. Устаревшие флаги, которые их принимали (`--prefill-cp-mode`, `--dsa-prefill-cp-mode`, `--enable-prefill-context-parallel`, `--enable-dsa-prefill-context-parallel` и их `nsa`-алиасы), удалены в v0.5.20 вместе с трансляцией в `cp_strategy`, так что стратегию задает только этот аргумент.
 
 ## Когда использовать
 
@@ -137,3 +137,4 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 - `sglang/python/sglang/srt/layers/cp/utils.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`

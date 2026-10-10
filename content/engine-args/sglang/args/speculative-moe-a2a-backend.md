@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-`--speculative-moe-a2a-backend` задаёт транспорт dispatch/combine экспертов отдельно для черновика. Нужен там, где target-модель гоняет экспертов через DeepEP или другой a2a, а MTP/draft-слой один и его дешевле считать локально (`none`), либо наоборот. В отличие от парного `--speculative-moe-runner-backend`, значение по умолчанию **не** подставляется в `__post_init__`: поле остаётся `None`, и подмена на значение target-модели происходит только в `initialize_moe_config`. Это надо помнить, читая дамп `server_args=`.
+`--speculative-moe-a2a-backend` задаёт транспорт dispatch/combine экспертов отдельно для черновика. Нужен там, где target-модель гоняет экспертов через DeepEP или другой a2a, а MTP/draft-слой один и его дешевле считать локально (`none`), либо наоборот. В отличие от парного `--speculative-moe-runner-backend`, значение по умолчанию **не** подставляет ни один шаг резолва (`ServerArgs.resolve_once`): поле остаётся `None`, и подмена на значение target-модели происходит только в `initialize_moe_config`. Это надо помнить, читая дамп `server_args=`.
 
 ## Оригинальная справка
 
@@ -34,7 +34,7 @@ Choose the backend for MoE A2A in speculative decoding
 - Тип значения: строка с фиксированным списком (`MOE_A2A_BACKEND_CHOICES`, тот же, что у `--moe-a2a-backend`)
 - Допустимые значения: `none`, `deepep`, `mooncake`, `nixl`, `mori`, `ascend_fuseep`, `flashinfer`, `megamoe`, `deepep_v2`, `pplx`, `ascend_tp`
 - Значение по умолчанию: `null`
-- Эффективное значение: в `__post_init__` остаётся `null`; `initialize_moe_config` при `None` подставляет `moe.a2a_backend` target-модели. Исключение — DeepSeek-семейство с `--quantization modelopt_fp4` на ROCm: `_deepseek_spec_moe_resolution` выставляет `deepep` (вместе с runner `deep_gemm`) при `SGLANG_NVFP4_CKPT_FP8_NEXTN_MOE`, иначе `none` (с runner `triton`)
+- Эффективное значение: после резолва (`ServerArgs.resolve_once`) остаётся `null`; `initialize_moe_config` при `None` подставляет `moe.a2a_backend` target-модели. Исключение — DeepSeek-семейство с `--quantization modelopt_fp4` на ROCm: пасс `_deepseek_spec_moe_resolution` (`arg_groups/overrides.py`, запускается внутри шага `handle_model_specific_adjustments`) декларирует `deepep` (вместе с runner `deep_gemm`) при `SGLANG_NVFP4_CKPT_FP8_NEXTN_MOE`, иначе `none` (с runner `triton`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_moe_a2a_backend`
 - Статус: обычный
 - Этап применения: `initialize_moe_config` при инициализации model runner → сборка и прогоны MoE-слоёв черновика внутри `speculative_moe_a2a_backend_context()`
@@ -52,9 +52,9 @@ Choose the backend for MoE A2A in speculative decoding
 
 Контекстом обёрнуты сборка draft-модели, инициализация attention-бэкендов, захват CUDA graph и forward'ы черновика в EAGLE- и frozen-KV-MTP-воркерах (`sglang/python/sglang/srt/speculative/eagle_worker_v2.py`, `frozen_kv_mtp_worker_v2.py`). Отметьте: standalone-воркер оборачивает только runner-контекст, a2a-контекст там не применяется.
 
-Помимо этого пара «спекулятивный runner + спекулятивный a2a» читается напрямую из `server_args` в `cuda_graph_setup` (решение, считать ли draft-воркер использующим DeepGEMM-раннер) и в `should_run_flashinfer_autotune(..., for_speculative_draft=True)` (отказ от автотюнинга FlashInfer для связки `flashinfer_cutedsl` + `deepep`).
+Помимо этого пара «спекулятивный runner + спекулятивный a2a» читается из опубликованного конфига (`get_spec()`, для a2a с откатом на `get_exec().moe.moe_a2a_backend`) в `cuda_graph_setup` (решение, считать ли draft-воркер использующим DeepGEMM-раннер) и в `should_run_flashinfer_autotune(..., for_speculative_draft=True)` (отказ от автотюнинга FlashInfer для связки `flashinfer_cutedsl` + `deepep`).
 
-Единственная валидация этого аргумента на старте — в `_handle_dspark`: при DSPARK с DP attention и `dp_size > 1` спекулятивный a2a обязан совпадать с `moe_a2a_backend` target-модели, иначе `ValueError`. Ни `_handle_a2a_moe`, ни `_handle_moe_kernel_config` спекулятивное значение не смотрят.
+Проверки самого значения на старте живут в пайплайне резолва. В `_handle_dspark` (`arg_groups/speculative_hook.py`): при DSPARK с DP attention и `dp_size > 1` спекулятивный a2a обязан совпадать с `moe_a2a_backend` target-модели, иначе `ValueError`. Шаг `validate_deepep_v2_speculative_draft` (`arg_groups/moe_hook.py`) отвергает `deepep_v2` для черновика — и явный, и унаследованный от `--moe-a2a-backend` (кроме NGRAM): `DeepEP v2 MoE is not validated as a speculative draft backend.` Ни `handle_a2a_moe`, ни `handle_moe_kernel_config` спекулятивное значение не смотрят.
 
 ## Значения и формат
 
@@ -73,7 +73,7 @@ Choose the backend for MoE A2A in speculative decoding
 
 ## Влияние на производительность и память
 
-- VRAM: DeepEP и родственные транспорты выделяют собственные буферы обмена. Для target-модели это учтено в автоподборе `--mem-fraction-static` (`reserve_for_deepep_a2a_mb()`), для черновика — нет: если вы включаете a2a только у черновика, добавочный расход в резерв не заложен.
+- VRAM: DeepEP и родственные транспорты выделяют собственные буферы обмена. Для target-модели это учтено в автоподборе `--mem-fraction-static` (`reserve_for_deepep_a2a_mb()` в `arg_groups/memory_hook.py`, вызывается шагом резолва `handle_gpu_memory_settings`), для черновика — нет: если вы включаете a2a только у черновика, добавочный расход в резерв не заложен.
 - Compute/latency: раунд all-to-all на каждый MoE-слой черновика, умноженный на `--speculative-num-steps` прогонов за decode-шаг. Для одного маленького слоя транспорт обычно дороже самих вычислений — отсюда рекомендация `none`.
 - Время старта: инициализация транспорта и его буферов выполняется отдельно для черновика.
 - Точность/численность: контекст черновика принудительно отключает FP4-allgather, независимо от `--disable-flashinfer-cutlass-moe-fp4-allgather`.
@@ -81,8 +81,8 @@ Choose the backend for MoE A2A in speculative decoding
 
 ## Взаимодействие с другими аргументами
 
-- `--moe-a2a-backend`: источник значения по умолчанию (подставляется в `initialize_moe_config`, а не в `__post_init__`).
-- `--speculative-moe-runner-backend`: парный аргумент; у него, наоборот, значение по умолчанию проставляется ещё в `__post_init__`. Совместимость пары «runner + a2a» для черновика не проверяется на старте.
+- `--moe-a2a-backend`: источник значения по умолчанию (подставляется в `initialize_moe_config`, а не в шагах резолва).
+- `--speculative-moe-runner-backend`: парный аргумент; у него, наоборот, значение по умолчанию декларирует еще пасс резолва `_speculative_moe_runner_default` (внутри шага `handle_speculative_decoding`). Совместимость пары «runner + a2a» для черновика не проверяется на старте.
 - `--moe-runner-backend`: правила совместимости a2a и раннера (`flashinfer_cutedsl` ограничивает набор a2a, `pplx` требует `deep_gemm`) действуют для target-модели; на спекулятивную пару они не распространяются.
 - `--ep-size`: транспорт имеет смысл только при экспертном параллелизме; при `ep_size = 1` любые значения, кроме `none`, добавляют накладные расходы без выгоды.
 - `--deepep-mode`: применяется к DeepEP в целом; отдельного спекулятивного режима нет.

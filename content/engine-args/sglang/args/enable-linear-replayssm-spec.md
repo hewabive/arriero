@@ -38,10 +38,10 @@ Enable the ReplaySSM spec-verify: fold-every-commit -- a per-slot raw-input wind
 - Группа: `exec.mamba`
 - Тип значения: bool (флаг без значения)
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; побочно **переписывает** `--mamba-ssm-dtype` на `float32`, если тот не задан
+- Эффективное значение: совпадает с заданным; побочно **декларирует** эффективный `mamba_ssm_dtype=float32`, если `--mamba-ssm-dtype` не задан
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_linear_replayssm_spec`
 - Статус: обычный; прежнее имя механизма удалено
-- Этап применения: `__post_init__` (`_handle_linear_attn_backend` — шесть проверок и подстановка типа состояния) → аллокация `MambaPool` → каждый шаг target-verify и коммита
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_linear_attn_backend` (`python/sglang/srt/arg_groups/attention_hook.py` — шесть проверок и подстановка типа состояния) → аллокация `MambaPool` → каждый шаг target-verify и коммита
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ replayssm_g:     [layers, slots, HV, record_len]     fp32 (GDN)
 
 `record_len` для GDN равен максимуму черновых токенов (`--speculative-num-draft-tokens`), для KDA — `--linear-replayssm-cache-len`. У KDA дополнительно остаются чанковые записи `d`/`k`: их отсутствие переключило бы decode на другой путь, а это отдельное изменение поведения. Окно свертки (`intermediate_conv_window`) сохраняется в обоих случаях — откат свертки его потребляет.
 
-В отличие от decode-кольца (`--enable-linear-replayssm`) эта память **учитывается** в бюджетном решении: `_handle_max_mamba_cache` считает `replayssm_ring_bytes_per_req(record_len)` и добавляет его к цене слота.
+В отличие от decode-кольца (`--enable-linear-replayssm`) эта память **учитывается** в бюджетном решении: `KVCacheConfigurator._handle_max_mamba_cache` (`mem_cache/kv_cache_configurator.py`) считает `replayssm_ring_bytes_per_req(record_len)` и добавляет его к цене слота.
 
 ### Проверки на старте
 
@@ -133,6 +133,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/configs/mamba_utils.py`

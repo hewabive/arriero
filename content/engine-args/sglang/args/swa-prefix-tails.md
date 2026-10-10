@@ -37,7 +37,7 @@ When the SWA KV pool is sized from the request cap (DeepSeek-V4 family), how man
 - Эффективное значение: `DSV4PoolConfigurator._resolve_swa_prefix_tails` (`model_executor/pool_configurator.py`) берет явное значение как есть; иначе `0` при `--disable-radix-cache`, иначе `4 × (max_running_requests // attn_dp_size)`. Значение используется, только если пул работает в cap-режиме (см. ниже)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.swa_prefix_tails`
 - Статус: обычный
-- Этап применения: проверка `≥ 0` в `__post_init__` (`handle_cache_compatibility`, `arg_groups/kv_cache_hook.py`) → расчет размеров KV-пулов DeepSeek-V4 при инициализации model runner
+- Этап применения: проверка `≥ 0` в пайплайне резолва `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаг `handle_cache_compatibility`, `arg_groups/kv_cache_hook.py`) → расчет размеров KV-пулов DeepSeek-V4 при инициализации model runner
 
 ## Что меняет в движке
 

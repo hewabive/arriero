@@ -84,10 +84,10 @@ else:
 
 ## Взаимодействие с другими аргументами
 
-- `--enable-flexkv`, `--enable-lmcache`, `--enable-hierarchical-cache`, `--disable-radix-cache`: при заданном backend'е ни один из них не участвует в выборе класса кеша (флаги при этом продолжают влиять на другие подсистемы и на проверки в `__post_init__`).
+- `--enable-flexkv`, `--enable-lmcache`, `--enable-hierarchical-cache`, `--disable-radix-cache`: при заданном backend'е ни один из них не участвует в выборе класса кеша (флаги при этом продолжают влиять на другие подсистемы и на проверки шагов резолва `ServerArgs.resolve_once`).
 - `--enable-session-radix-cache`: после создания кеша проверяется наличие поддержки сессий; фабрика обязана вернуть `UnifiedRadixCache` или совместимый объект.
 - `--enable-streaming-session`: несовместимый кеш будет обернут в `StreamingSession`.
-- `--enable-int8-mamba-checkpoint`: несовместим с любым непустым значением — `_handle_int8_mamba_checkpoint` бросает `ValueError` «--enable-int8-mamba-checkpoint only supports the built-in mamba radix cache; --radix-cache-backend=… is not int8-aware.».
+- `--enable-int8-mamba-checkpoint`: несовместим с любым непустым значением — шаг резолва `handle_int8_mamba_checkpoint` (`sglang/python/sglang/srt/arg_groups/mamba_hook.py`) бросает `ValueError` «--enable-int8-mamba-checkpoint only supports the built-in mamba radix cache; --radix-cache-backend=… is not int8-aware.».
 - `--flexkv-config-file`: на этом пути **не** пробрасывается в `FLEXKV_CONFIG_PATH`.
 
 ## Типовые проблемы и диагностика
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --page-size 64 --ra
 
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/mamba_hook.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/storage/flexkv/__init__.py`
 - `sglang/python/sglang/srt/plugins/__init__.py`

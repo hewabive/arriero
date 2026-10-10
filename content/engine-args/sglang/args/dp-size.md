@@ -39,10 +39,10 @@ The data parallelism size.
 - Тип значения: int
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `1`
-- Эффективное значение: переписывается в `_handle_dwdp` — при `--dwdp-size > 1` выставляется `dp_size = dwdp_size` вместе с принудительными `enable_dp_attention/enable_dp_lm_head/enable_dp_attention_local_control_broadcast = True`. Обратный эффект: при `dp_size == 1` (и `ep_join_mode != "scale"`) правило `_data_parallelism_defaults` гасит `enable_dp_attention` и `enable_dp_lm_head`
+- Эффективное значение: шаг резолва `handle_dwdp` (`arg_groups/parallel_hook.py`) при `--dwdp-size > 1` декларирует `dp_size = dwdp_size` вместе с принудительными `enable_dp_attention/enable_dp_lm_head/enable_dp_attention_local_control_broadcast = True`; поле `server_args.dp_size` при этом хранит ввод оператора, итог — в `resolved_dict()` и дампе `server_args=`. Обратный эффект: при `dp_size == 1` (и `ep_join_mode != "scale"`) pass `_data_parallelism_defaults` внутри шага `handle_data_parallelism` гасит `enable_dp_attention` и `enable_dp_lm_head`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dp_size`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_dwdp` → `_handle_data_parallelism` (проверка `tp_size % dp_size == 0`, деление `--chunked-prefill-size`, множитель `--schedule-conservativeness`) → `PortArgs.init_new` (IPC или TCP) → запуск `DataParallelController` → маршрутизация каждого запроса
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаги `handle_dwdp` → `handle_data_parallelism` (проверка `tp_size % dp_size == 0`, деление `--chunked-prefill-size`, множитель `--schedule-conservativeness`) → `PortArgs.init_new` (IPC или TCP) → запуск `DataParallelController` → маршрутизация каждого запроса
 
 ## Что меняет в движке
 
@@ -68,7 +68,7 @@ attn_tp_size = tp_size // attn_dp_size // attn_cp_size
 attn_dp_rank = tp_rank // (attn_tp_size * attn_cp_size)
 ```
 
-Требуется `tp_size % dp_size == 0` (жесткий `assert` в `_handle_data_parallelism`). Подробности того, что при этом дублируется, а что шардируется, — в `enable-dp-attention.md`.
+Требуется `tp_size % dp_size == 0` (жесткий `assert` в шаге `handle_data_parallelism`). Подробности того, что при этом дублируется, а что шардируется, — в `enable-dp-attention.md`.
 
 В этом режиме `PortArgs.init_new` переключает межпроцессное взаимодействие с unix-IPC на TCP (иначе многоузловой запуск невозможен) и выводит служебные порты из `--dist-init-addr` либо, на одном узле, из `--port + 233`.
 
@@ -111,7 +111,7 @@ attn_dp_rank = tp_rank // (attn_tp_size * attn_cp_size)
 ## Типовые проблемы и диагностика
 
 - `AssertionError: multi-node data parallel is not supported unless dp attention!` — `--dp-size > 1` при `--nnodes > 1` без `--enable-dp-attention`.
-- `AssertionError` в `_handle_data_parallelism` без текста (`assert self.tp_size % self.dp_size == 0`) — `dp_size` не делит `tp_size` при включенном DP-attention.
+- `AssertionError` в шаге `handle_data_parallelism` без текста (`assert cfg.tp_size % cfg.dp_size == 0`) — `dp_size` не делит `tp_size` при включенном DP-attention.
 - `--enable-dp-attention` задан, а в логе никаких следов DP (нет строки `DP attention is enabled. chunked prefill size is adjusted…`, нет префиксов ` DP<n>`) — значит `--dp-size` остался равным 1 и флаг был сброшен `_data_parallelism_defaults`.
 - `ValueError: routed_dp_rank=… out of range [0, N)` — клиент прислал номер реплики вне диапазона.
 - `Port is already in use.` с перечислением `dist_init_port=… port_base=… detokenizer_port=…` — при DP-attention занята одна из шести производных TCP-портов; смените `--dist-init-addr` или `--port`.
@@ -132,6 +132,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --dp-size 4 --load-
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`

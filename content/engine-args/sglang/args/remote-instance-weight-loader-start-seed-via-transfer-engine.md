@@ -35,20 +35,20 @@ Start seed server via transfer engine backend for remote instance weight loader.
 - Тип значения: булев переключатель (`store_true`); парной формы `--no-...` нет
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: **переопределяется в `__post_init__`**. В `_handle_load_format` выполняется `self.remote_instance_weight_loader_start_seed_via_transfer_engine = self.validate_transfer_engine()`, то есть при заданном флаге итоговое значение равно результату проверки, а не тому, что попросил оператор
+- Эффективное значение: **переопределяется на резолве**. Шаг `handle_load_format` (`arg_groups/model_path_hook.py`) при заданном флаге декларирует `remote_instance_weight_loader_start_seed_via_transfer_engine=validate_transfer_engine(server_args)`, то есть разрешенное значение равно результату проверки, а не тому, что попросил оператор. Сырое поле хранит ввод оператора; рантайм и дамп `server_args=` видят разрешенное
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_start_seed_via_transfer_engine`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format`) → `ModelRunner.init_remote_instance_weight_transporter` и инициализация движка передачи → регистрация и публикация метаданных весов после загрузки модели
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` → `ModelRunner.init_remote_instance_weight_transporter` и инициализация движка передачи → регистрация и публикация метаданных весов после загрузки модели
 
 ## Что меняет в движке
 
-Значение читается методом `ServerArgs.remote_instance_weight_loader_use_transfer_engine(load_format=None)`: он возвращает `True`, если этот флаг поднят (роль seed), либо если инстанс сам грузится как получатель через transfer engine (`load_format == "remote_instance"` и backend `transfer_engine`, или `modelexpress` с транспортом `transfer_engine`).
+Значение читает `remote_instance_transfer_engine_of` (`arg_groups/overrides.py`): в рантайме — через `runtime_context.remote_instance_transfer_engine_enabled(load_format=None)` над опубликованным `get_model()`; метод `ServerArgs.remote_instance_weight_loader_use_transfer_engine(load_format=None)` — обертка над тем же расчетом. Он возвращает `True`, если этот флаг поднят (роль seed), либо если инстанс сам грузится как получатель через transfer engine (`load_format == "remote_instance"` и backend `transfer_engine`, или `modelexpress` с транспортом `transfer_engine`).
 
 `ModelRunner` по этому признаку инициализирует `RemoteInstanceWeightTransporter` (`sglang/python/sglang/srt/model_executor/model_runner_components/remote_instance_weight_transporter.py`) и вызывает `init_engine()`: тот поднимает `mooncake.engine.TransferEngine` в режиме `P2PHANDSHAKE` (протокол и устройство — из переменных окружения `MOONCAKE_PROTOCOL`/`MOONCAKE_DEVICE`) и запоминает session id вида `<ip>:<rpc-порт>`.
 
 После загрузки модели вызывается `maybe_register_and_publish_weight_info()`: она регистрирует память весов (`register_memory_region`) и отправляет `PUT /register_transfer_engine_info` на EngineInfoBootstrapServer (хост — узел `node_rank == 0`, порт — `--engine-info-bootstrap-port`, по умолчанию 6789) с телом `{tp_rank, transfer_engine_info: {session_id, weights_info_dict}}`. Получатели забирают эти данные через HTTP-эндпоинт seed'а `GET /remote_instance_transfer_engine_info?rank=<n>` (и его deprecated-псевдоним `/get_remote_instance_transfer_engine_info`), который проксирует запрос в тот же bootstrap-сервер. Для backend `modelexpress` публикация пропускается — там регистрацией памяти владеет сам ModelExpress.
 
-Перезапись значения в `_handle_load_format` делает `validate_transfer_engine()`, который возвращает `False` в двух случаях:
+Перезапись значения в `handle_load_format` делает `validate_transfer_engine(server_args)` (`arg_groups/model_path_hook.py`), который возвращает `False` в двух случаях:
 
 - не импортируется `mooncake.engine` — в лог уходит `Failed to import mooncake.engine. Does not support using TransferEngine as remote instance weight loader backend.`;
 - включен `--enable-memory-saver` — `Memory saver is enabled, which is not compatible with TransferEngine. Does not support using TransferEngine as remote instance weight loader backend.`
@@ -111,6 +111,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/remote_instance_weight_transporter.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`

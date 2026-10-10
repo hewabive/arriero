@@ -40,10 +40,10 @@ The quantization method.
 - Тип значения: строка (`Optional[str]`)
 - Допустимые значения: argparse ограничен списком `QUANTIZATION_CHOICES` (`awq`, `fp8`, `mxfp8`, `gptq`, `gptq_marlin`, `awq_marlin`, `bitsandbytes`, `gguf`, `modelopt`, `modelopt_fp8`, `modelopt_fp4`, `nvfp4_online`, `modelopt_mixed`, `petit_nvfp4`, `w8a8_int8`, `w8a8_fp8`, `moe_wna16`, `w4afp8`, `mxfp4`, `auto-round`, `auto-round-int8`, `compressed-tensors`, `modelslim`, `mxfp_w4a8`, `quark`, `quark_int4fp8_moe`, `quark_mxfp4`, `mlx_q4`, `mlx_q8`, `unquant`, `humming`). Этот список — **не** перечень работающих методов, см. «Значения и формат»
 - Значение по умолчанию: `null`
-- Эффективное значение: переопределяется регулярно. `unquant` превращается в `None` еще в `ServerArgs.__post_init__`; далее `ModelConfig._verify_quantization` может подставить метод из `quantization_config` чекпойнта, а архитектурные override'ы (`arg_groups/overrides.py`) — навязать метод на sm100. Поле объявлено `resolvable=True`, то есть его разрешено переписывать pipeline'у конфигурации
+- Эффективное значение: переопределяется регулярно. `unquant` превращается в `None` уже на резолве (шаг `handle_missing_default_values` в `arg_groups/serving_hook.py`; сырое поле хранит `unquant`, а дамп `server_args=` показывает `None`); далее `ModelConfig._verify_quantization` может подставить метод из `quantization_config` чекпойнта, а архитектурные override'ы (`arg_groups/overrides.py`) — навязать метод на sm100. Поле объявлено `resolvable=True`, то есть его разрешено переписывать pipeline'у конфигурации
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.quantization`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (`unquant`, наследование в draft, `_gguf_quantization`) → построение `ModelConfig` в каждом воркере (`_verify_quantization`) → выбор загрузчика (`get_model_loader`) → создание квантованных слоев при инициализации модели
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline` (`handle_missing_default_values`: `unquant` и наследование в draft; `handle_load_format`: пасс `_gguf_quantization`) → построение `ModelConfig` в каждом воркере (`_verify_quantization`) → выбор загрузчика (`get_model_loader`) → создание квантованных слоев при инициализации модели
 
 ## Что меняет в движке
 
@@ -74,7 +74,7 @@ The quantization method.
 - `mlx_q4`/`mlx_q8` существуют только на Apple MPS;
 - на CPU с AMX реестр сужается до `CPU_QUANTIZATION_METHODS` (`fp8`, `w8a8_int8`, `compressed-tensors`, `awq`, `gptq`, `mxfp4`);
 - Самостоятельное значение `marlin` больше не принимает argparse; для подготовленных чекпойнтов используют `gptq_marlin` или `awq_marlin`.
-- `unquant` — не метод, а явный отказ: в `__post_init__` он превращается в `None` и ставит флаг `_quantization_explicitly_unset`, который запрещает архитектурным override'ам заново включить квантизацию.
+- `unquant` — не метод, а явный отказ: на резолве (`handle_missing_default_values`) он превращается в `None` и ставит флаг `_quantization_explicitly_unset`, который запрещает архитектурным override'ам заново включить квантизацию.
 
 Посмотреть реестр своей сборки:
 
@@ -127,7 +127,7 @@ python -c "from sglang.srt.layers.quantization import QUANTIZATION_METHODS; prin
 - `logger.warning("<x> quantization is not fully optimized yet. The speed can be slower than non-quantized models.")` — метод рабочий, но идет по неоптимизированному пути.
 - `Using CLI-specified quantization (<a>) which is compatible with HF config quant_method (<b>).` — подтверждение, что переопределение принято по таблице совместимости.
 - `Requantizing from quant_method='<a>' to the requested online quantization='<b>'` — включена перековка уже квантованных весов; апстрим требует после этого перепроверить качество.
-- Дамп `server_args=` при старте (`sglang/python/sglang/srt/entrypoints/engine.py`) показывает значение после `__post_init__` и архитектурных override'ов, но **до** подстановки из `quantization_config` чекпойнта: подстановка живет в `ModelConfig`, а не в `ServerArgs`. Окончательный метод подтверждают строки выбора загрузчика (`Using ModelOptModelLoader due to ModelOpt quantization config.`) и информационные строки из `_verify_quantization`.
+- Дамп `server_args=` при старте (`sglang/python/sglang/srt/entrypoints/engine.py`) показывает разрешенное значение (`resolved_dict()`) — после шагов резолва и архитектурных override'ов, но **до** подстановки из `quantization_config` чекпойнта: подстановка живет в `ModelConfig`, а не в `ServerArgs`. Окончательный метод подтверждают строки выбора загрузчика (`Using ModelOptModelLoader due to ModelOpt quantization config.`) и информационные строки из `_verify_quantization`.
 
 ## Примеры
 
@@ -150,6 +150,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --quantization
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/layers/quantization/__init__.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/weight_cache/protocol.py`
 - `sglang/docs/docs/advanced_features/quantization.mdx`

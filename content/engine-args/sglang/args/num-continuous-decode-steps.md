@@ -37,7 +37,7 @@ Run multiple continuous decoding steps to reduce scheduling overhead. This can p
 
 ## Что меняет в движке
 
-Ничего. Единственное вхождение имени `num_continuous_decode_steps` в дереве `python/` — само объявление поля в `server_args.py`.
+Ничего. Имя `num_continuous_decode_steps` встречается в дереве `python/` только в объявлении поля (`arg_groups/fields/schedule.py`) и в списке порядка полей `arg_groups/field_order.py`; ни шаги резолва, ни runtime-код его не читают.
 
 Историческая справка по git-истории checkout'а: аргумент был добавлен коммитом «Simplify the event loop and expose `--num-continuous-decode-steps` as an argument» (#1652) и управлял циклом `for _ in range(self.server_args.num_continuous_decode_steps - 1)` в главном цикле планировщика — сервер выполнял несколько шагов decode подряд, не заходя в опрос очереди. Этот цикл был удален коммитом «Make constrained decoding work for overlap scheduler» (#2095, ноябрь 2024) при переходе на overlap-планировщик; объявление аргумента при этом осталось.
 
@@ -67,7 +67,7 @@ Run multiple continuous decoding steps to reduce scheduling overhead. This can p
 ## Типовые проблемы и диагностика
 
 - Ожидали прироста throughput после `--num-continuous-decode-steps 4` и не получили ничего — это ожидаемо, потребителя у значения нет.
-- Предупреждения при старте не будет: аргумент не помечен как deprecated и не проходит через `_handle_deprecated_args`. Единственное подтверждение, что он принят, — поле в дампе `server_args=`.
+- Предупреждения при старте не будет: аргумент не помечен как deprecated и не проходит через шаг резолва `handle_deprecated_args`. Единственное подтверждение, что он принят, — поле в дампе `server_args=`.
 - Проверить, есть ли аргумент в вашей установленной сборке, можно так: `python -m sglang.launch_server --help | grep num-continuous-decode-steps`. Наличие в `--help` не означает наличие эффекта.
 
 ## Примеры

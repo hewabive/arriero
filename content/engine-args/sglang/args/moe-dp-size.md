@@ -37,10 +37,10 @@ The moe data parallelism size.
 - Тип значения: int
 - Допустимые значения: `choices` нет; делители `tp_size`, ограниченные соотношениями ниже
 - Значение по умолчанию: `1`
-- Эффективное значение: переписывается только в `_handle_dwdp` — при `--dwdp-size > 1` принудительно ставится `moe_dp_size = 1`. В остальных случаях действует заданное значение
+- Эффективное значение: декларирует его только шаг резолва `handle_dwdp` (`arg_groups/parallel_hook.py`) — при `--dwdp-size > 1` эффективное `moe_dp_size` становится `1`. В остальных случаях действует заданное значение
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.moe_dp_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_context_parallelism` — все проверки делимости; `_handle_elastic_ep`) → `initialize_model_parallel(moe_data_model_parallel_size=…)` → forward MoE-слоя
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_dwdp`, `handle_context_parallelism` (все проверки делимости) и `handle_elastic_ep` (все в `arg_groups/parallel_hook.py`) → `initialize_model_parallel(moe_data_model_parallel_size=…)` → forward MoE-слоя
 
 ## Что меняет в движке
 
@@ -64,7 +64,7 @@ The moe data parallelism size.
 ## Значения и формат
 
 - Целое ≥ 1. `1` — ось выключена, и почти все связанные проверки не выполняются.
-- При `moe_dp_size > 1` (`_handle_context_parallelism`):
+- При `moe_dp_size > 1` (`handle_context_parallelism`):
   - `tp_size % moe_dp_size == 0`;
   - `ep_size * moe_dp_size <= tp_size`, а при `ep_size > 1` — строгое `ep_size * moe_dp_size == tp_size`;
   - `pp_size == 1` (`PP is not supported with context parallelism`);
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

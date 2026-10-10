@@ -42,10 +42,10 @@ Enabling data parallelism for attention and tensor parallelism for FFN. The dp s
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: присутствует / отсутствует; парного `--no-…` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: **не совпадает с заданным в обе стороны.** Принудительно `False`, если `dp_size == 1` и `ep_join_mode != "scale"` (`_data_parallelism_defaults` в `arg_groups/overrides.py`) — заданный флаг при этом пропадает без ошибки. Принудительно `True` при `--dwdp-size > 1` (`_handle_dwdp`), при MLA context parallel и при zigzag DSA CP (`overrides.py`), а также в DeepSeek-V4 CP-хуке (`arg_groups/deepseek_v4_hook.py`)
+- Эффективное значение: **не совпадает с заданным в обе стороны.** Принудительно `False`, если `dp_size == 1` и `ep_join_mode != "scale"` (`_data_parallelism_defaults` в `arg_groups/overrides.py`) — заданный флаг при этом пропадает без ошибки. Принудительно `True` при `--dwdp-size > 1` (шаг `handle_dwdp` в `arg_groups/parallel_hook.py`), при MLA context parallel и при zigzag DSA CP (model override `_deepseek_family_overrides` в `arg_groups/model_overrides/deepseek_v2.py`), а также в DeepSeek-V4 CP-хуке (`arg_groups/deepseek_v4_hook.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.enable_dp_attention`
-- Статус: обычный; поле помечено `resolvable=True`, то есть итоговое значение собирается движком в конце `__post_init__`, а промежуточные обработчики читают его через `_resolved()`
-- Этап применения: `__post_init__` (`_handle_dwdp` → `_handle_gpu_memory_settings` → `_handle_data_parallelism`) → `PortArgs.init_new` (IPC → TCP) → `launch_dp_attention_schedulers` → `initialize_dp_attention` в каждом воркере → каждая итерация планировщика (MLP-sync) → forward
+- Статус: обычный; поле помечено `resolvable=True`, то есть входит в белый список полей, которые разрешено декларировать проходам `arg_groups/overrides.py` и model overrides. Сырое `server_args.enable_dp_attention` хранит ввод оператора, эффективное значение — последняя запись `declare_resolution`; шаги резолва читают его через `resolving_view()` / `resolved_view()`, runtime — через `get_parallel()`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_dwdp` → `handle_gpu_memory_settings` → `handle_data_parallelism`) → `PortArgs.init_new` (IPC → TCP) → `launch_dp_attention_schedulers` → `initialize_dp_attention` в каждом воркере → каждая итерация планировщика (MLP-sync) → forward
 
 ## Что меняет в движке
 
@@ -68,11 +68,11 @@ attn_dp_rank = tp_rank // (attn_tp_size * attn_cp_size)
 
 ### Что аргумент переписывает молча
 
-`_handle_data_parallelism` при включенном DP-attention делает четыре вещи:
+Шаг резолва `handle_data_parallelism` (`arg_groups/parallel_hook.py`) при включенном DP-attention делает четыре вещи (значения он декларирует через `declare_resolution`, сырые поля `server_args` сохраняют ввод оператора):
 
-1. `self.schedule_conservativeness = self.schedule_conservativeness * 0.3` — умножение на 0.3, без строки в логе. Заданная вами `1.0` станет `0.3`; чтобы сохранить прежнюю осторожность планировщика, значение нужно задавать примерно втрое больше. Механика самого параметра — в `schedule-conservativeness.md`.
-2. `assert self.tp_size % self.dp_size == 0`.
-3. `self.chunked_prefill_size = self.chunked_prefill_size // self.dp_size` — с предупреждением `DP attention is enabled. chunked prefill size is adjusted from X to Y`. То есть значение `--chunked-prefill-size` трактуется как суммарное по всем DP-группам; подробности — в `chunked-prefill-size.md`.
+1. `schedule_conservativeness = cfg.schedule_conservativeness * 0.3` — умножение на 0.3, без строки в логе. Заданная вами `1.0` станет `0.3`; чтобы сохранить прежнюю осторожность планировщика, значение нужно задавать примерно втрое больше. Механика самого параметра — в `schedule-conservativeness.md`.
+2. `assert cfg.tp_size % cfg.dp_size == 0`.
+3. `chunked_prefill_size = cfg.chunked_prefill_size // cfg.dp_size` — с предупреждением `DP attention is enabled. chunked prefill size is adjusted from X to Y`. То есть значение `--chunked-prefill-size` трактуется как суммарное по всем DP-группам; подробности — в `chunked-prefill-size.md`.
 4. Пересчитывает `max_bs` и список размеров prefill-CUDA-graph под уже поделенный `chunked_prefill_size`, чтобы захват графа не вылез за бюджет MoE all-to-all.
 
 Дополнительно: `PortArgs.init_new` переключается с unix-IPC на TCP (иначе многоузловой DP невозможен), а `--mem-fraction-static` в автоподборе добавляет резерв `decode.max_bs * dp_size * 3` МиБ под графы.
@@ -123,7 +123,7 @@ attn_dp_rank = tp_rank // (attn_tp_size * attn_cp_size)
 ## Типовые проблемы и диагностика
 
 - Флаг задан, но в логе нет ни строки `DP attention is enabled. chunked prefill size is adjusted from … to …`, ни префиксов ` DP<n>` — значит `--dp-size` равен 1 и флаг был сброшен `_data_parallelism_defaults`. Это самая частая ошибка конфигурации; ошибку движок не выдает.
-- `AssertionError` без текста из `_handle_data_parallelism` — `tp_size % dp_size != 0`.
+- `AssertionError` без текста из `handle_data_parallelism` — `tp_size % dp_size != 0`.
 - `AssertionError: Flashinfer MoE A2A is only supported with dp_size == tp_size and --enable-dp-attention` — a2a-backend требует эту связку.
 - `AssertionError: Please enable dp attention when setting enable_dp_lm_head.` — задан `--enable-dp-lm-head` без этого флага.
 - Throughput упал после включения на плотной модели — ожидаемо: веса внимания продублированы, а выигрыша по KV нет. Возвращайтесь к обычному TP.
@@ -146,6 +146,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --tensor-paral
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
 - `sglang/python/sglang/srt/layers/dp_attention.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/prepare.py`

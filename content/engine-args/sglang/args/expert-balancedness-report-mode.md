@@ -34,11 +34,11 @@ Where to report expert balancedness. Options: off, server_log, prometheus, both.
 - Допустимые значения: `off`, `server_log`, `prometheus`, `both`
 - Значение по умолчанию: `off`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_balancedness_report_mode`
-- Этап применения: `__post_init__` → инициализация expert distribution recorder → каждый forward pass → log/metrics reporter
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_expert_distribution_metrics` → инициализация expert distribution recorder → каждый forward pass → log/metrics reporter
 
 ## Что меняет в движке
 
-Любое значение кроме `off` заставляет `_handle_expert_distribution_metrics` подставить `expert_distribution_recorder_mode="stat"`, если режим не задан, и задать buffer size (из `--eplb-rebalance-num-iterations` либо `1000`). Рекордер стартует автоматически.
+Любое значение кроме `off` заставляет шаг резолва `handle_expert_distribution_metrics` (`python/sglang/srt/arg_groups/parallel_hook.py`) задекларировать `expert_distribution_recorder_mode="stat"`, если режим не задан, и задать buffer size (из `--eplb-rebalance-num-iterations` либо `1000`). Рекордер стартует автоматически.
 
 На rank 0 аккумулятор суммирует физический dispatch по GPU и вычисляет среднюю utilization rate. `server_log` печатает `[Expert Balancedness]` с текущим значением и скользящими средними. `prometheus` передает значение в metrics reporter и при включенных метриках обновляет Summary `sglang:eplb_balancedness` с label `forward_mode`. `both` делает оба действия.
 
@@ -85,6 +85,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/metrics_reporter.py`
 - `sglang/python/sglang/srt/observability/metrics_collector.py`

@@ -37,10 +37,10 @@ Enable radix cache on decode server (PD mode). Caches KV prefixes to avoid redun
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: само поле не переписывается, но оно **переписывает чужое**: в `handle_pd_disaggregation` при `--disaggregation-mode decode` значение флага задает `disable_radix_cache` — `False` при включенном флаге и `True` при выключенном, независимо от того, что вы указали в `--disable-radix-cache`
+- Эффективное значение: само поле не переписывается, но оно **переписывает чужое**: в `handle_pd_disaggregation` при `--disaggregation-mode decode` значение флага задает `disable_radix_cache` — `False` при включенном флаге и `True` при выключенном, независимо от того, что вы указали в `--disable-radix-cache` (ваш ввод остается в `server_args.disable_radix_cache`, а решение шага записывается через `declare_resolution` и видно в `resolved_dict()`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_enable_radix_cache`
 - Статус: обычный флаг, но помечен апстримом как экспериментальный (`EXPERIMENTAL: Radix cache is enabled for decode server`)
-- Этап применения: разбор CLI → `_handle_pd_disaggregation` (проверки и перезапись `disable_radix_cache`) → построение кеша (`mem_cache/kv_cache_builder.py`, проверки по архитектуре модели) → `pop_preallocated` и учет бюджета в `disaggregation/decode.py` на каждом шаге
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_pd_disaggregation` (`arg_groups/pd_disaggregation_hook.py`; проверки и декларация `disable_radix_cache`) → построение кеша (`mem_cache/kv_cache_builder.py`, проверки по архитектуре модели) → `pop_preallocated` и учет бюджета в `disaggregation/decode.py` на каждом шаге
 
 ## Что меняет в движке
 

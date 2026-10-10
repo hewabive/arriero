@@ -37,10 +37,10 @@ Weight cache mode. 'off': normal disk loading. 'daemon': launch weight cache dae
 - Тип значения: строка с фиксированным списком
 - Допустимые значения: `off`, `daemon`, `client`
 - Значение по умолчанию: `off`
-- Эффективное значение: не переопределяется, но **переопределяет** формат загрузки: при значении, отличном от `off`, `maybe_enable_ipc_weight_cache` подменяет `LoadConfig.load_format` на внутренний `ipc_cache`, запомнив исходный формат как `fallback_load_format`
+- Эффективное значение: ни один шаг резолва его не декларирует, но оно **переопределяет** формат загрузки: при значении, отличном от `off`, `maybe_enable_ipc_weight_cache` подменяет `LoadConfig.load_format` на внутренний `ipc_cache`, запомнив исходный формат как `fallback_load_format`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.weight_cache_mode`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format` — запрет со спекуляцией) → запуск демонов в `Engine` (только `daemon`) → формирование `LoadConfig` → загрузка модели через `IpcModelLoader`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` (`arg_groups/model_path_hook.py` — запрет со спекуляцией) → запуск демонов в `Engine` (только `daemon`) → формирование `LoadConfig` → загрузка модели через `IpcModelLoader`
 
 ## Что меняет в движке
 
@@ -91,7 +91,7 @@ Weight cache mode. 'off': normal disk loading. 'daemon': launch weight cache dae
 
 - `--weight-cache-socket`: путь к сокету на стороне клиента. Без явного пути клиент и демон используют `SGLANG_WEIGHT_CACHE_SOCKET_TEMPLATE` с UUID физического GPU (default `/tmp/sglang_weight_cache_{device_uuid}.sock`). Для переноса socket согласуйте шаблон окружения обоих процессов; CLI меняет только клиента.
 - `--weight-cache-timeout`: ожидание готовности демонов; действует только в режиме `daemon`.
-- `--speculative-algorithm`: запрещенная комбинация. `_handle_load_format` поднимает `ValueError`: демон не экспортирует веса драфт-модели.
+- `--speculative-algorithm`: запрещенная комбинация. Шаг резолва `handle_load_format` поднимает `ValueError`: демон не экспортирует веса драфт-модели.
 - `--load-format`: исходное значение сохраняется как `fallback_load_format` и используется при откате на диск в режиме `client`. Значение `ipc_cache` задать вручную нельзя — `ValueError`.
 - `--quantization`: метод входит в отпечаток и в allowlist IPC.
 - `--revision`, `--trust-remote-code`, `--model-loader-extra-config`, `--dtype`: пробрасываются в порожденные демоны и (первые два) участвуют в отпечатке.
@@ -124,6 +124,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --weight-cache
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/weight_cache/daemon.py`
 - `sglang/python/sglang/srt/weight_cache/ipc_loader.py`
 - `sglang/python/sglang/srt/weight_cache/protocol.py`

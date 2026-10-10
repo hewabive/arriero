@@ -33,7 +33,7 @@ Maximum number of concurrent realtime ASR WebSocket sessions served by /v1/realt
 - Тип значения: целое, единица измерения — одновременные WebSocket-сессии
 - Допустимые значения: `choices` нет; строго положительное целое (проверяется на старте)
 - Значение по умолчанию: `32`
-- Эффективное значение: `__post_init__` не переопределяет, но `_handle_asr_validation` отвергает неположительные значения
+- Эффективное значение: совпадает с заданным — ни один шаг резолва его не декларирует, но шаг `handle_asr_validation` (`arg_groups/serving_hook.py`) отвергает неположительные значения
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.asr_max_concurrent_sessions`
 - Статус: обычный
 - Этап применения: конструктор `OpenAIServingTranscription` при старте (создание семафора) → каждое новое соединение `/v1/realtime`
@@ -70,11 +70,11 @@ async with session_semaphore:
 
 Очереди нет: `locked()` истинно ровно тогда, когда счетчик семафора равен нулю, и в этом случае клиент сразу отвергается.
 
-Валидация значения — в `ServerArgs._handle_asr_validation`:
+Валидация значения — шаг пайплайна резолва `handle_asr_validation` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`), который `ServerArgs.resolve_once` выполняет при запуске:
 
 ```python
-if self.asr_max_concurrent_sessions <= 0:
-    raise ValueError(f"--asr-max-concurrent-sessions must be positive (got {self.asr_max_concurrent_sessions}).")
+if cfg.asr_max_concurrent_sessions <= 0:
+    raise ValueError(f"--asr-max-concurrent-sessions must be positive (got {cfg.asr_max_concurrent_sessions}).")
 ```
 
 ## Значения и формат
@@ -129,6 +129,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-ASR-Flash --asr-max-co
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_transcription.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/handler.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/session.py`

@@ -35,10 +35,10 @@ Mode of expert distribution recorder.
 - Тип значения: перечисление
 - Допустимые значения: `stat`, `stat_approx`, `per_pass`, `per_token`
 - Значение по умолчанию: `null` — рекордер выключен (no-op)
-- Эффективное значение: `stat` подставляется в `__post_init__` двумя местами — `_handle_eplb_and_dispatch` при `--enable-eplb` и `_handle_expert_distribution_metrics` при любом `--expert-balancedness-report-mode` кроме `off`
+- Эффективное значение: `stat` декларируют два шага резолва (`python/sglang/srt/arg_groups/parallel_hook.py`) — `handle_eplb_and_dispatch` при `--enable-eplb` и `handle_expert_distribution_metrics` при любом `--expert-balancedness-report-mode` кроме `off`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.expert_distribution_recorder_mode`
 - Статус: обычный
-- Этап применения: `__post_init__` → инициализация model runner (`maybe_init_expert_location_metadata` → `ExpertDistributionRecorder.init_new`) → каждый forward-проход → HTTP-эндпоинты записи/дампа
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_eplb_and_dispatch`, `handle_expert_distribution_metrics`) → инициализация model runner (`maybe_init_expert_location_metadata` → `ExpertDistributionRecorder.init_new`) → каждый forward-проход → HTTP-эндпоинты записи/дампа
 
 ## Что меняет в движке
 
@@ -125,6 +125,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen1.5-MoE-A2.7B --expert-dist
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`
 - `sglang/python/sglang/srt/eplb/eplb_manager.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

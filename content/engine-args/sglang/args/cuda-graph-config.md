@@ -35,7 +35,7 @@ related:
 Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs":256},"prefill":{"backend":"tc_piecewise","tc_compiler":"eager"}}'. Allowed backends per phase: full, breakable, tc_piecewise, disabled (full is decode-only). JSON wins over the per-phase --cuda-graph-* convenience flags and over legacy flags.
 ```
 
-Текст справки в части «full is decode-only» отстал от кода: `ALLOWED_BACKENDS_PER_PHASE[prefill]` в `sglang/python/sglang/srt/model_executor/cuda_graph_config.py` включает `full`, а `_handle_cuda_graph_config` при `prefill.backend == full` печатает предупреждение «cuda_graph_config[prefill].backend='full' is experimental. Use breakable or tc_piecewise for production workloads.» То есть `full` для prefill принимается, но объявлен экспериментальным.
+Текст справки в части «full is decode-only» отстал от кода: `ALLOWED_BACKENDS_PER_PHASE[prefill]` в `sglang/python/sglang/srt/model_executor/cuda_graph_config.py` включает `full`, а шаг резолва `handle_cuda_graph_config` (`sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`) при `prefill.backend == full` печатает предупреждение «cuda_graph_config[prefill].backend='full' is experimental. Use breakable or tc_piecewise for production workloads.» То есть `full` для prefill принимается, но объявлен экспериментальным.
 
 ## Паспорт аргумента
 
@@ -44,10 +44,10 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 - Тип значения: строка с JSON-объектом (одно значение, не список); разбирается `parse_cuda_graph_config_arg` как `argparse` type
 - Допустимые значения: JSON-объект с ключами верхнего уровня `decode` и/или `prefill`; внутри каждого — только разрешенные ключи (см. ниже)
 - Значение по умолчанию: `null` — берется `default_cuda_graph_config()`: `decode.backend = full`, `prefill.backend = breakable` на CUDA и `tc_piecewise` на прочих платформах, `max_bs = null`, `bs = null`, `tc_compiler = "eager"`
-- Эффективное значение: поле всегда переписывается в `_parse_cuda_graph_config`; после разбора там лежит уже собранный объект `CudaGraphConfig`, а не исходная строка. Дальше значения досчитываются в `_handle_gpu_memory_settings` (`max_bs`/`bs`) и могут быть переписаны совместимостными правилами
+- Эффективное значение: `parse_cuda_graph_config` всегда декларирует собранный объект `CudaGraphConfig`; сам `server_args.cuda_graph_config` хранит только разобранный JSON оператора, а итоговый объект виден через `resolved_dict()` и `get_exec().graph.cuda_graph_config`. Дальше значения досчитываются в `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`, `max_bs`/`bs`) и могут быть переписаны совместимостными правилами
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_config`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → `_handle_gpu_memory_settings`) → создание runner'ов и захват графов в `model_executor/model_runner_components/cuda_graph_setup.py`
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) → `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`) → создание runner'ов и захват графов в `model_executor/model_runner_components/cuda_graph_setup.py`
 
 ## Что меняет в движке
 
@@ -69,7 +69,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 
 ### Порядок приоритетов
 
-`_parse_cuda_graph_config` собирает финальный объект слоями, каждый следующий перекрывает предыдущий:
+`parse_cuda_graph_config` собирает финальный объект слоями, каждый следующий перекрывает предыдущий:
 
 1. Дефолты `default_cuda_graph_config()`.
 2. Legacy `--disable-cuda-graph` → `disabled` в обеих фазах.
@@ -79,10 +79,10 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 
 ### Побочный эффект: «замок» на ключе
 
-Любой ключ, попавший в конфиг не из дефолтов, регистрируется в `self._cuda_graph_config_locked` как пара `(фаза, ключ)`. Замок отключает автологику именно для этого ключа:
+Любой ключ, попавший в конфиг не из дефолтов, регистрируется в `server_args._cuda_graph_config_locked` как пара `(фаза, ключ)`. Замок отключает автологику именно для этого ключа:
 
-- `(prefill, "backend")` — целиком пропускается каскад `_apply_cuda_graph_compatibility` (два десятка правил авто-отключения prefill-графа) и правило `_disable_prefill_cuda_graph_for_deepseek_trtllm_mla`;
-- `(decode, "backend")` / `(prefill, "backend")` — пропускается назначение ролей PD-disaggregation (`_apply_cuda_graph_disaggregation_roles`) и XPU-дефолт `_handle_xpu_backends`;
+- `(prefill, "backend")` — целиком пропускается каскад `apply_cuda_graph_compatibility` (два десятка правил авто-отключения prefill-графа) и правило `disable_prefill_cuda_graph_for_deepseek_trtllm_mla`;
+- `(decode, "backend")` / `(prefill, "backend")` — пропускается назначение ролей PD-disaggregation (`apply_cuda_graph_disaggregation_roles`) и XPU-дефолт `handle_xpu_backends`;
 - `(prefill, "max_bs")` / `(prefill, "bs")` — пропускается пересчет под DP attention (деление `chunked_prefill_size` на `dp_size`) и подъем буфера для EmbeddingGemma.
 
 При явном выборе backend движок пропускает часть автоматических проверок совместимости. Ставить замок через JSON или через точечный флаг — одно и то же.
@@ -117,7 +117,7 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 
 - `--cuda-graph-backend-decode` / `--cuda-graph-backend-prefill` / `--cuda-graph-max-bs-decode` / `--cuda-graph-max-bs-prefill` / `--cuda-graph-bs-decode` / `--cuda-graph-bs-prefill` / `--cuda-graph-tc-compiler` / `--cuda-graph-max-seq-len-prefill` / `--cuda-graph-prefill-max-context`: те же поля, ниже по приоритету.
 - `--disable-decode-cuda-graph` / `--disable-prefill-cuda-graph` / legacy `--disable-cuda-graph`: то же, что `backend: "disabled"` в соответствующей фазе.
-- `--mem-fraction-static`: `reserve_for_graph_mb()` читает `decode.max_bs`, `decode.backend`, `prefill.backend` и длину `prefill.bs`.
+- `--mem-fraction-static`: `reserve_for_graph_mb()` (`arg_groups/memory_hook.py`) читает `decode.max_bs`, `decode.backend`, `prefill.backend` и длину `prefill.bs`.
 - `--chunked-prefill-size`: дефолт `prefill.max_bs` для не-MLA моделей и делитель для `full_prefill_max_req`.
 - `--max-running-requests`: через размер `req_to_token_pool` обрезает список decode-форм сверху.
 - `--disaggregation-mode`: роль `prefill` гасит decode-граф, роль `decode` гасит prefill-граф — но только для незафиксированных ключей.
@@ -127,9 +127,9 @@ Per-phase CUDA graph settings as JSON, e.g. '{"decode":{"backend":"full","max_bs
 
 - **Симптом:** `argparse` ругается `--cuda-graph-config must be JSON`. **Причина:** shell съел кавычки. **Решение:** обернуть значение в одинарные кавычки целиком.
 - **Симптом:** `--cuda-graph-config['prefill']: unknown key 'max_tokens'`. **Причина:** для prefill число токенов задается ключом `max_bs`/`bs`, отдельного `max_tokens` нет.
-- **Симптом:** `ValueError: --cuda-graph-config[prefill].backend='xxx' not allowed; allowed: ('full', 'breakable', 'tc_piecewise', 'disabled')` из `_validate_cuda_graph_config`.
+- **Симптом:** `ValueError: --cuda-graph-config[prefill].backend='xxx' not allowed; allowed: ('full', 'breakable', 'tc_piecewise', 'disabled')` из `validate_cuda_graph_config`.
 - **Симптом:** задали `{"prefill":{"backend":"breakable"}}`, сервер стартует, но замедлился prefill. **Причина:** явный backend снял авто-отключение, которое раньше спасало модель от неподдерживаемого пути. **Проверка:** в логе нет ни одного `Breakable CUDA graph is incompatible with …` — каскад был пропущен.
-- **Что смотреть всегда:** итоговый дамп `server_args=` при старте (`sglang/python/sglang/srt/entrypoints/engine.py`) содержит развернутый `cuda_graph_config=CudaGraphConfig(decode=PhaseConfig(...), prefill=PhaseConfig(...))` — это единственный надежный способ увидеть, что реально получилось после всех слоев и автоподбора. Дальше идут строки `Capture target prefill CUDA graph begin. backend=…, num_tokens=[…]` и `Capture target decode CUDA graph begin. backend=…, bs=[…]`.
+- **Что смотреть всегда:** итоговый дамп `server_args=` при старте (`sglang/python/sglang/srt/entrypoints/engine.py`) (`resolved_dict()`) содержит ключ `cuda_graph_config` с итоговыми секциями `decode` и `prefill`, развернутыми в словари, — это единственный надежный способ увидеть, что реально получилось после всех слоев и автоподбора. Дальше идут строки `Capture target prefill CUDA graph begin. backend=…, num_tokens=[…]` и `Capture target decode CUDA graph begin. backend=…, bs=[…]`.
 
 ## Примеры
 
@@ -146,6 +146,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-c
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/model_executor/runner/prefill_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/utils.py`

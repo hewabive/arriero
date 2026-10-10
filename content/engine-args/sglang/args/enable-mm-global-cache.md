@@ -34,7 +34,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 - Тип значения: bool, `action="store_true"`
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется; `__post_init__` не трогает это поле
+- Эффективное значение: не переопределяется; ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) это поле не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_mm_global_cache`
 - Статус: обычный
 - Этап применения: инициализация encoder-воркера (`sglang/python/sglang/srt/disaggregation/encode_server.py`), затем каждый вызов энкодера

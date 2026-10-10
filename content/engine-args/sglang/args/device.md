@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-`--device` выбирает **класс** ускорителя (`cuda`, `cpu`, `npu`, `xpu`, `hpu`, `musa`, а также необъявленный в справке `mps`), а не конкретную карту. Значение попадает в `ServerArgs.device` на самом раннем шаге `__post_init__` и дальше работает как переключатель целых веток настройки: от него зависят backend внимания, backend сэмплирования, способ измерения объема памяти для автоподбора `--mem-fraction-static` и доступность CUDA graph. **Индекс в значении отбрасывается**: `--device cuda:1` превращается в `cuda`, выбор конкретных карт делают `CUDA_VISIBLE_DEVICES`, `--base-gpu-id` и `--gpu-id-step`.
+`--device` выбирает **класс** ускорителя (`cuda`, `cpu`, `npu`, `xpu`, `hpu`, `musa`, а также необъявленный в справке `mps`), а не конкретную карту. Значение разрешается в одном из первых шагов резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_missing_default_values`) и дальше работает как переключатель целых веток настройки: от него зависят backend внимания, backend сэмплирования, способ измерения объема памяти для автоподбора `--mem-fraction-static` и доступность CUDA graph. **Индекс в значении отбрасывается**: `--device cuda:1` превращается в `cuda`, выбор конкретных карт делают `CUDA_VISIBLE_DEVICES`, `--base-gpu-id` и `--gpu-id-step`.
 
 ## Оригинальная справка
 
@@ -33,12 +33,12 @@ The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu', 'musa'). Defaults to auto
 - Флаги: `--device`
 - Группа: `device`
 - Тип значения: str (`Optional[str]`)
-- Допустимые значения: `choices` в объявлении нет — argparse примет любую строку. Перечень в тексте справки (`cuda`, `xpu`, `hpu`, `npu`, `cpu`, `musa`) неполон: код отдельно обрабатывает `mps` (`_handle_mps_backends`) и умеет отдавать имя из плагина платформы (`current_platform.get_device`). Неизвестное значение не отвергается на разборе — оно просто не совпадет ни с одной веткой и приведет к отказу позже, на инициализации torch
+- Допустимые значения: `choices` в объявлении нет — argparse примет любую строку. Перечень в тексте справки (`cuda`, `xpu`, `hpu`, `npu`, `cpu`, `musa`) неполон: код отдельно обрабатывает `mps` (`handle_mps_backends` в `arg_groups/platform_hook.py`) и умеет отдавать имя из плагина платформы (`current_platform.get_device`). Неизвестное значение не отвергается на разборе — оно просто не совпадет ни с одной веткой и приведет к отказу позже, на инициализации torch
 - Значение по умолчанию: `null` — «определить автоматически»
-- Эффективное значение: `_handle_missing_default_values` подставляет `get_device()` (`sglang/python/sglang/srt/utils/common.py`), а затем **безусловно** выполняет `self.device = self.device.split(":")[0]` — суффикс `:N` отбрасывается и у явно заданного значения тоже
+- Эффективное значение: шаг `handle_missing_default_values` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`) подставляет `get_device()` (`sglang/python/sglang/srt/utils/common.py`), а затем **безусловно** декларирует `device=cfg.device.split(":")[0]` — суффикс `:N` отбрасывается и у явно заданного значения тоже. Сырое `server_args.device` хранит ввод оператора; разрешенное значение видно в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/device.py:Device.device`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_missing_default_values` → `_handle_hpu_backends` / `_handle_cpu_backends` / `_handle_npu_backends` / `_handle_mps_backends` / `_handle_xpu_backends` → `_handle_gpu_memory_settings` → `_handle_cuda_graph_config`) → выбор distributed-backend в `init_torch_distributed` → инициализация model runner
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (`handle_missing_default_values` → `handle_cuda_graph_config` → `handle_hpu_backends` / `handle_cpu_backends` / `handle_npu_backends` / `handle_mps_backends` / `handle_xpu_backends` → `handle_gpu_memory_settings`) → выбор distributed-backend в `init_torch_distributed` → инициализация model runner
 
 ## Что меняет в движке
 
@@ -59,7 +59,7 @@ The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu', 'musa'). Defaults to auto
 
 ### Ветки настройки по устройству
 
-- `cpu` (`_handle_cpu_backends`): `attention_backend` при незаданном значении становится `torch_native` на ARM64 и `intel_amx` в остальных случаях; `sampling_backend` принудительно `pytorch`. Кроме того, при `device == "cpu"` пропускается генерация списка batch-размеров decode-графа, а `init_torch_distributed` вызывает `_init_cpu_threads_env` — привязку OpenMP-потоков по `SGLANG_CPU_OMP_THREADS_BIND` (по умолчанию — один TP-ранг на NUMA-узел).
+- `cpu` (`handle_cpu_backends`): `attention_backend` при незаданном значении становится `torch_native` на ARM64 и `intel_amx` в остальных случаях; `sampling_backend` принудительно `pytorch`. Кроме того, при `device == "cpu"` пропускается генерация списка batch-размеров decode-графа, а `init_torch_distributed` вызывает `_init_cpu_threads_env` — привязку OpenMP-потоков по `SGLANG_CPU_OMP_THREADS_BIND` (по умолчанию — один TP-ранг на NUMA-узел).
 - `hpu`: `attention_backend = torch_native`, `sampling_backend = pytorch`.
 - `npu`: применяется `set_default_server_args` из `hardware_backend/npu/utils.py`; prefill-компилятор графа принудительно `eager` с предупреждением. Только на `npu` разрешен `--enable-quant-communications`.
 - `xpu`: decode-граф выключается по умолчанию, если `--cuda-graph-backend-decode` не задан явно; из явных значений принимается только `full`.
@@ -68,14 +68,14 @@ The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu', 'musa'). Defaults to auto
 
 ### Влияние на расчет памяти
 
-`get_device_memory_capacity(self.device)` (вход `_handle_gpu_memory_settings`) выбирает источник емкости по устройству: CUDA — `nvidia-smi --query-gpu=memory.total` (минимум по видимым картам), HIP — аналог для AMD, `npu`/`hpu`/`xpu`/`musa` — свои запросы, `cpu` — `psutil.virtual_memory().total`, поделенный на число NUMA-узлов. То есть на `--device cpu` доля `--mem-fraction-static` считается от **RAM одного узла**, а не от VRAM.
+`get_device_memory_capacity(cfg.device)` (вход `handle_gpu_memory_settings` в `arg_groups/memory_hook.py`) выбирает источник емкости по устройству: CUDA — `nvidia-smi --query-gpu=memory.total` (минимум по видимым картам), HIP — аналог для AMD, `npu`/`hpu`/`xpu`/`musa` — свои запросы, `cpu` — `psutil.virtual_memory().total`, поделенный на число NUMA-узлов. То есть на `--device cpu` доля `--mem-fraction-static` считается от **RAM одного узла**, а не от VRAM.
 
-Отдельно `post_capture_kv_sizing_planned()` (пересчет KV-пула после захвата графов) требует ровно `device == "cuda"` и отключается на любом другом устройстве.
+Отдельно `post_capture_kv_sizing_planned(server_args)` (`arg_groups/overrides.py`; пересчет KV-пула после захвата графов) требует ровно `device == "cuda"` и отключается на любом другом устройстве.
 
 ## Значения и формат
 
 - Строка без пробелов. Регистр значим: `CUDA` ни с одной веткой не совпадет.
-- Суффикс индекса допустим синтаксически (`cuda:0`), но бессмыслен: он снимается в `_handle_missing_default_values`. Не используйте его как способ выбрать карту.
+- Суффикс индекса допустим синтаксически (`cuda:0`), но бессмыслен: он снимается в `handle_missing_default_values`. Не используйте его как способ выбрать карту.
 - Не задавать аргумент — и есть «авто»; отдельного значения `auto` нет.
 - Неизвестное значение (`gpu`, `rocm`) argparse примет молча. Отказ придет позже — от torch при создании `torch.device` или от distributed-слоя.
 - Для ROCm-сборки правильное значение — `cuda`: SGLang различает CUDA и HIP по сборке PyTorch (`is_hip()`), а не по значению этого аргумента.
@@ -125,6 +125,10 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --device cpu --tens
 
 - `sglang/python/sglang/srt/arg_groups/fields/device.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/platform_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/utils/numa_utils.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`

@@ -48,13 +48,13 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 - Эффективное значение: строка приводится к верхнему регистру (`eagle3` = `EAGLE3`); `NEXTN` всегда превращается в `EAGLE`; `NEXTN`/`EAGLE` с draft-архитектурой `Gemma4AssistantForCausalLM` / `Gemma4UnifiedAssistantForCausalLM` повышаются до `FROZEN_KV_MTP` (в логе `promoting --speculative-algorithm ... to FROZEN_KV_MTP`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_algorithm`
 - Статус: обычный
-- Этап применения: `__post_init__` → `handle_speculative_decoding` (`arg_groups/speculative_hook.py`) → per-algorithm хук `_handle_*` → выделение KV-пула (draft делит бюджет с target) → запуск draft-воркера и захват его CUDA graph → forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` (`arg_groups/speculative_hook.py`) → per-algorithm хук `_handle_*` → выделение KV-пула (draft делит бюджет с target) → запуск draft-воркера и захват его CUDA graph → forward
 
 ## Что меняет в движке
 
 ### Разрешение имени и диспетчеризация
 
-`handle_speculative_decoding` вызывается из `__post_init__` после разбора CLI и до `_handle_load_format`. Порядок такой:
+`handle_speculative_decoding` — шаг пайплайна резолва (`run_resolution_pipeline`): идет после `handle_moe_kernel_config` / `handle_a2a_moe` и до `handle_load_format`. Каждое решение он декларирует через `declare_resolution`, поэтому `server_args.speculative_algorithm` хранит строку оператора как есть, а нормализованное имя видно в дампе `server_args=`. Порядок такой:
 
 1. если задан `--speculative-draft-model-path`, а `--speculative-draft-model-revision` пуст — ревизия становится `"main"`;
 2. имя приводится к upper case;
@@ -64,7 +64,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 6. если включён `--speculative-adaptive`, он либо отключается с причиной, либо инициализирует лестницу шагов;
 7. `algo.handle_server_args(server_args)` — один из `_handle_dflash` / `_handle_dspark` / `_handle_frozen_kv_mtp` / `_handle_eagle_family` / `_handle_ngram`.
 
-Плагин, зарегистрированный через `SpeculativeAlgorithm.register`, получает только собственный `validate_server_args`; базовый `CustomSpecAlgo.handle_server_args` — пустой, то есть ни `--max-running-requests`, ни `--enable-mixed-chunk` он не трогает (а проверка `check_server_args` требует, чтобы mixed chunk был выключен).
+Плагин, зарегистрированный через `SpeculativeAlgorithm.register`, получает только собственный `validate_server_args`; базовый `CustomSpecAlgo.handle_server_args` — пустой, то есть ни `--max-running-requests`, ни `--enable-mixed-chunk` он не трогает (а `check_server_args` в `arg_groups/validation_hook.py` требует, чтобы mixed chunk был выключен, раз плагин не объявляет `supports_mixed_chunk()`).
 
 ### Что нужно каждому алгоритму
 
@@ -79,7 +79,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 ### Что переписывается независимо от алгоритма
 
 - **`--max-running-requests` становится 48**, если не задан явно: одинаковая строка `Max running requests is reset to 48 for speculative decoding` есть в `_handle_dflash`, `_handle_dspark`, `_handle_frozen_kv_mtp`, `_handle_eagle_family` и `_handle_ngram`. Это тот же лимит, что описан в `--max-running-requests`, и он сильно ниже обычной авто-оценки (2048…4096).
-- **`--enable-mixed-chunk` выключается** («Mixed chunked prefill is disabled because of using … speculative decoding»); `check_server_args` дополнительно ассертит, что mixed chunk выключен.
+- **`--enable-mixed-chunk` выключается**, кроме алгоритмов с `supports_mixed_chunk()` (`EAGLE`, `EAGLE3`, `DFLASH`, `DSPARK`): остальные per-algorithm хуки гасят его с предупреждением «Mixed chunked prefill is disabled …»; `check_server_args` дополнительно ассертит `enable_mixed_chunk is not supported with speculative_algorithm=…` для алгоритма без такой поддержки.
 - На `--device cpu` принудительно включается `--disable-overlap-schedule`.
 - **Размер KV-ячейки растёт**: для EAGLE/STANDALONE `cell_size` умножается на `1 + draft_layers / target_layers`, для DFLASH/DSPARK добавляется собственная ячейка draft'а. Тот же бюджет `--mem-fraction-static` делится на большее число байт на токен, то есть `max_total_num_tokens` падает.
 - **Резерв KV на шаг декодирования** становится `2 × max(num_steps × topk, num_draft_tokens)` токенов на запрос вместо 2 × 1 (`mem_cache/allocation_sizing.py`).
@@ -118,7 +118,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 ## Взаимодействие с другими аргументами
 
 - `--max-running-requests`: при незаданном значении подменяется на 48. Если нужна другая конкурентность — задавайте явно, подмена срабатывает только для `None`.
-- `--enable-mixed-chunk`: принудительно выключается; обратной силы у флага нет.
+- `--enable-mixed-chunk`: принудительно выключается у всех алгоритмов, кроме `EAGLE`, `EAGLE3`, `DFLASH` и `DSPARK`; обратной силы у флага нет.
 - `--speculative-num-steps` / `--speculative-eagle-topk` / `--speculative-num-draft-tokens`: для EAGLE-семейства задаются все три или ни одного; DFLASH и DSPARK насильно ставят steps=topk=1, NGRAM выводит их из ngram-параметров.
 - `--speculative-draft-model-path` (+ `--speculative-draft-model-revision`, `--speculative-draft-model-quantization`, `--speculative-draft-load-format`): что именно грузится как draft.
 - `--speculative-token-map`: FR-Spec, только EAGLE-2; для EAGLE3 игнорируется.
@@ -158,6 +158,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --speculative-
 - `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/speculative/spec_info.py`
 - `sglang/python/sglang/srt/speculative/spec_registry.py`
 - `sglang/python/sglang/srt/mem_cache/allocation_sizing.py`

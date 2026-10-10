@@ -40,7 +40,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 - Эффективное значение: при незаданном значении и выполнении условий `flashinfer_gdn_prefill_default` подставляется `flashinfer`; это записывается в разрешенную конфигурацию через `get_context().override("gdn_backend.sm100_flashinfer_default", …)`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_prefill_backend`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_linear_attn_backend` — проверка CUDA-версии) → создание backend'а внимания (`attention_registry.py`) → каждый prefill/extend линейных слоев
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_linear_attn_backend` (`python/sglang/srt/arg_groups/attention_hook.py` — проверка CUDA-версии) → создание backend'а внимания (`attention_registry.py`) → каждый prefill/extend линейных слоев
 
 ## Что меняет в движке
 
@@ -65,7 +65,7 @@ Override the kernel backend for linear attention prefill/extend. If not set, use
 
 ### Проверка на старте
 
-`_handle_linear_attn_backend` проверяет разрешенный prefill (`linear_attn_prefill_backend or linear_attn_backend`):
+Шаг резолва `handle_linear_attn_backend` проверяет разрешенный prefill (`linear_attn_prefill_backend or linear_attn_backend`):
 
 ```text
 --linear-attn-prefill-backend flashinfer on SM100+ requires CUDA 13+, got CUDA <версия>
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kernels/kda_helion.py`

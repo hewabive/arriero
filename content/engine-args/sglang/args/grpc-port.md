@@ -45,25 +45,28 @@ Port for the native gRPC server, started alongside HTTP. Setting this (or SGLANG
 - Эффективное значение: переопределяется дважды. (1) Если аргумент не задан, а переменная окружения `SGLANG_GRPC_PORT` установлена, значение берется из нее. (2) В legacy-режиме при всё еще пустом значении подставляется `--port + 10000`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_port`
 - Статус: обычный
-- Этап применения: `__post_init__` (вывод значения и все проверки совместимости) → `lifespan` HTTP-сервера, запуск нативного gRPC до прогрева
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`: вывод значения и проверки совместимости) → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`: несовпадение с `--port`) → `lifespan` HTTP-сервера, запуск нативного gRPC до прогрева
 
 ## Что меняет в движке
 
 ### Разрешение значения
 
-`_handle_deprecated_args` (`sglang/python/sglang/srt/server_args.py`):
+Шаг резолва `handle_deprecated_args` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`, `cfg = resolving_view(server_args)`):
 
 ```python
-self.grpc_worker_threads = envs.SGLANG_GRPC_WORKER_THREADS.get()
+declare_resolution(server_args, "_handle_deprecated_args",
+                   grpc_worker_threads=envs.SGLANG_GRPC_WORKER_THREADS.get())
 grpc_port_env = envs.SGLANG_GRPC_PORT.get()
-if self.grpc_port is None and grpc_port_env is not None:
-    self.grpc_port = grpc_port_env
-legacy_grpc = self.smg_grpc_mode or self.grpc_mode
-if legacy_grpc and self.grpc_port is None:
-    self.grpc_port = self.port + 10000
+if cfg.grpc_port is None and grpc_port_env is not None:
+    declare_resolution(server_args, "_handle_deprecated_args", grpc_port=grpc_port_env)
+legacy_grpc = cfg.smg_grpc_mode or cfg.grpc_mode
+if legacy_grpc and cfg.grpc_port is None:
+    declare_resolution(server_args, "_handle_deprecated_args", grpc_port=cfg.port + 10000)
 ...
-native_grpc = self.grpc_port is not None and not legacy_grpc
+native_grpc = cfg.grpc_port is not None and not legacy_grpc
 ```
+
+`cfg` — живое представление резолва: после первой декларации оно уже видит порт из окружения. Само поле `server_args.grpc_port` при этом остается `None`; итоговое значение показывают дамп `server_args=` и `get_serving().grpc_port`.
 
 Число рабочих потоков нативного сервера — только через переменную окружения `SGLANG_GRPC_WORKER_THREADS`, CLI-аргумента у нее нет.
 
@@ -81,11 +84,11 @@ native_grpc = self.grpc_port is not None and not legacy_grpc
 - `--tokenizer-worker-num > 1` → `ValueError` («Native gRPC does not yet support --tokenizer-worker-num > 1»);
 - `--api-key` или `--admin-api-key` → `ValueError: --grpc-port is incompatible with --api-key/--admin-api-key: the native gRPC listener bypasses HTTP auth middleware.` Это не придирка: нативный слушатель не проходит через HTTP-middleware аутентификации, поэтому включать его вместе с ключом означало бы открыть неаутентифицированный вход.
 
-И отдельно, в общей валидации:
+И отдельно, в `check_server_args` (`sglang/python/sglang/srt/arg_groups/validation_hook.py`, после пайплайна резолва):
 
 ```python
-if not (self.smg_grpc_mode or self.grpc_mode) and self.grpc_port == self.port:
-    raise ValueError(f"--grpc-port ({self.grpc_port}) must differ from --port ({self.port})")
+if not (cfg.smg_grpc_mode or cfg.grpc_mode) and cfg.grpc_port == cfg.port:
+    raise ValueError(f"--grpc-port ({cfg.grpc_port}) must differ from --port ({cfg.port})")
 ```
 
 Проверок на совпадение с `metrics_http_port` и `nccl_port` пока нет — в коде рядом стоит комментарий, что они отложены из-за динамических дефолтов этих портов. Конфликт с ними проявится обычной ошибкой bind'а во время старта.
@@ -96,11 +99,11 @@ if not (self.smg_grpc_mode or self.grpc_mode) and self.grpc_port == self.port:
 
 ```python
 if (getattr(fast_api_app, "is_single_tokenizer_mode", False)
-        and server_args.grpc_port is not None
-        and not (server_args.smg_grpc_mode or server_args.grpc_mode)):
+        and get_serving().grpc_port is not None
+        and not (get_serving().smg_grpc_mode or get_serving().grpc_mode)):
     grpc_handle = _start_native_grpc_server_for_runtime(...)
-    if server_args.sidecar is not None:
-        sidecar = start_sidecar(server_args)
+    if get_serving().sidecar is not None:
+        sidecar = start_sidecar()
 ```
 
 `_start_native_grpc_server_for_runtime` импортирует `sglang.srt.grpc._core` и при неудаче даёт развернутое сообщение: расширение собирается из `rust/sglang-grpc/` через setuptools-rust, и в колесе без него надо либо ставить другое колесо, либо снять флаг. Успешный запуск печатает `Native gRPC server started on <host>:<port>`. Остановка идет в `finally` того же `lifespan`.
@@ -159,6 +162,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --port 30000 -
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/sidecar.py`
 - `sglang/python/sglang/srt/entrypoints/grpc_bridge.py`

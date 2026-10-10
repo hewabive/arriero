@@ -31,10 +31,10 @@ Directory path for writing performance metrics files (required when --export-met
 - Тип значения: str — путь к каталогу
 - Допустимые значения: `choices` нет; никакой проверки формата пути нет, единственная проверка — успешный `os.makedirs(..., exist_ok=True)`
 - Значение по умолчанию: `null`
-- Эффективное значение: совпадает с заданным; `__post_init__` его не переписывает, но проверяет непротиворечивость пары аргументов
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует, но `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`) проверяет непротиворечивость пары аргументов
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.export_metrics_to_file_dir`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка пары) → конструктор `FileRequestMetricsExporter` (создание каталога) → каждая запись
+- Этап применения: `ServerArgs.resolve_once` → `ServerArgs.check_server_args` (проверка пары; вызывается из `Engine._launch_subprocesses` до `publish`) → конструктор `FileRequestMetricsExporter` (создание каталога) → каждая запись
 
 ## Что меняет в движке
 
@@ -49,7 +49,7 @@ os.makedirs(self.export_dir, exist_ok=True)
 
 Сам по себе, без `--export-metrics-to-file`, аргумент не делает ничего: экземпляр `FileRequestMetricsExporter` создается только когда включен парный флаг, а значит и каталог не создается.
 
-Обратная зависимость жестче: `__post_init__` проверяет только «включен экспорт — задан каталог», но не «задан каталог — включен экспорт». Одинокий `--export-metrics-to-file-dir` молча игнорируется.
+Обратная зависимость жестче: `check_server_args` проверяет только «включен экспорт — задан каталог», но не «задан каталог — включен экспорт». Одинокий `--export-metrics-to-file-dir` молча игнорируется.
 
 ## Значения и формат
 
@@ -105,6 +105,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --export-metrics
 
 - `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/observability/request_metrics_exporter.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - arriero: `docs/PORTABLE_PATHS.md`, `docs/CONFIG_GIT.md`

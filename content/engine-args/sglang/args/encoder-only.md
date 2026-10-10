@@ -43,10 +43,10 @@ For MLLM with an encoder, launch an encoder-only server
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным. Побочно переписывает `--mm-feature-transport`: при незаданном транспорте он авто-разрешается в `cpu`, а явный `cuda_ipc` понижается до `cpu` с предупреждением
+- Эффективное значение: совпадает с заданным. Побочно меняет эффективный `--mm-feature-transport` (декларация в `handle_multimodal_feature_transport`, поле `server_args.mm_feature_transport` хранит ввод): при незаданном транспорте он авто-разрешается в `cpu`, а явный `cuda_ipc` понижается до `cpu` с предупреждением
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_only`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_encoder_disaggregation` (взаимные запреты, проверка архитектуры модели) → `_handle_multimodal` (выбор транспорта) → `run_server` в `sglang/launch_server.py` (выбор entrypoint) → загрузка весов (только визуальная башня)
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_encoder_disaggregation` (`arg_groups/pd_disaggregation_hook.py`: взаимные запреты, проверка архитектуры модели) → шаг `handle_environment_variables` → `handle_multimodal_feature_transport` (`arg_groups/serving_hook.py`: выбор транспорта) → `run_server` в `sglang/launch_server.py` (выбор entrypoint) → загрузка весов (только визуальная башня)
 
 ## Что меняет в движке
 
@@ -70,7 +70,7 @@ HTTP-приложение энкодера объявляет ровно сем�
 ## Значения и формат
 
 - Флаг без значения.
-- Взаимные запреты, проверяемые в `_handle_encoder_disaggregation`:
+- Взаимные запреты, проверяемые шагом резолва `handle_encoder_disaggregation` (запрет с `--grpc-port` — в более раннем шаге `handle_deprecated_args`):
   - вместе с `--language-only` — `Cannot set --encoder-only and --language-only together`;
   - вместе с `--disaggregation-mode prefill|decode` — `Cannot set --encoder-only and --disaggregation-mode prefill/decode together`. Энкодер не участвует в PD-ролях: в EPD он третий, отдельный ярус;
   - вместе с `--grpc-port` (нативный gRPC) — `--grpc-port is not supported with --encoder-only: encoder disaggregation uses its own server.`
@@ -131,6 +131,8 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --encoder-
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`
 - `sglang/python/sglang/srt/disaggregation/encode_grpc_server.py`
 - `sglang/python/sglang/srt/configs/model_config.py`

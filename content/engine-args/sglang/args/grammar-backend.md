@@ -32,12 +32,12 @@ Choose the backend for grammar-guided decoding.
 - Флаги: `--grammar-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения (из `choices`): `xgrammar`, `outlines`, `llguidance`, `none`. Список — константа `GRAMMAR_BACKEND_CHOICES`, расширяемая функцией `add_grammar_backend_choices`; кроме того, `register_grammar_backend` (`sglang/python/sglang/srt/constrained/base_grammar_backend.py`) позволяет подменить любое имя своей реализацией — реестр `GRAMMAR_BACKEND_REGISTRY` проверяется раньше встроенных веток
+- Допустимые значения (из `choices`): `xgrammar`, `outlines`, `llguidance`, `none`. Список — константа `GRAMMAR_BACKEND_CHOICES` в `arg_groups/choices.py`, расширяемая через `add_grammar_backend_choices` (алиас `GRAMMAR_BACKEND_CHOICES.extend`); кроме того, `register_grammar_backend` (`sglang/python/sglang/srt/constrained/base_grammar_backend.py`) позволяет подменить любое имя своей реализацией — реестр `GRAMMAR_BACKEND_REGISTRY` проверяется раньше встроенных веток
 - Значение по умолчанию: `null`
-- Эффективное значение: `_handle_grammar_backend` в `__post_init__` подставляет `xgrammar`, если значение не задано. Второе переопределение происходит уже в рабочем процессе: если токенизатор модели не поддерживается XGrammar, backend молча становится `none` через `get_context().override("grammar.import_fallback", grammar_backend="none")`
+- Эффективное значение: шаг резолва `handle_grammar_backend` (`arg_groups/serving_hook.py`) декларирует `xgrammar`, если значение не задано. Второе переопределение происходит уже в рабочем процессе: если токенизатор модели не поддерживается XGrammar, backend молча становится `none` через `get_context().override("grammar.import_fallback", grammar_backend="none")`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.grammar_backend`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_grammar_backend` в `__post_init__` → `create_grammar_backend` при инициализации планировщика → компиляция грамматики на пул потоков при первом запросе с ограничением → применение маски словаря на каждом шаге декодирования
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_grammar_backend` → `create_grammar_backend` при инициализации планировщика → компиляция грамматики на пул потоков при первом запросе с ограничением → применение маски словаря на каждом шаге декодирования
 
 ## Что меняет в движке
 
@@ -116,6 +116,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --grammar-back
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/constrained/base_grammar_backend.py`
 - `sglang/python/sglang/srt/constrained/grammar_manager.py`
 - `sglang/python/sglang/srt/constrained/xgrammar_backend.py`

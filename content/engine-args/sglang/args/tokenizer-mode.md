@@ -36,7 +36,7 @@ Tokenizer mode. 'auto' will use the fast tokenizer if available, and 'slow' will
 - Тип значения: str
 - Допустимые значения: `auto`, `slow` (список закрыт `choices`, argparse отвергнет любое другое значение)
 - Значение по умолчанию: `auto`
-- Эффективное значение: совпадает с заданным; `__post_init__` его не трогает. Но фактическая реализация может отличаться от запрошенной: для мультимодальных моделей `get_processor_wrapper` перехватывает `ValueError` с текстом «does not have a slow version», логирует `Processor <путь> does not have a slow version. Automatically use fast version` и повторяет загрузку с `use_fast=True`
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует. Но фактическая реализация может отличаться от запрошенной: для мультимодальных моделей `get_processor_wrapper` перехватывает `ValueError` с текстом «does not have a slow version», логирует `Processor <путь> does not have a slow version. Automatically use fast version` и повторяет загрузку с `use_fast=True`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_mode`
 - Статус: обычный
 - Этап применения: инициализация процессов — `TokenizerManager`, `DetokenizerManager`, `Scheduler`, `TpWorker` и мультимодальный процессор, каждый вызывает `get_tokenizer(...)` со своим экземпляром

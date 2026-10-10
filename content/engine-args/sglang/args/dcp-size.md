@@ -34,12 +34,12 @@ The decode context parallelism size.
 - Флаги: `--dcp-size`, `--decode-context-parallel-size`
 - Группа: `parallel`
 - Тип значения: int
-- Допустимые значения: `choices` нет; проверка `dcp_size >= 1` в `_handle_dcp_validation`. Практически должен делить `tp_size` — группы нарезаются срезами по `dcp_size` внутри каждой TP-группы
+- Допустимые значения: `choices` нет; проверка `dcp_size >= 1` в шаге резолва `handle_decode_context_parallelism` (`arg_groups/parallel_hook.py`). Практически должен делить `tp_size` — группы нарезаются срезами по `dcp_size` внутри каждой TP-группы
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным. Runtime-величина `attn_dcp_size` равна `dcp_size` только когда DCP-группа действительно создана (`dcp_size > 1`), иначе `1`. Для DeepSeek-V4/Kimi-K3 включение DCP тянет за собой автоматический выбор backend'ов внимания и `--dcp-comm-backend` (см. `arg_groups/overrides.py`)
+- Эффективное значение: совпадает с заданным. Runtime-величина `attn_dcp_size` равна `dcp_size` только когда DCP-группа действительно создана (`dcp_size > 1`), иначе `1`. Для DeepSeek-V4/Kimi-K3 включение DCP тянет за собой автоматический выбор backend'ов внимания и `--dcp-comm-backend` (см. модельные провайдеры в `arg_groups/model_overrides/` и pass `_dcp_comm_backend_default` в `arg_groups/overrides.py`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_size`
 - Статус: обычный
-- Этап применения: `_handle_dcp_validation` → `_handle_cuda_graph_config` (отключение prefill-графа) → `initialize_model_parallel` (создание группы `dcp`) → расчет KV-пула → forward на decode
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_decode_context_parallelism` → `handle_cuda_graph_config` (отключение prefill-графа) → `initialize_model_parallel` (создание группы `dcp`) → расчет KV-пула → forward на decode
 
 ## Что меняет в движке
 
@@ -101,7 +101,7 @@ DCP enabled, dcp_size=<n>, tp_size=<m>
 - `--tp-size`: делимое; DCP-группы нарезаются внутри TP-группы.
 - `--page-size`: умножается на `dcp_size` в аллокаторе.
 - `--attn-cp-size` / `--enable-prefill-cp`: другой механизм и другая фаза; сочетание допустимо, но конфигурацию нужно проверять отдельно.
-- `--mem-fraction-static`: при `dcp_size != 1` отключается ветка `post_capture_kv_sizing_planned`, то есть KV-пул считается обычным путем, до захвата графов.
+- `--mem-fraction-static`: при `dcp_size != 1` отключается ветка `post_capture_kv_sizing_planned` (`arg_groups/overrides.py`), то есть KV-пул считается обычным путем, до захвата графов.
 - `--speculative-algorithm`: draft-воркер получает реплицированные пулы с масштабированным адресным пространством.
 
 ## Типовые проблемы и диагностика
@@ -127,6 +127,8 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

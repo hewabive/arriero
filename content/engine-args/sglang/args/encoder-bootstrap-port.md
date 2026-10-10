@@ -36,7 +36,7 @@ Port for the EncoderBootstrapServer that runs in the language-only tokenizer man
 - Тип значения: int
 - Допустимые значения: `choices` нет; свободный TCP-порт, отличный от `--port` и от `--disaggregation-bootstrap-port`
 - Значение по умолчанию: `8997`
-- Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным — ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_bootstrap_port`
 - Статус: обычный
 - Этап применения: `TokenizerManager.init_disaggregation` при `--language-only` — запуск `EncoderBootstrapServer(host=--host, port=--encoder-bootstrap-port, urls=<разделяемый список>)` в демон-потоке

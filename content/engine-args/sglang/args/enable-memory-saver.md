@@ -35,7 +35,7 @@ Allow saving memory using release_memory_occupation and resume_memory_occupation
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переписывается ни `__post_init__`, ни реестром `arg_groups/overrides.py`. Но действует несовместимость: `BreakableCudaGraphBackend.__init__` поднимает `NotImplementedError: Breakable CUDA graph is not compatible with memory saver mode`, если флаг включен **и** задан `SGLANG_MEMORY_SAVER_CUDA_GRAPH=1`
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once`), включая passes и реестр `arg_groups/overrides.py`, его не декларирует. Но действует несовместимость: `BreakableCudaGraphBackend.__init__` поднимает `NotImplementedError: Breakable CUDA graph is not compatible with memory saver mode`, если флаг включен **и** задан `SGLANG_MEMORY_SAVER_CUDA_GRAPH=1`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_memory_saver`
 - Статус: обычный
 - Этап применения: разбор CLI → запуск scheduler-процессов внутри `memory_saver_adapter.configure_subprocess()` → создание адаптеров в `Scheduler` и `ModelRunner` → выделение весов и KV-пула внутри `region(...)` → захват CUDA graph внутри `cuda_graph(...)` → HTTP `/release_memory_occupation` и `/resume_memory_occupation`

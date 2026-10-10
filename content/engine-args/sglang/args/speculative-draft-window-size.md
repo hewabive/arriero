@@ -39,7 +39,7 @@ Sliding window size for the draft model. Honored by Llama EAGLE-3 (`LlamaForCaus
 - Эффективное значение: значение приводится к `int`; для DFLASH дополнительно требуется `window_size >= speculative_num_draft_tokens`; на EAGLE/MTP-пути `resolve_draft_decode_window` обнуляет окно, если у draft-модели есть собственное sliding window
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_draft_window_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (`handle_speculative_decoding` — проверка и предупреждение; `_handle_dflash` — сверка с block size) → конструирование draft-модели (Llama-EAGLE3), draft-воркера (DFLASH) или multi-step draft attention backend'а (`TritonMultiStepDraftBackend`, `FlashInferMultiStepDraftBackend`) → forward
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_speculative_decoding` (`arg_groups/speculative_hook.py`: проверка и предупреждение; вызываемый из него `_handle_dflash` — сверка с block size) → конструирование draft-модели (Llama-EAGLE3), draft-воркера (DFLASH) или multi-step draft attention backend'а (`TritonMultiStepDraftBackend`, `FlashInferMultiStepDraftBackend`) → forward
 
 ## Что меняет в движке
 

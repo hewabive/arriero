@@ -40,10 +40,10 @@ Enable hierarchical cache
 - Тип значения: булев флаг (`store_true`)
 - Допустимые значения: не применимо, флаг без значения
 - Значение по умолчанию: `false`
-- Эффективное значение: движок может сбросить флаг обратно в `false` в `_handle_dllm_inference` (при `--dllm-algorithm` и включенном radix cache печатается «Hierarchical cache is disabled because of using diffusion LLM inference»); в остальных конфликтных случаях он не сбрасывается, а вызывает ошибку старта
+- Эффективное значение: движок может сбросить флаг обратно в `false` в шаге резолва `handle_dllm_inference` (`python/sglang/srt/arg_groups/dllm_hook.py`): при `--dllm-algorithm` и включенном radix cache печатается «Hierarchical cache is disabled because of using diffusion LLM inference», и шаг декларирует `enable_hierarchical_cache=False` (сырое поле `server_args` остается `true`, итог виден в `resolved_dict()`); в остальных конфликтных случаях он не сбрасывается, а вызывает ошибку старта
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_hierarchical_cache`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_hicache`, `_handle_cache_compatibility`) → построение дерева кеша и выделение host-пула при инициализации scheduler'а
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_hicache` (`python/sglang/srt/arg_groups/hicache_hook.py`) и `handle_cache_compatibility` (`python/sglang/srt/arg_groups/kv_cache_hook.py`) → построение дерева кеша и выделение host-пула при инициализации scheduler'а
 
 ## Что меняет в движке
 
@@ -59,9 +59,9 @@ Enable hierarchical cache
 2. **prefetch** — при заданном `--hicache-storage-backend` подтягивание хвоста префикса из L3 в L2 (порог по умолчанию 256 токенов, политика останова — `--hicache-storage-prefetch-policy`);
 3. **write-back** — перенос KV из L1 в L2 и L3 по политике `--hicache-write-policy`.
 
-`__post_init__` при поднятом флаге дополнительно выполняет `_handle_hicache`, где нормализуются layout и IO-backend (`_resolve_layout_io_compatibility`, `_resolve_storage_layout_compatibility`) и проверяется совместимость с DCP (`_resolve_hicache_dcp_compatibility`). Эти проверки пропускаются, только если не активны ни обычный HiCache, ни decode-offload, ни PD decode retraction с backend `host_pool` (в том числе автоматически выбранным).
+При поднятом флаге резолв дополнительно выполняет шаг `handle_hicache` (`python/sglang/srt/arg_groups/hicache_hook.py`), где нормализуются layout и IO-backend (`resolve_layout_io_compatibility`, `resolve_storage_layout_compatibility`) и проверяется совместимость с DCP (`resolve_hicache_dcp_compatibility`). Эти проверки пропускаются, только если не активны ни обычный HiCache, ни decode-offload, ни PD decode retraction с backend `host_pool` (в том числе автоматически выбранным).
 
-Отдельный эффект: включенный HiCache попадает в список несовместимостей `_disable_tc_piecewise_cudagraph_if_incompatible` («CPU offload / hierarchical cache»), то есть piecewise-захват CUDA graph через torch.compile для такого инстанса выключается.
+Отдельный эффект: включенный HiCache попадает в список несовместимостей `disable_tc_piecewise_cudagraph_if_incompatible` (`python/sglang/srt/arg_groups/cuda_graph_hook.py`, «CPU offload / hierarchical cache»), то есть piecewise-захват CUDA graph через torch.compile для такого инстанса выключается.
 
 ## Значения и формат
 
@@ -88,14 +88,14 @@ Enable hierarchical cache
 
 ## Взаимодействие с другими аргументами
 
-- `--disable-radix-cache`: взаимоисключающие, `_handle_cache_compatibility` бросает `ValueError`.
+- `--disable-radix-cache`: взаимоисключающие, `handle_cache_compatibility` бросает `ValueError`.
 - `--hicache-ratio` / `--hicache-size` / layout и I/O-настройки также могут читаться host tier'ом decode-offload или retraction; prefix write/prefetch policies относятся к обычному HiCache.
 - `--enable-lmcache`: взаимоисключающие, `handle_cache_compatibility` бросает `ValueError` «--enable-lmcache and --enable-hierarchical-cache are mutually exclusive».
 - `--enable-flexkv`: ветка FlexKV в цепочке стоит **раньше** финальной ветки `UnifiedRadixCache`, поэтому строится `FlexKVRadixCache`, и HiCache к нему не подключается (`hicache_attached=False` в строке `Tree cache initialized`). Проверки этой связки при разборе аргументов нет, а scheduler при этом продолжает считать HiCache включенным — не сочетайте флаги.
 - `--enable-unified-memory`: совместимы — HiCache поддержан для всех форм unified-пула (несовместимым с unified-пулом остается только `--enable-lmcache`).
-- `--enable-int8-mamba-checkpoint`: несовместим, `_handle_int8_mamba_checkpoint` бросает `ValueError` (host-offload путь не понимает int8-чекпойнты).
+- `--enable-int8-mamba-checkpoint`: несовместим, шаг `handle_int8_mamba_checkpoint` (`python/sglang/srt/arg_groups/mamba_hook.py`) бросает `ValueError` (host-offload путь не понимает int8-чекпойнты).
 - `--dcp-size` > 1: разрешено только для MLA-моделей и только L1/L2 — `--hicache-storage-backend`, спекулятивное декодирование, `--enable-lmcache` и `--enable-hisparse` в этой комбинации отвергаются `NotImplementedError`.
-- `--disaggregation-decode-enable-offload-kvcache`: включает те же нормализации `_handle_hicache` и требует заданного `--hicache-storage-backend`.
+- `--disaggregation-decode-enable-offload-kvcache`: включает те же нормализации `handle_hicache` и требует заданного `--hicache-storage-backend`.
 - `--disaggregation-decode-retraction-backup host_pool`: строит зарезервированный HiCache L2 для KV вытесненных decode-запросов даже без этого флага; при незаданном ratio использует `0.2` без HiCache (при `--hicache-size 0` — не меньше одного запроса максимальной длины, двух при `--disaggregation-decode-host-receive-threshold > 0`), либо `2.0` с HiCache.
 - `--optimistic-prefill-attempts`: на prefill-узле PD с HiCache работает только в двух конфигурациях — L2 без `--hicache-storage-backend` с политикой `write_back` или `write_through` либо L3 с `--hicache-host-memory-mode buffer_only` и `write_through`; иначе значение молча сбрасывается в 0 с предупреждением.
 - `--dllm-algorithm`: при включенном radix cache гасит HiCache с предупреждением.
@@ -127,6 +127,10 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --page-size 64
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
 - `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/mamba_hook.py`
 - `sglang/python/sglang/srt/mem_cache/unified_radix_cache.py`
 - `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py`
 - `sglang/python/sglang/srt/mem_cache/hybrid_cache/hybrid_cache_controller.py`

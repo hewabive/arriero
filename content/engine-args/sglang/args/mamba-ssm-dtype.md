@@ -36,10 +36,10 @@ The data type of the SSM states in mamba cache. If not set, will be read from mo
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
 - Допустимые значения: `float32`, `bfloat16`, `float16`
 - Значение по умолчанию: `null` — берется из конфига модели (`mamba_ssm_dtype`, у VL-моделей — из `text_config`), а если и там нет, то `float32`
-- Эффективное значение: заданное CLI значение переносится в переменную окружения `SGLANG_MAMBA_SSM_DTYPE` (`_handle_environment_variables`), а в `mamba2_state_dtype` переменная окружения имеет **высший** приоритет — то есть CLI перекрывает конфиг модели. Обратное направление тоже есть: `--enable-linear-replayssm-spec` при незаданном аргументе принудительно ставит `float32`
+- Эффективное значение: заданное CLI значение переносится в переменную окружения `SGLANG_MAMBA_SSM_DTYPE` (шаг резолва `handle_environment_variables` в `python/sglang/srt/arg_groups/serving_hook.py`), а в `mamba2_state_dtype` переменная окружения имеет **высший** приоритет — то есть CLI перекрывает конфиг модели. Обратное направление тоже есть: `--enable-linear-replayssm-spec` при незаданном аргументе декларирует `float32` (шаг `handle_linear_attn_backend` идет раньше `handle_environment_variables`, поэтому в переменную окружения попадает уже `float32`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_ssm_dtype`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверки в `_handle_mamba_backend` и `_handle_linear_attn_backend`, запись переменной окружения) → построение `Mamba2CacheParams` при чтении конфига модели → выделение пула состояний (`MambaPool`) до расчета KV-пула
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (проверки в шагах `handle_mamba_backend` из `python/sglang/srt/arg_groups/mamba_hook.py` и `handle_linear_attn_backend` из `python/sglang/srt/arg_groups/attention_hook.py`, запись переменной окружения в `handle_environment_variables`) → построение `Mamba2CacheParams` при чтении конфига модели → выделение пула состояний (`MambaPool`) до расчета KV-пула
 
 ## Что меняет в движке
 
@@ -121,6 +121,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/mamba_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/configs/mamba_utils.py`
 - `sglang/python/sglang/srt/configs/qwen3_next.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`

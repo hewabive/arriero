@@ -37,10 +37,10 @@ If set, skip warmup.
 - Тип значения: bool; поле объявлено как `bool`, argparse получает `action="store_true"`, парного `--no-*` нет
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
-- Эффективное значение: **принудительно `True`** в двух случаях, оба в `__post_init__`: при заданном `--debug-tensor-dump-output-folder` (лог: `Cuda graph and server warmup are disabled because of using tensor dump mode`) и при заданном `--msprobe-dump-config` (лог: `... warmup is disabled(skip_server_warmup=True) because there is no need to dump data for this stage`). Оба случая заодно выключают CUDA graph. Отдельно прогрев пропускается для elastic-EP joiner'а (`is_ep_scale_joiner`) — там это не связано с флагом
+- Эффективное значение: **принудительно `True`** в двух случаях, оба в шаге резолва `handle_other_validations` (`python/sglang/srt/arg_groups/serving_hook.py`; декларация через `declare_resolution`, HTTP-слой читает итог через `get_serving().skip_server_warmup`): при заданном `--debug-tensor-dump-output-folder` (лог: `Cuda graph and server warmup are disabled because of using tensor dump mode`) и при заданном `--msprobe-dump-config` (лог: `... warmup is disabled(skip_server_warmup=True) because there is no need to dump data for this stage`). Оба случая заодно выключают CUDA graph. Отдельно прогрев пропускается для elastic-EP joiner'а (`get_exec().moe.is_ep_scale_joiner`) — там это не связано с флагом
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.skip_server_warmup`
 - Статус: обычный
-- Этап применения: `__post_init__` (принудительные включения) → HTTP-слой, поток `_wait_and_warmup` внутри lifespan приложения
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_other_validations` (принудительные включения) → HTTP-слой, поток `_wait_and_warmup` внутри lifespan приложения
 
 ## Что меняет в движке
 
@@ -48,7 +48,7 @@ If set, skip warmup.
 
 `_execute_server_warmup` (`entrypoints/http_server.py`):
 
-1. строит URL из `ServerArgs.url()` (петля вместо `0.0.0.0`, схема `https` при заданном `--ssl-certfile`), добавляет `Authorization: Bearer <api_key>`, если ключ задан, и берет `verify=` из `ssl_verify()`;
+1. строит URL из `ServerArgs.url()` (петля вместо `0.0.0.0`, схема `https` при заданном `--ssl-certfile`), добавляет `Authorization: Bearer <api_key>`, если ключ задан, и берет `verify=` из `ssl_verify_of(server_args)` (`arg_groups/serving_hook.py`);
 2. до 120 секунд опрашивает `/model_info`; при неуспехе логирует `Initialization failed. warmup error: …` и **убивает дерево процессов**;
 3. формирует запрос: `/generate` для генеративной модели, `/encode` для эмбеддингов, `/v1/chat/completions` с картинкой для VLM (когда не задан `--skip-tokenizer-init`), `input_ids` вместо текста при `--skip-tokenizer-init`. Количество элементов текста равно `--dp-size`;
 4. шлет запрос с таймаутом `SGLANG_WARMUP_TIMEOUT` (по умолчанию `-1`, что означает 600 секунд для обычного режима и 1800 для PD-disaggregation) и при успехе ставит `server_status = ServerStatus.Up`. При исключении — снова `kill_process_tree`.
@@ -128,6 +128,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
 - arriero: `docs/KTRANSFORMERS_OPERATIONS.md`, `apps/api/src/process/engine-probe.ts`, `apps/api/src/process/health-summary.ts`

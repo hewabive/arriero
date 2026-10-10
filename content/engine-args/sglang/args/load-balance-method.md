@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-Аргумент действует только там, где есть `DataParallelController`, то есть при `--dp-size > 1` (или в режиме elastic-scale). Он выбирает одну из четырех реальных политик распределения входящих запросов по DP-группам: круговую, привязку к `bootstrap_room` для PD-развертываний и две нагрузочные — по числу запросов и по числу токенов. Пятое значение `auto` — это не политика, а «подставь дефолт по `--disaggregation-mode`», и оно раскрывается сразу в `__post_init__`.
+Аргумент действует только там, где есть `DataParallelController`, то есть при `--dp-size > 1` (или в режиме elastic-scale). Он выбирает одну из четырех реальных политик распределения входящих запросов по DP-группам: круговую, привязку к `bootstrap_room` для PD-развертываний и две нагрузочные — по числу запросов и по числу токенов. Пятое значение `auto` — это не политика, а «подставь дефолт по `--disaggregation-mode`», и оно раскрывается при резолве аргументов на старте (шаг `handle_load_balance_method`).
 
 ## Оригинальная справка
 
@@ -34,10 +34,10 @@ The load balancing strategy for data parallelism.
 - Тип значения: str
 - Допустимые значения: `auto`, `round_robin`, `follow_bootstrap_room`, `total_requests`, `total_tokens` (список фиксирован в объявлении поля, не собирается в runtime)
 - Значение по умолчанию: `auto`
-- Эффективное значение: `auto` никогда не доживает до контроллера. `_handle_load_balance_method` заменяет его на `follow_bootstrap_room` при `--disaggregation-mode prefill` и на `round_robin` во всех остальных случаях (включая `--disaggregation-mode decode`). Тот же метод первым делом валидирует `disaggregation_mode` и бросает `ValueError` на неизвестном значении
+- Эффективное значение: `auto` никогда не доживает до контроллера. Шаг резолва `handle_load_balance_method` (`arg_groups/serving_hook.py`) декларирует вместо него `follow_bootstrap_room` при `--disaggregation-mode prefill` и `round_robin` во всех остальных случаях (включая `--disaggregation-mode decode`); контроллер читает уже это значение через `get_parallel()`, а `server_args.load_balance_method` так и остается `auto`. Тот же шаг первым делом валидирует `disaggregation_mode` и бросает `ValueError` на неизвестном значении
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.load_balance_method`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_balance_method`) → конструктор `DataParallelController` (`LoadBalanceMethod.from_str`, выбор функции диспетчеризации) → каждый входящий запрос
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_balance_method` (`arg_groups/serving_hook.py`) → конструктор `DataParallelController` (`LoadBalanceMethod.from_str`, выбор функции диспетчеризации) → каждый входящий запрос
 
 ## Что меняет в движке
 
@@ -80,7 +80,7 @@ The load balancing strategy for data parallelism.
 - `--dp-size`: аргумент имеет смысл только при значении `> 1`.
 - `--disaggregation-mode`: определяет раскрытие `auto` (`prefill` → `follow_bootstrap_room`, `null`/`decode` → `round_robin`).
 - `--enable-dp-attention`: не меняет выбор политики, но меняет то, чем является «DP-группа» (см. `dp-size.md`).
-- `--elastic-ep-backend` + `--max-ep-size` в режиме scale-up: `assert self.load_balance_method == "round_robin"` с пояснением, что нагрузочным политикам после масштабирования нужны снимки по глобальным рангам.
+- `--elastic-ep-backend` + `--max-ep-size` в режиме scale-up: `assert cfg.load_balance_method == "round_robin"` в шаге `handle_elastic_ep` (`arg_groups/parallel_hook.py`) с пояснением, что нагрузочным политикам после масштабирования нужны снимки по глобальным рангам.
 - `--enable-metrics`: снимки нагрузки живут отдельно от метрик, но обе подсистемы читают одни и те же счетчики планировщика.
 - `--tokenizer-worker-num`: при значении > 1 владельцем zmq-читателя снимков становится `MultiTokenizerRouter`; политика от этого не меняется.
 
@@ -107,6 +107,8 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/managers/load_snapshot.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

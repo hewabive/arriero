@@ -34,10 +34,10 @@ Chosen EPLB algorithm
 - Тип значения: str
 - Допустимые значения: `choices` в объявлении нет, но список разрешим статически — это имена элементов перечисления `EplbAlgorithm` (`sglang/python/sglang/srt/eplb/eplb_algorithms/__init__.py`) плюс литерал `auto`. На момент commit'а checkout'а перечисление содержит `deepseek`, `deepseek_hierarchical`, `deepseek_vec`, `deepseek_vec_hierarchical`, `elasticity_aware`, `elasticity_aware_hierarchical`. Проверить на своей сборке: `python -c "from sglang.srt.eplb.eplb_algorithms import EplbAlgorithm; print([e.name for e in EplbAlgorithm])"`
 - Значение по умолчанию: `auto`
-- Эффективное значение: `_handle_elastic_ep` при заданном `--elastic-ep-backend` и включенном `--enable-eplb` заменяет `auto` на `elasticity_aware` и затем требует, чтобы значение было `elasticity_aware` или `elasticity_aware_hierarchical`. Без elastic EP `auto` разрешается позже, уже внутри `compute_algorithm`, и в дампе `server_args=` остается строкой `auto`
+- Эффективное значение: шаг резолва `handle_elastic_ep` (`arg_groups/parallel_hook.py`) при заданном `--elastic-ep-backend` и включенном `--enable-eplb` декларирует вместо `auto` значение `elasticity_aware` (его видят дамп `server_args=` и рантайм через `get_exec().moe.eplb_algorithm`) и затем требует, чтобы значение было `elasticity_aware` или `elasticity_aware_hierarchical`. Без elastic EP `auto` разрешается позже, уже внутри `compute_algorithm`, и в дампе `server_args=` остается строкой `auto`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.eplb_algorithm`
 - Статус: обычный
-- Этап применения: `__post_init__` (только ветка elastic EP) → каждая перебалансировка либо разбор `--init-expert-location`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (только ветка elastic EP) → каждая перебалансировка либо разбор `--init-expert-location`
 
 ## Что меняет в движке
 
@@ -64,7 +64,7 @@ Chosen EPLB algorithm
 
 - Многоузловая EP-группа, модель с группами экспертов (DeepSeek-V3 и родственные): оставляйте `auto` — он и даст `deepseek_hierarchical`, который экономит межузловой трафик.
 - Один узел: значение не важно, `auto` даст `deepseek` или `deepseek_hierarchical` с `num_nodes=1` — раскладка одна и та же.
-- Elastic EP: не задавайте руками, дайте `_handle_elastic_ep` подставить `elasticity_aware`; ручное значение из другого семейства отвергается ассертом.
+- Elastic EP: не задавайте руками, дайте `handle_elastic_ep` подставить `elasticity_aware`; ручное значение из другого семейства отвергается ассертом.
 - Не подбирайте алгоритм раньше, чем убедитесь, что перебалансировка вообще происходит: посмотрите `[EPLBManager] rebalance start` в логе.
 
 ## Влияние на производительность и память
@@ -103,6 +103,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/eplb_algorithms/__init__.py`
 - `sglang/python/sglang/srt/eplb/eplb_algorithms/deepseek.py`
 - `sglang/python/sglang/srt/eplb/eplb_algorithms/deepseek_vec.py`

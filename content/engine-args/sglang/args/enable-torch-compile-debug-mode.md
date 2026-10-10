@@ -34,7 +34,7 @@ Enable debug mode for torch compile
 - Тип значения: bool, `action="store_true"` — значение не принимает
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется в `__post_init__`; читается один раз при построении `CompilationConfig`
+- Эффективное значение: не переопределяется — ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует; читается один раз при построении `CompilationConfig`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.enable_torch_compile_debug_mode`
 - Статус: обычный, отладочный
 - Этап применения: инициализация prefill-runner'а при `cuda_graph_config[prefill].backend == tc_piecewise` → захват подграфов → каждый реплей

@@ -39,7 +39,7 @@ Enable priority scheduling. Requests with higher priority integer values will be
 - Эффективное значение: не переопределяется автоматикой; отказывает на старте при несовместимой `--schedule-policy`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_priority_scheduling`
 - Статус: обычный
-- Этап применения: `_handle_other_validations` (проверки) → `TokenizerManager` (подстановка дефолтного приоритета) → `Scheduler` (очередь, вытеснение, метрики)
+- Этап применения: `ServerArgs.resolve_once` → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, вызывается после пайплайна резолва: проверки и предупреждения) → `TokenizerManager` (подстановка дефолтного приоритета) → `Scheduler` (очередь, вытеснение, метрики)
 
 ## Требуемая комбинация
 
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-prior
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

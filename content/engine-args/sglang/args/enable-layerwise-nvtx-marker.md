@@ -32,7 +32,7 @@ Enable layerwise NVTX profiling annotations for the model.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным — ни один `_handle_*` и ни одно правило `arg_groups/overrides.py` его не переписывают
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (хуки `arg_groups/*_hook.py`, passes `arg_groups/overrides.py`, `arg_groups/model_overrides/`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.enable_layerwise_nvtx_marker`
 - Статус: обычный
 - Этап применения: разбор CLI → `ModelRunner.load_model` после загрузки весов и предкомпиляции ядер → каждый eager-forward

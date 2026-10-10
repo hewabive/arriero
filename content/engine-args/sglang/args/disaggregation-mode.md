@@ -46,10 +46,10 @@ Only used for PD disaggregation. "prefill" for prefill-only server, and "decode"
 - Тип значения: str; поле объявлено как `Literal["null", "prefill", "decode"]`, из чего argparse автоматически выводит `choices`
 - Допустимые значения: `null`, `prefill`, `decode`. `null` — реальная строка, а не отсутствие значения; `--disaggregation-mode null` эквивалентно тому, что аргумент не задан
 - Значение по умолчанию: `"null"`
-- Эффективное значение: совпадает с заданным, кроме одного случая — `_handle_dllm_inference` при diffusion-LLM-инференсе печатает `Currently disaggregation is not supported by diffusion LLM inference.` и принудительно ставит `null`
+- Эффективное значение: совпадает с заданным, кроме одного случая — шаг резолва `handle_dllm_inference` (`arg_groups/dllm_hook.py`) при diffusion-LLM-инференсе печатает `Currently disaggregation is not supported by diffusion LLM inference.` и декларирует `null` (поле `server_args.disaggregation_mode` хранит ввод оператора, итог — в `resolved_dict()` и `get_disagg()`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_mode`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_pd_disaggregation` (валидация и нормализация ролей) → `_apply_cuda_graph_disaggregation_roles` → авто-подбор `--mem-fraction-static` → `start_disagg_service` в процессе tokenizer manager (только prefill) → выбор event loop в scheduler (`dispatch_event_loop`) → выделение KV-пула → форвард
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаги `handle_pd_disaggregation` (валидация и нормализация ролей) → `handle_cuda_graph_config` (`apply_cuda_graph_disaggregation_roles`) → `handle_gpu_memory_settings` (авто-подбор `--mem-fraction-static`) → `start_disagg_service` в процессе tokenizer manager (только prefill) → выбор event loop в scheduler (`dispatch_event_loop`) → выделение KV-пула → форвард
 
 ## Что меняет в движке
 
@@ -68,11 +68,11 @@ Only used for PD disaggregation. "prefill" for prefill-only server, and "decode"
 ### Что переключается внутри процесса
 
 - **Event loop scheduler'а.** `dispatch_event_loop` (`managers/scheduler.py`) выбирает `event_loop_pp_disagg_prefill` / prefill-петлю или decode-петлю вместо `event_loop_normal`/`event_loop_overlap`.
-- **CUDA graph.** `_apply_cuda_graph_disaggregation_roles`: на `prefill` decode-граф выключается (`Backend.DISABLED`), на `decode` — prefill-граф, если backend фазы не зафиксирован явно. Это заметно сокращает и время старта, и VRAM под графы.
+- **CUDA graph.** `apply_cuda_graph_disaggregation_roles` (`arg_groups/cuda_graph_hook.py`): на `prefill` decode-граф выключается (`Backend.DISABLED`), на `decode` — prefill-граф, если backend фазы не зафиксирован явно. Это заметно сокращает и время старта, и VRAM под графы.
 - **Кеш префиксов на decode.** По умолчанию decode форсирует chunk cache: `disable_radix_cache = True` с предупреждением `KV cache is forced as chunk cache for decode server`. Вернуть radix можно только `--disaggregation-decode-enable-radix-cache`.
 - **Пулы.** На decode `req_to_token_pool` строится как `DecodeReqToTokenPool` с добавочными слотами под запросы в состоянии передачи (`--disaggregation-decode-extra-slots`), а планировщик резервирует `--num-reserved-decode-tokens` на каждый активный запрос.
-- **Балансировка.** `--load-balance-method auto` разрешается в `follow_bootstrap_room` для prefill и в `round_robin` для остальных (`_handle_load_balance_method`).
-- **Авто-подбор `--mem-fraction-static`.** На decode активационный резерв считается от `max_running_requests * speculative_num_draft_tokens`, а не от `chunked_prefill_size`; VLM-надбавка (`adjust_mem_fraction_for_vlm`) на decode не применяется, потому что энкодер там не работает.
+- **Балансировка.** `--load-balance-method auto` разрешается в `follow_bootstrap_room` для prefill и в `round_robin` для остальных (шаг `handle_load_balance_method`, `arg_groups/serving_hook.py`).
+- **Авто-подбор `--mem-fraction-static`.** На decode активационный резерв считается от `max_running_requests * speculative_num_draft_tokens`, а не от `chunked_prefill_size`; VLM-надбавка (`adjust_mem_fraction_for_vlm` в `arg_groups/memory_hook.py`) на decode не применяется, потому что энкодер там не работает.
 - **Метрики и трассировка.** `engine_type` в метках метрик становится `prefill`/`decode` вместо `unified`; при `--enable-trace` в имена потоков добавляется `Prefill`/`Decode`.
 
 ## Значения и формат
@@ -80,7 +80,7 @@ Only used for PD disaggregation. "prefill" for prefill-only server, and "decode"
 - `null` — монолитный сервер. Это значение по умолчанию и единственное, при котором доступны `--enable-pdmux`, `--enable-linear-replayssm`, `--mamba-radix-cache-strategy extra_buffer_lazy` и diffusion-LLM-путь.
 - `prefill` — только prefill. Поднимается bootstrap-сервер; `--disaggregation-transfer-backend fake` запрещен (`Prefill server does not support 'fake' as the transfer backend`).
 - `decode` — только decode. Bootstrap-сервер не поднимается; `--disaggregation-bootstrap-port` здесь означает порт **чужого** prefill-сервера и используется как значение по умолчанию, если роутер не прислал `bootstrap_port` в запросе.
-- Любое другое значение отвергается argparse по `choices`; дополнительная защита от программной подмены — `raise ValueError(f"Invalid disaggregation_mode=...")` в `_handle_load_balance_method`.
+- Любое другое значение отвергается argparse по `choices`; дополнительная защита от программной подмены — `raise ValueError(f"Invalid disaggregation_mode=...")` в `handle_load_balance_method`.
 
 ## Когда использовать
 
@@ -113,7 +113,7 @@ Only used for PD disaggregation. "prefill" for prefill-only server, and "decode"
 - `--mamba-radix-cache-strategy extra_buffer_lazy`: требует `null`.
 - `--load-balance-method`: `auto` разрешается по режиму.
 - `--language-only` + `--disaggregation-mode prefill` — это EPD-развертывание (энкодер отдельно). `--encoder-only` с ненулевым режимом запрещен.
-- Prefill-режим отключает `TC_PIECEWISE`-захват prefill-графа (`PD disaggregation` в списке несовместимостей `_disable_tc_piecewise_cudagraph_if_incompatible`).
+- Prefill-режим отключает `TC_PIECEWISE`-захват prefill-графа (`PD disaggregation` в списке несовместимостей `disable_tc_piecewise_cudagraph_if_incompatible`).
 
 ## Типовые проблемы и диагностика
 
@@ -141,6 +141,10 @@ python -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --d
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
 - `sglang/python/sglang/srt/managers/disagg_service.py`
 - `sglang/python/sglang/srt/disaggregation/utils.py`
 - `sglang/python/sglang/srt/disaggregation/common/conn.py`

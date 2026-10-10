@@ -37,7 +37,7 @@ Enable stochastic rounding when writing FP16 Mamba SSM cache states. Requires --
 - Эффективное значение: совпадает с заданным; движок не включает округление сам ни при каких условиях
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.enable_mamba_cache_stochastic_rounding`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_mamba_backend` — три проверки) → создание backend'а `selective_state_update` → каждая запись SSM-состояния в decode
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_mamba_backend` (`arg_groups/mamba_hook.py`, три проверки) → создание backend'а `selective_state_update` → каждая запись SSM-состояния в decode
 
 ## Что меняет в движке
 
@@ -46,7 +46,7 @@ Enable stochastic rounding when writing FP16 Mamba SSM cache states. Requires --
 - **Triton**: компиляционный флаг `USE_RS_ROUNDING=True` в `mamba_ssm.py`; число раундов Philox берется из `--mamba-cache-philox-rounds`. Ядро дополнительно проверяет, что `state.dtype` равен `torch.float16`.
 - **FlashInfer**: на каждый вызов генерируется `rand_seed` (`torch.randint(0, 2**32, (1,), device=state.device)`), а число раундов при нуле становится 10.
 
-Проверки на старте (`_handle_mamba_backend`), в порядке выполнения:
+Проверки на старте (шаг резолва `handle_mamba_backend`), в порядке выполнения:
 
 1. `mamba_ssm_dtype != "float16"` → `ValueError: Stochastic rounding for the Mamba SSM cache requires --mamba-ssm-dtype float16, got …`;
 2. платформа не CUDA → `ValueError: … is only supported on NVIDIA CUDA platforms.`;
@@ -109,6 +109,7 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --mamba-backen
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/mamba_hook.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/ssu_dispatch.py`
 - `sglang/python/sglang/kernels/ops/mamba/triton_ops/mamba_ssm.py`
 - `sglang/python/sglang/srt/configs/mamba_utils.py`

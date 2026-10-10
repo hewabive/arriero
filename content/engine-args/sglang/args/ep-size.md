@@ -38,10 +38,10 @@ The expert parallelism size.
 - Тип значения: int
 - Допустимые значения: `choices` нет; делители `tp_size`, ограниченные соотношением `ep_size * moe_dp_size <= tp_size`
 - Значение по умолчанию: `1`
-- Эффективное значение: переписывается регулярно. `_a2a_ep_size` ставит `ep_size = tp_size` для всех a2a-backend'ов, кроме `none` (в лог идет `… MoE is enabled. The expert parallel size is adjusted from N to the tensor parallel size [M].`); `_handle_dwdp` ставит `ep_size = dwdp_size`; MLA CP и zigzag DSA CP выставляют `ep_size = tp_size`. Поле помечено `resolvable=True`, промежуточные обработчики читают его через `_resolved()`
+- Эффективное значение: переписывается регулярно. Проход `_a2a_ep_size` (`arg_groups/overrides.py`, запускается в шаге `handle_a2a_moe`) декларирует `ep_size = tp_size` для всех a2a-backend'ов, кроме `none` (в лог идет `… MoE is enabled. The expert parallel size is adjusted from N to the tensor parallel size [M].`); шаг `handle_dwdp` (`arg_groups/parallel_hook.py`) декларирует `ep_size = dwdp_size`; MLA CP и zigzag DSA CP выставляют `ep_size = tp_size` (model override `_deepseek_family_overrides` в `arg_groups/model_overrides/deepseek_v2.py`). Поле помечено `resolvable=True`: сырое `server_args.ep_size` хранит ввод оператора, эффективное значение — последняя запись `declare_resolution`, шаги резолва читают его через `resolved_view()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_context_parallelism` → `_handle_a2a_moe` → `_handle_eplb_and_dispatch` → `_handle_elastic_ep`) → `initialize_model_parallel(expert_model_parallel_size=…)` → загрузка весов экспертов → каждый forward MoE-слоя
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_context_parallelism` → `handle_a2a_moe` → `handle_eplb_and_dispatch` → `handle_elastic_ep`) → `initialize_model_parallel(expert_model_parallel_size=…)` → загрузка весов экспертов → каждый forward MoE-слоя
 
 ## Что меняет в движке
 
@@ -74,7 +74,7 @@ moe_ep_rank = tp_rank % (tp_size // moe_dp_size) // (tp_size // moe_dp_size // e
 
 - Крупная MoE-модель, веса экспертов которой не помещаются на ранг: `--ep-size` раскладывает их и линейно уменьшает VRAM под эксперты.
 - Гибрид EP+TP (`1 < ep_size < tp_size`), когда экспертов немного и полный EP дал бы слишком мелкие куски: возможен **только** при `--moe-a2a-backend none`.
-- `--enable-eplb` требует `ep_size > 1` (`assert` в `_handle_eplb_and_dispatch`, кроме режима elastic-scale) — балансировать нечего, когда группа одна.
+- `--enable-eplb` требует `ep_size > 1` (`assert` в `handle_eplb_and_dispatch`, кроме режима elastic-scale) — балансировать нечего, когда группа одна.
 - Не трогайте на плотной (не-MoE) модели: аргумент влияет только на MoE-слои.
 - Не задавайте вручную, если уже выбран `deepep`/`mooncake`/`nixl`/`mori`/`pplx`/`flashinfer`/`megamoe`/`ascend_fuseep`: значение станет равным `--tp-size`.
 
@@ -121,6 +121,9 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`

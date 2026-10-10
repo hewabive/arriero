@@ -40,12 +40,12 @@ The worker num of the tokenizer manager.
 - Флаги: `--tokenizer-worker-num`
 - Группа: `serving`
 - Тип значения: int
-- Допустимые значения: `choices` нет; `check_server_args` требует `> 0` (`Tokenizer worker num must >= 1`). Практический потолок — число ядер хоста, свободных от инференса
+- Допустимые значения: `choices` нет; `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, вызывается после пайплайна резолва) требует `> 0` (`Tokenizer worker num must >= 1`). Практический потолок — число ядер хоста, свободных от инференса
 - Значение по умолчанию: `1`
 - Эффективное значение: совпадает с заданным. `--skip-tokenizer-init` его специально **не** сбрасывает — в комментарии кода это объяснено тем, что воркеры продолжают обслуживать HTTP и состояние запросов, даже когда токенизировать нечего
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.tokenizer_worker_num`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверки совместимости) → выбор ветки запуска в `_setup_and_run_http_server` → запуск N HTTP-процессов и роутера
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (проверки совместимости в шагах `handle_deprecated_args` и `handle_elastic_ep`) → `check_server_args` → выбор ветки запуска в `_setup_and_run_http_server` → запуск N HTTP-процессов и роутера
 
 ## Что меняет в движке
 
@@ -67,7 +67,7 @@ The worker num of the tokenizer manager.
 - **Аутентификация.** Ветка `add_api_key_middleware` недостижима. `--api-key` при этом хотя бы падает громко (`AssertionError: API key is not supported in multi-tokenizer mode`), а `--admin-api-key` — молча: сервер стартует, управляющие endpoint'ы остаются открытыми.
 - **`--enable-ssl-refresh`.** Предупреждение `--enable-ssl-refresh is not supported with multiple tokenizer workers (--tokenizer-worker-num > 1). SSL refresh will be disabled.` и обычный запуск.
 - **Нативный gRPC.** `ValueError: Native gRPC does not yet support --tokenizer-worker-num > 1. Unset --grpc-port or set --tokenizer-worker-num 1.`
-- **Elastic EP scale-up.** `assert self.tokenizer_worker_num == 1, "Elastic EP runtime scale-up currently requires --tokenizer-worker-num 1."`
+- **Elastic EP scale-up.** Шаг резолва `handle_elastic_ep` (`arg_groups/parallel_hook.py`): `assert cfg.tokenizer_worker_num == 1, "Elastic EP runtime scale-up currently requires --tokenizer-worker-num 1."`
 
 ## Значения и формат
 
@@ -139,6 +139,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/managers/multi_tokenizer_mixin.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

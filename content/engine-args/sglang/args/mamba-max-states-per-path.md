@@ -37,7 +37,7 @@ Maximum number of cached Mamba states retained per root-to-tail path (-1 means u
 - Эффективное значение: совпадает с заданным; переопределений нет
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_max_states_per_path`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация в `_handle_mamba_backend`) → работа префиксного кеша, после каждой вставки в дерево
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, валидация в шаге `handle_mamba_backend` (`arg_groups/mamba_hook.py`) → работа префиксного кеша, после каждой вставки в дерево
 
 ## Что меняет в движке
 
@@ -104,6 +104,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/mamba_hook.py`
 - `sglang/python/sglang/srt/mem_cache/unified_cache/components/mamba_component.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`

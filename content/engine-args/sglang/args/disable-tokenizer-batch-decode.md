@@ -35,7 +35,7 @@ Disable batch decoding when decoding multiple completions.
 - Тип значения: bool; поле объявлено как `bool`, argparse получает `action="store_true"`, парного `--no-*` нет
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False` — групповое декодирование включено
-- Эффективное значение: совпадает с заданным. Ни один `_handle_*` его не переписывает — в отличие от соседних аргументов токенизаторного батчинга, которые сбрасываются при `--skip-tokenizer-init`
+- Эффективное значение: совпадает с заданным. Ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует — в отличие от соседних аргументов токенизаторного батчинга, которые шаг `handle_tokenizer_batching` сбрасывает при `--skip-tokenizer-init`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.disable_tokenizer_batch_decode`
 - Статус: обычный
 - Этап применения: инициализация процесса детокенизатора (`DetokenizerManager.init_running_status` копирует значение в `self.disable_tokenizer_batch_decode`) → каждый шаг обработки `BatchTokenIDOutput`

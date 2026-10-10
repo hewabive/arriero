@@ -38,10 +38,10 @@ The maximum number of tokens in a chunk for the chunked prefill. Setting this to
 - Тип значения: целое (`Optional[int]`)
 - Допустимые значения: `-1` (отключить) либо положительное число, кратное `--page-size`. Любое значение `<= 0` трактуется планировщиком как «выключено»
 - Значение по умолчанию: `null`
-- Эффективное значение: подбирается в `_handle_gpu_memory_settings` по емкости GPU — `<20 ГиБ` → 2048, `<35` → 2048, `<60` → 4096, `<90` → 8192, `<160` → 8192, иначе 16384; при неизвестной емкости — 4096. Затем делится на `--dp-size` при `--enable-dp-attention` и принудительно ставится в `-1` при `--enable-mis` и для HRM-Text (`prefix_lm`)
+- Эффективное значение: при `null` подбирается шагом резолва `handle_gpu_memory_settings` (`python/sglang/srt/arg_groups/memory_hook.py`) по емкости GPU — `<20 ГиБ` → 2048, `<35` → 4096, `<60` → 4096, `<90` → 8192, `<160` → 8192, иначе 16384; при неизвестной емкости — 4096. Затем `handle_data_parallelism` делит его на `--dp-size` при `--enable-dp-attention`, а `handle_multi_item_scoring` (`--enable-mis`) и `handle_model_capability_adjustments` (HRM-Text, `prefix_lm`) принудительно ставят `-1`. Шаги не переписывают `server_args.chunked_prefill_size` (там остается ввод оператора), а записывают решение через `declare_resolution`; итог виден в `resolved_dict()` и в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.chunked_prefill_size`
 - Статус: обычный
-- Этап применения: `__post_init__` (подбор и проверки) → `Scheduler.init_chunked_prefill` → каждый вызов `get_new_batch_prefill`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (подбор) → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, проверки кратности и `--enable-pdmux`) → `Scheduler.init_chunked_prefill` → каждый вызов `get_new_batch_prefill`
 
 ## Что меняет в движке
 
@@ -55,7 +55,7 @@ The maximum number of tokens in a chunk for the chunked prefill. Setting this to
 
 Три дополнительных потребителя значения:
 
-- `_handle_gpu_memory_settings`: `activation_tokens = max(chunked_prefill_size, 2048)`, резерв под активации `activation_tokens * 1.5` МиБ; для не-MLA моделей `chunked_prefill_size` становится еще и `cuda_graph_config.prefill.max_bs`;
+- `handle_gpu_memory_settings`: `activation_tokens = max(chunked_prefill_size, 2048)`, резерв под активации `activation_tokens * 1.5` МиБ; для не-MLA моделей `chunked_prefill_size` становится еще и `cuda_graph_config.prefill.max_bs`;
 - backend'ы all-to-all для MoE: `--moe-a2a-backend mori`/`pplx` проверяют, что `chunked_prefill_size` не превышает лимит диспетчера (`SGLANG_MORI_NUM_MAX_DISPATCH_TOKENS_PER_RANK`, `SGLANG_PPLX_NUM_MAX_DISPATCH_TOKENS_PER_RANK`);
 - KTransformers: значение уходит в `KTConfig.chunked_prefill_size` → `KTMoEWrapper` → `MOEConfig.max_len` и напрямую задает размер CPU-буферов MoE-оператора (`gate_up_ba_`, `gate_bc_`, `up_bc_`, `down_ba_`, `down_bc_` в `ktransformers/kt-kernel/operators/amx/moe_base.hpp` выделяются на `max_len` строк каждый, на каждый MoE-слой). Для профиля SGLang-KT это не абстрактный «пик активаций», а конкретная линейная статья расхода RAM хоста.
 
@@ -119,6 +119,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --chunked-pref
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`
 - `sglang/python/sglang/srt/layers/moe/kt_ep_wrapper.py`

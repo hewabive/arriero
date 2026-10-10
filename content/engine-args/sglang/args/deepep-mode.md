@@ -33,10 +33,10 @@ Select the mode when enable DeepEP or MoriEP MoE, could be `normal`, `low_latenc
 - Тип значения: перечисление
 - Допустимые значения: `auto`, `normal`, `low_latency`
 - Значение по умолчанию: `auto`
-- Эффективное значение: переопределяется в `_handle_a2a_moe` — `mori` меняет `auto` на `normal`, `pplx` меняет `auto` на `low_latency` (и запрещает `normal`), `flashinfer_cutedsl` поверх DeepEP меняет `auto` на `low_latency` (и запрещает `normal`)
+- Эффективное значение: переопределяется шагом резолва `handle_a2a_moe` (`arg_groups/moe_hook.py`) через `declare_resolution`, поэтому итог виден в дампе `server_args=`, а сырое поле хранит ввод оператора — `mori` меняет `auto` на `normal`, `pplx` меняет `auto` на `low_latency` (и запрещает `normal`), `flashinfer_cutedsl` поверх DeepEP меняет `auto` на `low_latency` (и запрещает `normal`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.deepep_mode`
 - Статус: обычный
-- Этап применения: `__post_init__` (переопределения и отключение CUDA graph) → `initialize_moe_config` → создание диспетчера слоя и выделение буферов DeepEP → выбор реализации на каждом forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_a2a_moe` (переопределения и отключение CUDA graph) → `initialize_moe_config` → создание диспетчера слоя и выделение буферов DeepEP → выбор реализации на каждом forward
 
 ## Что меняет в движке
 
@@ -48,7 +48,7 @@ Select the mode when enable DeepEP or MoriEP MoE, could be `normal`, `low_latenc
 
 **3. Что выбирается на каждом проходе.** `_get_impl` вызывает `self.deepep_mode.resolve(get_is_extend_in_batch())`: при `auto` батч с prefill идет в `normal`, чистый decode — в `low_latency`. Фиксированный режим возвращается как есть.
 
-Отдельный и самый заметный побочный эффект: при `--moe-a2a-backend deepep` и `--deepep-mode normal` `_handle_a2a_moe` выключает CUDA graph и для decode, и для prefill (`Cuda graph is disabled because deepep_mode=...`).
+Отдельный и самый заметный побочный эффект: при `--moe-a2a-backend deepep` и `--deepep-mode normal` `handle_a2a_moe` выключает CUDA graph и для decode, и для prefill (`Cuda graph is disabled because deepep_mode=...`).
 
 ## Значения и формат
 
@@ -106,6 +106,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --moe-a2a-ba
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/token_dispatcher/deepep.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`

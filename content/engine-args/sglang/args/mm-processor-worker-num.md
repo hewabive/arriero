@@ -31,7 +31,7 @@ Number of threads for multimodal processor calls. 0 selects the model-specific d
 - Флаги: `--mm-processor-worker-num`
 - Группа: `mm`
 - Тип значения: int
-- Допустимые значения: неотрицательное целое; проверка `assert self.mm_processor_worker_num >= 0, "Multimodal processor worker num must >= 0"` в `__post_init__`
+- Допустимые значения: неотрицательное целое; проверка `assert cfg.mm_processor_worker_num >= 0, "Multimodal processor worker num must >= 0"` в `check_server_args` (`arg_groups/validation_hook.py`; не шаг пайплайна резолва, а проверка, которую `Engine._launch_subprocesses` вызывает после `resolve_once`)
 - Значение по умолчанию: `0` — «модель-специфичный дефолт»
 - Эффективное значение: `BaseMultimodalProcessor.__init__` подставляет `auto_mm_processor_worker_num` при `0` и принудительно опускает до `1`, если процессор не поддерживает конкурентность или если клонировать его не удалось
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_processor_worker_num`
@@ -126,6 +126,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --mm-pr
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/executor.py`
 - `sglang/python/sglang/srt/multimodal/processors/qwen_vl.py`

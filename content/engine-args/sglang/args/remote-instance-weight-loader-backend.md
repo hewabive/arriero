@@ -36,10 +36,10 @@ The backend for loading weights from remote instance. Can be 'transfer_engine', 
 - Тип значения: строка с фиксированным списком (`Literal[...]`)
 - Допустимые значения: `transfer_engine`, `nccl`, `modelexpress`
 - Значение по умолчанию: `nccl`
-- Эффективное значение: само значение не переписывается, но при `--load-format remote_instance` оно проверяется в `_handle_load_format` и может привести к откату **формата загрузки** на `auto`
+- Эффективное значение: ни один шаг резолва его не декларирует, но при `--load-format remote_instance` оно проверяется в шаге `handle_load_format` и может привести к откату **формата загрузки** на `auto`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_backend`
 - Статус: обычный; каждый транспорт требует своей внешней обвязки
-- Этап применения: `__post_init__` (`_handle_load_format`) → инициализация transfer engine в `ModelRunner` → загрузка весов в `RemoteInstanceModelLoader`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` (`arg_groups/model_path_hook.py`) → инициализация transfer engine в `ModelRunner` → загрузка весов в `RemoteInstanceModelLoader`
 
 ## Что меняет в движке
 
@@ -51,13 +51,13 @@ The backend for loading weights from remote instance. Can be 'transfer_engine', 
 
 **`modelexpress`** — делегирование внешнему пакету: `RemoteInstanceModelLoader` импортирует `modelexpress.engines.sglang.loader.MxModelLoader` и передает управление ему. Транспорт внутри ModelExpress выбирается ключом `transport` в `--modelexpress-config` (`nixl` по умолчанию либо `transfer_engine`). Отсутствие пакета — `ImportError` с явным текстом.
 
-**Проверки в `_handle_load_format`** (выполняются только при `--load-format remote_instance`):
+**Проверки в `handle_load_format`** (выполняются только при `--load-format remote_instance`):
 
 - backend не `modelexpress` и не задан `--remote-instance-weight-loader-seed-instance-ip` или `--remote-instance-weight-loader-seed-instance-service-port` → `Fallback load_format to 'auto' due to incomplete remote instance weight loader settings.`;
 - backend `nccl` и не задан `--remote-instance-weight-loader-send-weights-group-ports` → `Fallback load_format to 'auto' due to incomplete remote instance weight loader NCCL group ports settings.`;
 - backend `transfer_engine` и `validate_transfer_engine()` вернул `False` → `Fallback load_format to 'auto' due to 'transfer_engine' backend is not supported.`
 
-`validate_transfer_engine()` возвращает `False` в двух случаях: не импортируется `mooncake.engine` либо включен `--enable-memory-saver` (memory saver несовместим с transfer engine).
+`validate_transfer_engine()` (`arg_groups/model_path_hook.py`) возвращает `False` в двух случаях: не импортируется `mooncake.engine` либо включен `--enable-memory-saver` (memory saver несовместим с transfer engine).
 
 ## Значения и формат
 
@@ -120,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

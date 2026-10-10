@@ -37,20 +37,20 @@ The port of the HTTP server.
 - Тип значения: int
 - Допустимые значения: `choices` нет; argparse примет любое целое, границы проверяет только ОС при `bind`
 - Значение по умолчанию: `30000`
-- Эффективное значение: совпадает с заданным; `__post_init__` `port` не переписывает. Обратное неверно — от `port` производятся другие значения: в устаревшем `--smg-grpc-mode` без явного `--grpc-port` он становится `port + 10000`, а при `--enable-dp-attention` на одном узле без `--dist-init-addr` база ZMQ-портов равна `port + 233` (константа `ZMQ_TCP_PORT_DELTA`), с откатом на `port − 233` при выходе за 65535
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) `port` не декларирует. Обратное неверно — от `port` производятся другие значения: в устаревшем `--smg-grpc-mode` без явного `--grpc-port` шаг `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`) декларирует для него `port + 10000`, а при `--enable-dp-attention` на одном узле без `--dist-init-addr` база ZMQ-портов равна `port + 233` (константа `ZMQ_TCP_PORT_DELTA`), с откатом на `port − 233` при выходе за 65535
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.port`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__` (производные порты) → `PortArgs.init_new` → HTTP-слой (`uvicorn.run(port=...)` / `Granian(port=...)`), уже после `wait_for_ready()`
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline` (производный `grpc_port`) → `check_server_args` → `PortArgs.init_new` (производные ZMQ-порты) → HTTP-слой (`uvicorn.run(port=...)` / `Granian(port=...)`), уже после `wait_for_ready()`
 
 ## Что меняет в движке
 
 Значение попадает в `ServerArgs.port` и расходится по трем направлениям.
 
-1. **HTTP-слушатель.** `_setup_and_run_http_server` передает `port=server_args.port` в `uvicorn.run` (обычная ветка, ветка `--enable-ssl-refresh` и multi-worker) и в `_run_granian_server` при `--enable-http2`.
+1. **HTTP-слушатель.** `_setup_and_run_http_server` передает `port=get_serving().port` в `uvicorn.run` (обычная ветка, ветка `--enable-ssl-refresh` и multi-worker) и в `_run_granian_server` при `--enable-http2`.
 2. **Внутренний URL.** `ServerArgs.url()` собирает `http(s)://<loopback-или-host>:<port>` — по нему warmup-поток стучится в собственный `/model_info` и `/generate`.
 3. **Производные служебные порты.** В обычном режиме межпроцессное взаимодействие идет по unix-сокетам ZMQ (`ipc://<временный файл>`), и `--port` тут ни при чем. Но при `--enable-dp-attention` на одном узле `PortArgs.init_new` переключается на TCP и резервирует шесть портов подряд от `port + 233`, привязывая их к `127.0.0.1`. Порт `torch.distributed` (`--nccl-port`) от `--port` не производится: без явного значения берется случайный свободный.
 
-Проверка на конфликт в коде ровно одна: `check_server_args` требует `grpc_port != port`, когда нативный gRPC включен не в legacy-режиме (`--grpc-port (<N>) must differ from --port (<M>)`). Пересечение с `--nccl-port` и с производными ZMQ-портами не проверяется — в исходниках рядом с этой проверкой оставлена явная пометка, что такая валидация отложена.
+Проверка на конфликт в коде ровно одна: `check_server_args` (`sglang/python/sglang/srt/arg_groups/validation_hook.py`, после пайплайна резолва) требует `grpc_port != port`, когда нативный gRPC включен не в legacy-режиме (`--grpc-port (<N>) must differ from --port (<M>)`). Пересечение с `--nccl-port` и с производными ZMQ-портами не проверяется — в исходниках рядом с этой проверкой оставлена явная пометка, что такая валидация отложена.
 
 ## Значения и формат
 
@@ -102,6 +102,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

@@ -21,7 +21,7 @@ related:
 
 ## Кратко
 
-`--model-path` — единственный обязательный аргумент `sglang.launch_server`: без него argparse завершает процесс с `the following arguments are required: --model-path/--model`. Значение не только указывает на веса: от него по цепочке зависят токенайзер (`--tokenizer-path`), публичное имя в `/v1/models` (`--served-model-name`), автоопределение формата загрузки (`gguf`, `mistral`, `runai_streamer`, `remote`) и весь блок model-specific настроек в `__post_init__` — attention backend, page size, KV-dtype по умолчанию. Менять его на живом сервере нельзя: это идентичность процесса.
+`--model-path` — единственный обязательный аргумент `sglang.launch_server`: без него argparse завершает процесс с `the following arguments are required: --model-path/--model`. Значение не только указывает на веса: от него по цепочке зависят токенайзер (`--tokenizer-path`), публичное имя в `/v1/models` (`--served-model-name`), автоопределение формата загрузки (`gguf`, `mistral`, `runai_streamer`, `remote`) и весь блок model-specific настроек пайплайна резолва (`ServerArgs.resolve_once`) — attention backend, page size, KV-dtype по умолчанию. Менять его на живом сервере нельзя: это идентичность процесса.
 
 ## Оригинальная справка
 
@@ -36,19 +36,19 @@ The path of the model weights. This can be a local folder or a Hugging Face repo
 - Тип значения: строка (локальный путь, HF repo ID, `s3://`/`gs://`/`az://` URI, `<connector>://host:port/name`)
 - Допустимые значения: не ограничены на уровне argparse
 - Значение по умолчанию: отсутствует — поле датакласса объявлено без default, поэтому `add_cli_args` ставит `required=True` (`arg_groups/arg_utils.py`, ветка `arg_meta.required is None and default is _MISSING`)
-- Эффективное значение: переписывается на пути ModelScope (`SGLANG_USE_MODELSCOPE=1` → `_handle_modelscope_paths` подменяет repo ID на локальный snapshot); специальные значения `none`/`dummy` (без учета регистра) обрывают весь `__post_init__` сразу после `_handle_return_hidden_states_mode`
+- Эффективное значение: меняется на пути ModelScope (`SGLANG_USE_MODELSCOPE=1` → `handle_modelscope_paths` из `python/sglang/srt/arg_groups/model_path_hook.py`, вызываемый шагом резолва `handle_missing_default_values`, декларирует вместо repo ID локальный snapshot; `server_args.model_path` хранит исходную строку, итог — в `resolved_dict()` и `get_model().model_path`); специальные значения `none`/`dummy` (без учета регистра) обрывают пайплайн резолва `run_resolution_pipeline` сразу после шага `handle_hardware_runtime_validation` — выполняются только шаги до проверки dummy-модели и пасс `resolve_boundary_reduction`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.model_path`
 - Статус: обычный, обязательный
-- Этап применения: разбор CLI → `__post_init__` (автоопределение load format, model-specific ветки) → `ModelConfig.from_server_args` (чтение `config.json`) → загрузка весов в каждом TP/PP-воркере
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline` (автоопределение load format, model-specific ветки) → `ModelConfig.from_server_args` (чтение `config.json`) → загрузка весов в каждом TP/PP-воркере
 
 ## Что меняет в движке
 
 Значение попадает в `ServerArgs.model_path` и расходится по четырем маршрутам.
 
 1. **Конфиг модели.** `ModelConfig.from_server_args` передает путь в `get_config()` (`sglang/python/sglang/srt/utils/hf_transformers/config.py`), где выбирается парсер (`--model-config-parser`), читается `config.json` и накладываются `--json-model-override-args`. Отсюда берутся архитектура, число слоев/голов, `max_position_embeddings` — то есть база для `--context-length` и для расчета размера KV-пула.
-2. **Формат загрузки.** `_handle_load_format` смотрит на сам путь: `check_gguf_file(model_path)` → `load_format=gguf`; `_is_mistral_native_format()` (есть `consolidated*.safetensors` и нет `model*.safetensors`, либо имя матчится на mistral-large-3 / mistral-small-4 / leanstral) → `load_format=mistral`; `is_runai_obj_uri` (`s3://`, `gs://`, `az://`) → `runai_streamer`; любой другой `<схема>://` → `remote`.
-3. **Производные имена.** `_handle_missing_default_values` подставляет `tokenizer_path = model_path` и `served_model_name = model_path`, если они не заданы. Значит, публичное имя модели в OpenAI-совместимом API по умолчанию равно строке пути — для локального каталога это некрасивый абсолютный путь, и его почти всегда стоит перебить `--served-model-name`.
-4. **Model-specific ветки.** `_handle_model_specific_adjustments` диспетчеризуется по `hf_config.architectures[0]`, а не по имени пути; но чтобы получить архитектуру, движок уже должен прочитать конфиг по этому пути. Поэтому недоступный путь ломает старт раньше любых других проверок.
+2. **Формат загрузки.** Шаг резолва `handle_load_format` (`sglang/python/sglang/srt/arg_groups/model_path_hook.py`) смотрит на сам путь: `check_gguf_file(model_path)` → `load_format=gguf`; `is_mistral_native_format()` (есть `consolidated*.safetensors` и нет `model*.safetensors`, либо имя матчится на mistral-large-3 / mistral-small-4 / leanstral) → `load_format=mistral`; `is_runai_obj_uri` (`s3://`, `gs://`, `az://`) → `runai_streamer`; любой другой `<схема>://` → `remote`.
+3. **Производные имена.** Шаг `handle_missing_default_values` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`) подставляет `tokenizer_path = model_path` и `served_model_name = model_path`, если они не заданы. Значит, публичное имя модели в OpenAI-совместимом API по умолчанию равно строке пути — для локального каталога это некрасивый абсолютный путь, и его почти всегда стоит перебить `--served-model-name`.
+4. **Model-specific ветки.** Шаг `handle_model_specific_adjustments` (`sglang/python/sglang/srt/arg_groups/model_hook.py`) диспетчеризуется по `hf_config.architectures[0]`, а не по имени пути; но чтобы получить архитектуру, движок уже должен прочитать конфиг по этому пути. Поэтому недоступный путь ломает старт раньше любых других проверок.
 
 Веса читаются на этапе `ModelRunner.load_model` каждым воркером независимо — при `--tp-size N` файл читается N раз (`--weight-loader-prefetch-checkpoints` существует именно для сетевых ФС).
 
@@ -57,9 +57,9 @@ The path of the model weights. This can be a local folder or a Hugging Face repo
 - **Локальный каталог** — обычный случай: каталог с `config.json` и весами. Проверка существования отдельно не делается: ошибка приходит из `transformers` при чтении конфига.
 - **HF repo ID** (`org/name`) — конфиг и токенайзер тянутся через обычный HF-кеш, веса — через `download_weights_from_hf` с `cache_dir=--download-dir`. Требуется сеть на старте; версия фиксируется через `--revision`.
 - **GGUF-файл** — путь указывает на *файл*, а не каталог: `GGUFModelLoader._prepare_weights` явно требует `os.path.isfile`, иначе `ValueError: … is not a file.` Конфиг при этом читается из каталога-родителя.
-- **`s3://`, `gs://`, `az://`** — RunAI Model Streamer; `_handle_model_source_paths` заранее скачивает метаданные (`ObjectStorageModel.download_and_get_path`).
+- **`s3://`, `gs://`, `az://`** — RunAI Model Streamer; шаг `handle_model_source_paths` (первый после проверки dummy-модели) заранее скачивает метаданные (`ObjectStorageModel.download_and_get_path`).
 - **`<схема>://…`** прочих видов — connector-путь; `instance://` (`ConnectorType.INSTANCE`) — это режим получения весов от другого инстанса, он же отключает часть обычных проверок.
-- **`none` / `dummy`** (без учета регистра) — служебное значение: `__post_init__` возвращается сразу, ни одна model-specific настройка не применяется. Для профилирования с настоящей архитектурой нужен реальный путь плюс `--load-format dummy`, а не `--model-path dummy`.
+- **`none` / `dummy`** (без учета регистра) — служебное значение: пайплайн резолва возвращается сразу после первых шагов, ни одна model-specific настройка не применяется. Для профилирования с настоящей архитектурой нужен реальный путь плюс `--load-format dummy`, а не `--model-path dummy`.
 - Пробелы и кириллица в пути не запрещены, но `served_model_name` по умолчанию унаследует их целиком — задавайте `--served-model-name` явно.
 
 ## Когда использовать
@@ -112,6 +112,10 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --revision main -
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/pipeline.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/config.py`

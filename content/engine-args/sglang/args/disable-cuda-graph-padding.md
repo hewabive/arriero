@@ -37,16 +37,16 @@ Disable cuda graph when padding is needed. Still uses cuda graph when padding is
 - Тип значения: bool, `action="store_true"` — значение не принимает
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется; но есть жесткая проверка — `assert not (disable_cuda_graph_padding and enable_torch_compile)`, сервер не стартует при обоих флагах
+- Эффективное значение: не переопределяется; но есть жесткая проверка — `assert not (disable_cuda_graph_padding and enable_torch_compile)` в `check_server_args` (`arg_groups/validation_hook.py`, вызывается при старте после `resolve_once`), сервер не стартует при обоих флагах
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_cuda_graph_padding`
 - Статус: обычный
-- Этап применения: `__post_init__` (генерация списка форм в `_generate_decode_cuda_graph_batch_sizes` / `_generate_cpu_graph_batch_sizes`) → создание decode-runner'а (`self.disable_padding`) → каждый выбор графа в `can_run_graph`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_gpu_memory_settings` (генерация списка форм в `generate_decode_cuda_graph_batch_sizes` / `generate_cpu_graph_batch_sizes` из `arg_groups/cuda_graph_hook.py`) → создание decode-runner'а (`self.disable_padding`) → каждый выбор графа в `can_run_graph`
 
 ## Что меняет в движке
 
 ### На этапе генерации форм
 
-`_generate_decode_cuda_graph_batch_sizes(max_bs)` при взведенном флаге возвращает `list(range(1, max_bs + 1))` — все размеры подряд, вместо сетки `[1, 2, 4, 8, 12] + range(16, 257, 8) + …`. Аналогично `_generate_cpu_graph_batch_sizes` для `--device cpu`. Разница драматична: `max_bs 160` — 24 формы против 160, `max_bs 512` — 52 против 512.
+`generate_decode_cuda_graph_batch_sizes(server_args, max_bs)` при взведенном флаге возвращает `list(range(1, max_bs + 1))` — все размеры подряд, вместо сетки `[1, 2, 4, 8, 12] + range(16, 257, 8) + …`. Аналогично `generate_cpu_graph_batch_sizes` для `--device cpu`. Разница драматична: `max_bs 160` — 24 формы против 160, `max_bs 512` — 52 против 512.
 
 Если формы заданы вручную через `--cuda-graph-bs-decode`, генератор не вызывается и состав списка флаг не меняет — остается только эффект времени исполнения.
 
@@ -84,7 +84,7 @@ is_bs_supported = (
 ## Влияние на производительность и память
 
 - **Время старта.** Растет пропорционально числу форм: с 24 до 160 при `max_bs 160`, то есть примерно в 6–7 раз.
-- **VRAM.** Каждый захваченный граф занимает память в общем mempool. Априорный резерв в автоподборе `--mem-fraction-static` при этом **не меняется**: `reserve_for_graph_mb()` считает `decode.max_bs * 2` МиБ и не смотрит на длину списка. То есть при взведенном флаге автоподбор систематически недооценивает расход — при явно заданном `--mem-fraction-static` это прямой путь к OOM на захвате.
+- **VRAM.** Каждый захваченный граф занимает память в общем mempool. Априорный резерв в автоподборе `--mem-fraction-static` при этом **не меняется**: `reserve_for_graph_mb(server_args)` (`arg_groups/memory_hook.py`, вызывается из `handle_gpu_memory_settings`) считает `decode.max_bs * 2` МиБ и не смотрит на длину списка. То есть при взведенном флаге автоподбор систематически недооценивает расход — при явно заданном `--mem-fraction-static` это прямой путь к OOM на захвате.
 - **Latency.** На покрытых размерах — небольшой выигрыш (нет лишних строк). На непокрытых (например при заданном вручную списке) — полный откат в eager, то есть заметная потеря.
 - **RAM хоста:** без изменений.
 
@@ -120,6 +120,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --disable-cuda
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/cpu_graph_runner.py`
 - `sglang/python/sglang/srt/speculative/eagle_draft_cuda_graph_runner.py`

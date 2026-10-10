@@ -33,7 +33,7 @@ Maximum seconds of PCM audio the streaming ASR WebSocket handler will accumulate
 - Тип значения: целое, единица измерения — секунды звука
 - Допустимые значения: `choices` нет; строго положительное целое (проверяется на старте)
 - Значение по умолчанию: `60`
-- Эффективное значение: `__post_init__` не переопределяет, но `_handle_asr_validation` отвергает неположительные значения
+- Эффективное значение: совпадает с заданным — ни один шаг резолва его не декларирует, но шаг `handle_asr_validation` (`python/sglang/srt/arg_groups/serving_hook.py`) отвергает неположительные значения
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.asr_max_buffer_seconds`
 - Статус: обычный
 - Этап применения: создание `RealtimeConnection` на каждое WebSocket-соединение `/v1/realtime` → проверка при каждом `input_audio_buffer.append`
@@ -69,11 +69,12 @@ if len(self.audio.pcm_buffer) + target_samples * _SAMPLE_WIDTH > self.audio.max_
 
 То есть сессия не «подрезается», а **закрывается**: клиенту уходит error-событие с кодом `buffer_overflow` и WebSocket закрывается кодом 1009 (`message too big`), чтобы отличить исчерпание ресурсов от штатного завершения.
 
-Валидация значения — в `ServerArgs._handle_asr_validation`:
+Валидация значения — в шаге резолва `handle_asr_validation` (`python/sglang/srt/arg_groups/serving_hook.py`), который `ServerArgs.resolve_once` запускает через `run_resolution_pipeline`:
 
 ```python
-if self.asr_max_buffer_seconds <= 0:
-    raise ValueError(f"--asr-max-buffer-seconds must be positive (got {self.asr_max_buffer_seconds}).")
+cfg = resolving_view(server_args)
+if cfg.asr_max_buffer_seconds <= 0:
+    raise ValueError(f"--asr-max-buffer-seconds must be positive (got {cfg.asr_max_buffer_seconds}).")
 ```
 
 ## Значения и формат
@@ -126,6 +127,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-ASR-Flash --asr-max-bu
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/session.py`
 - `sglang/python/sglang/srt/entrypoints/openai/realtime/handler.py`
 - `sglang/python/sglang/srt/entrypoints/openai/serving_transcription.py`

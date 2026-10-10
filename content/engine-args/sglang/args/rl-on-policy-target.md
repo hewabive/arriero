@@ -35,21 +35,25 @@ The training system that SGLang needs to match for true on-policy.
 - Флаги: `--rl-on-policy-target`
 - Группа: `exec.deterministic`
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
-- Допустимые значения: `fsdp` (константа `RL_ON_POLICY_TARGET_CHOICES`; out-of-tree пакеты могут расширить список через `add_rl_on_policy_target_choices`, поэтому итоговый набор смотрите в `--help` установленной сборки)
+- Допустимые значения: `fsdp` (константа `RL_ON_POLICY_TARGET_CHOICES` в `arg_groups/choices.py`; out-of-tree пакеты могут расширить список через `add_rl_on_policy_target_choices` — алиас `RL_ON_POLICY_TARGET_CHOICES.extend` там же, поэтому итоговый набор смотрите в `--help` установленной сборки)
 - Значение по умолчанию: `null` — режим выключен
-- Эффективное значение: совпадает с заданным, но **переписывает соседей**: `--enable-deterministic-inference` становится `true`, `SGLANG_VLM_CACHE_SIZE_MB` — `0`, `SGLANG_ENABLE_DETERMINISTIC_INFERENCE` — `True`
+- Эффективное значение: совпадает с заданным, но **переписывает соседей**: `--enable-deterministic-inference` становится `true` (декларируется через `declare_resolution`: сырое поле не меняется, дамп `server_args=` показывает `true`), `SGLANG_VLM_CACHE_SIZE_MB` — `0`, `SGLANG_ENABLE_DETERMINISTIC_INFERENCE` — `True` (переменные окружения выставляются напрямую)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDeterministic.rl_on_policy_target`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_deterministic_inference` — первым делом) → построение слоев модели (выбор реализаций) → каждый forward и sampling
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deterministic_inference` (`arg_groups/attention_hook.py`; первым делом) → построение слоев модели (выбор реализаций) → каждый forward и sampling
 
 ## Что меняет в движке
 
 ### Первым делом — детерминированный режим
 
 ```python
-if self.rl_on_policy_target is not None:
+if cfg.rl_on_policy_target is not None:
     logger.warning("Enable deterministic inference because of rl_on_policy_target.")
-    self.enable_deterministic_inference = True
+    declare_resolution(
+        server_args,
+        "_handle_deterministic_inference",
+        enable_deterministic_inference=True,
+    )
     envs.SGLANG_VLM_CACHE_SIZE_MB.set(0)
     envs.SGLANG_ENABLE_DETERMINISTIC_INFERENCE.set(True)
 ```
@@ -121,6 +125,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --rl-on-policy-targ
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/layers/rotary_embedding/base.py`
 - `sglang/python/sglang/srt/layers/activation.py`
 - `sglang/python/sglang/srt/layers/layernorm.py`

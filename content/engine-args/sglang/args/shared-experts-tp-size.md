@@ -36,7 +36,7 @@ Shared-expert TP size for Kimi-K3 with an expert-parallel all-to-all backend. Mu
 - Эффективное значение: совпадает с заданным; `handle_shared_experts_tp` (`arg_groups/parallel_hook.py`) только проверяет его, не переписывая
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.shared_experts_tp_size`
 - Статус: обычный, узкоспециализированный (одна архитектура)
-- Этап применения: `__post_init__` (проверки) → `initialize_model_parallel` (создание группы `shared_experts_tp`) → конструктор MoE-слоя `kimi_k3.py` (шардирование весов) → forward каждого MoE-слоя
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_shared_experts_tp` (проверки) → `initialize_model_parallel` (создание группы `shared_experts_tp`) → конструктор MoE-слоя `kimi_k3.py` (шардирование весов) → forward каждого MoE-слоя
 
 ## Что меняет в движке
 

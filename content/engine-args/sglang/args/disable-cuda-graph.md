@@ -38,10 +38,10 @@ Deprecated. Use --cuda-graph-backend-{decode,prefill}=disabled instead.
 - Тип значения: bool, флаг без значения
 - Допустимые значения: только присутствие флага
 - Значение по умолчанию: `False` (значение по умолчанию `DeprecatedStoreTrueAction`)
-- Эффективное значение: `_parse_cuda_graph_config` превращает `True` в `cuda_graph_config.decode.backend = disabled` и `cuda_graph_config.prefill.backend = disabled`. Это самая низкая ступень приоритета: и `--disable-{decode,prefill}-cuda-graph`, и `--cuda-graph-backend-*`, и JSON `--cuda-graph-config` перезаписывают результат
+- Эффективное значение: `parse_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) превращает `True` в `decode.backend = disabled` и `prefill.backend = disabled` внутри итогового `cuda_graph_config`, который он декларирует через `declare_resolution`. Это самая низкая ступень приоритета: и `--disable-{decode,prefill}-cuda-graph`, и `--cuda-graph-backend-*`, и JSON `--cuda-graph-config` перезаписывают результат
 - Где объявлен: `python/sglang/srt/server_args.py:ServerArgs.add_cli_args`
 - Статус: устаревший (`DeprecatedStoreTrueAction`), замена — `--cuda-graph-backend-decode=disabled` / `--cuda-graph-backend-prefill=disabled`
-- Этап применения: разбор CLI (предупреждение) → `__post_init__` → `_handle_cuda_graph_config` → `_handle_gpu_memory_settings` (резерв под графы) → `capture_cuda_graphs` в model runner'е
+- Этап применения: разбор CLI (предупреждение) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) → `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`, резерв под графы) → `capture_cuda_graphs` в model runner'е
 
 ## Что меняет в движке
 
@@ -55,15 +55,15 @@ Deprecated. Use --cuda-graph-backend-{decode,prefill}=disabled instead.
 
 Оно выводится на этапе разбора аргументов, то есть **до** вызова `logging.basicConfig` в `prepare_server_args` — поэтому строка появляется в самом начале вывода, без привычного префикса `[YYYY-MM-DD HH:MM:SS]`, которым размечены все последующие сообщения.
 
-Дальше `_parse_cuda_graph_config` выполняет трансляцию первым же шагом:
+Дальше `parse_cuda_graph_config` выполняет трансляцию первым же шагом:
 
 ```python
-if self.disable_cuda_graph:
+if cfg.disable_cuda_graph:
     _set(Phase.DECODE, "backend", Backend.DISABLED)
     _set(Phase.PREFILL, "backend", Backend.DISABLED)
 ```
 
-`_set` не только присваивает, но и заносит пару `(фаза, ключ)` в `_cuda_graph_config_locked`. Блокировка означает, что каскад авто-отключения (`_apply_cuda_graph_compatibility`) для prefill не запустится — впрочем, отключать уже нечего.
+`_set` не только присваивает, но и заносит пару `(фаза, ключ)` в `server_args._cuda_graph_config_locked`. Блокировка означает, что каскад авто-отключения (`apply_cuda_graph_compatibility`) для prefill не запустится — впрочем, отключать уже нечего.
 
 ### Что перестает происходить
 
@@ -84,7 +84,7 @@ Capture target decode CUDA graph end. elapsed=18.62 s, mem usage=0.43 GB, avail 
 
 ### Косвенный эффект на память
 
-`reserve_for_graph_mb()` при отключенных графах возвращает 0 для соответствующей фазы. Если `--mem-fraction-static` не задан явно, автоподбор из-за этого выдаст **большее** значение, то есть KV-пул вырастет. Величина заметная: для decode-графа резерв составляет `cuda_graph_config.decode.max_bs * 2` МиБ, для MLA-моделей prefill-граф резервирует фиксированные 1.5 ГиБ.
+`reserve_for_graph_mb()` (`arg_groups/memory_hook.py`) при отключенных графах возвращает 0 для соответствующей фазы. Если `--mem-fraction-static` не задан явно, автоподбор из-за этого выдаст **большее** значение, то есть KV-пул вырастет. Величина заметная: для decode-графа резерв составляет `cuda_graph_config.decode.max_bs * 2` МиБ, для MLA-моделей prefill-граф резервирует фиксированные 1.5 ГиБ.
 
 ## Значения и формат
 
@@ -143,6 +143,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/argparse_actions.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend_utils/__init__.py`

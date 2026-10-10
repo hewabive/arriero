@@ -38,16 +38,16 @@ Maximum batch size captured for the decode cuda graph.
 - Тип значения: int
 - Допустимые значения: положительное целое; argparse верхнюю границу не проверяет
 - Значение по умолчанию: `null` — «подберет движок»
-- Эффективное значение: подбирается в `_handle_gpu_memory_settings` по объему GPU-памяти и `--tp-size` (таблица ниже). Если задан `--cuda-graph-bs-decode`, значение **перезаписывается** на `max(bs)`. На `--device cpu` перезаписывается на `--torch-compile-max-bs`
+- Эффективное значение: подбирается шагом резолва `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`) по объему GPU-памяти и `--tp-size` (таблица ниже). Если задан `--cuda-graph-bs-decode`, значение **перезаписывается** на `max(bs)`. На `--device cpu` перезаписывается на `--torch-compile-max-bs`. Итог декларируется в разрешенном `cuda_graph_config` (`declare_resolution`) и виден в дампе `server_args=`, а сырое поле хранит ввод оператора
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_max_bs_decode`
 - Статус: обычный; прежний общий флаг максимума decode-батча удалён
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config` → `_handle_gpu_memory_settings`) → `get_batch_sizes_to_capture` при создании decode-runner'а → захват графов
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) → `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`) → `get_batch_sizes_to_capture` при создании decode-runner'а → захват графов
 
 ## Что меняет в движке
 
 ### Автоподбор при незаданном значении
 
-`_handle_gpu_memory_settings(gpu_mem)` получает емкость карты в МиБ и выбирает значение вместе с `--chunked-prefill-size`:
+`handle_gpu_memory_settings` берет емкость карты в МиБ из `get_device_memory_capacity` и выбирает значение вместе с `--chunked-prefill-size`:
 
 | Емкость GPU | `chunked_prefill_size` | `cuda_graph_max_bs_decode` |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ Maximum batch size captured for the decode cuda graph.
 
 ### Как из значения получается список форм
 
-`_generate_decode_cuda_graph_batch_sizes(max_bs)` строит сетку и отсекает все, что больше `max_bs`, после чего добавляет сам `max_bs`, если его в сетке нет:
+`generate_decode_cuda_graph_batch_sizes(server_args, max_bs)` (`arg_groups/cuda_graph_hook.py`) строит сетку и отсекает все, что больше `max_bs`, после чего добавляет сам `max_bs`, если его в сетке нет:
 
 - обычный режим: `[1, 2, 4, 8, 12]` + `range(16, 257, 8)` + `range(272, 512, 16)` + `range(512, max_bs+1, 32)`;
 - при заданном `--speculative-algorithm`: `range(1, 9)` + `range(10, 33, 2)` + `range(40, 65, 4)` + `range(72, 257, 8)` + `range(272, max_bs+1, 16)` — мельче на маленьких батчах, чтобы padding не съедал выигрыш спекуляции;
@@ -102,7 +102,7 @@ Maximum batch size captured for the decode cuda graph.
 
 ## Влияние на производительность и память
 
-- **VRAM.** Априорная оценка в автоподборе `--mem-fraction-static` — ровно `decode.max_bs * 2` МиБ (`reserve_for_graph_mb()`), то есть 512 МиБ при `max_bs 256`. При включенном DP attention добавляется `max_bs * dp_size * 3` МиБ, а при `max_bs > 300` еще `max_bs * dp_size * 1.5` МиБ. Фактический расход печатается в строке `Capture target decode CUDA graph end. … mem usage=… GB`.
+- **VRAM.** Априорная оценка в автоподборе `--mem-fraction-static` — ровно `decode.max_bs * 2` МиБ (`reserve_for_graph_mb(server_args)` в `arg_groups/memory_hook.py`), то есть 512 МиБ при `max_bs 256`. При включенном DP attention добавляется `max_bs * dp_size * 3` МиБ, а при `max_bs > 300` еще `max_bs * dp_size * 1.5` МиБ. Фактический расход печатается в строке `Capture target decode CUDA graph end. … mem usage=… GB`.
 - **Время старта.** Пропорционально числу форм. Переход с автоподобранных 256 на 512 — это 36 → 52 формы, то есть примерно +45 % времени захвата.
 - **Latency:** повышение порога помогает только тем батчам, которые раньше не попадали в граф; на остальных ничего не меняется.
 - **Padding.** Батч 130 при захваченных `128, 136` выполняется как 136: считаются лишние строки. Чем реже сетка, тем выше эти потери — и наоборот, `--disable-cuda-graph-padding` их убирает ценой сотен графов.
@@ -113,7 +113,7 @@ Maximum batch size captured for the decode cuda graph.
 - `--cuda-graph-config`: ключ `decode.max_bs` перекрывает флаг.
 
 - `--max-running-requests`: реальный потолок набора форм. Поднимать `max_bs` без него бесполезно.
-- `--mem-fraction-static`: линейная связь через `reserve_for_graph_mb()`. При явно заданном `--mem-fraction-static` рост `max_bs` не компенсируется и ведет к OOM на захвате.
+- `--mem-fraction-static`: линейная связь через `reserve_for_graph_mb`. При явно заданном `--mem-fraction-static` рост `max_bs` не компенсируется и ведет к OOM на захвате.
 - `--tp-size`: вход автоподбора (порог `tp_size < 4`).
 - `--speculative-algorithm`: меняет сетку форм на более плотную; кроме того, каждая форма захватывается с шириной `num_tokens_per_req > 1`.
 - `--disable-cuda-graph-padding`: превращает сетку в сплошной диапазон `1…max_bs`.
@@ -142,6 +142,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-m
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/runner/decode_cuda_graph_runner.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`

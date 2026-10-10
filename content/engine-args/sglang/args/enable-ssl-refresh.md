@@ -38,7 +38,7 @@ Enable automatic SSL certificate hot-reloading when cert/key files change on dis
 - Эффективное значение: `False`, если `--tokenizer-worker-num > 1` — там ветка запуска просто пишет предупреждение и идет обычным путем `uvicorn.run(workers=N)`, не создавая `SSLCertRefresher`. Само поле `ServerArgs.enable_ssl_refresh` при этом остается `True`, так что дампу `server_args=` в этом вопросе доверять нельзя
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_ssl_refresh`
 - Статус: обычный
-- Этап применения: `__post_init__` → `_handle_ssl_validation` (парные проверки) → HTTP-слой, выбор ветки запуска в `_setup_and_run_http_server`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_ssl_validation` (`arg_groups/serving_hook.py`, парные проверки) → HTTP-слой, выбор ветки запуска в `_setup_and_run_http_server`
 
 ## Что меняет в движке
 
@@ -63,7 +63,7 @@ Enable automatic SSL certificate hot-reloading when cert/key files change on dis
 
 - Флаг без значения. Указан — включено, не указан — выключено.
 - Отслеживаются именно пути, переданные в аргументах. `watchfiles` работает через inotify: замена файла через `mv` (типичная схема ротации) порождает событие и приводит к перезагрузке; изменение цели симлинка без изменения самого файла может остаться незамеченным — надежнее менять содержимое по тому же пути.
-- Требование в справке — не рекомендация: `_handle_ssl_validation` бросает `ValueError: --enable-ssl-refresh requires --ssl-certfile and --ssl-keyfile to be specified.`
+- Требование в справке — не рекомендация: `handle_ssl_validation` бросает `ValueError: --enable-ssl-refresh requires --ssl-certfile and --ssl-keyfile to be specified.`
 
 ## Когда использовать
 
@@ -78,7 +78,7 @@ Enable automatic SSL certificate hot-reloading when cert/key files change on dis
 
 ## Взаимодействие с другими аргументами
 
-- `--ssl-certfile` + `--ssl-keyfile`: обязательное условие, проверяется в `_handle_ssl_validation`.
+- `--ssl-certfile` + `--ssl-keyfile`: обязательное условие, проверяется в `handle_ssl_validation`.
 - `--ssl-ca-certs`: включает вторую задачу-наблюдатель за CA-бандлом.
 - `--ssl-keyfile-password`: пароль не участвует в перезагрузке — hot-reload зашифрованного ключа не работает.
 - `--enable-http2`: `ValueError: --enable-ssl-refresh is not supported with --enable-http2. Granian does not support SSL certificate hot-reloading. Use Uvicorn (the default) or handle certificate rotation externally.`
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/entrypoints/ssl_utils.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`

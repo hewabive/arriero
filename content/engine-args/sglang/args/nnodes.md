@@ -37,10 +37,10 @@ The number of nodes.
 - Тип значения: int
 - Допустимые значения: `choices` нет; делители `tp_size * pp_size`
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным — ни один `_handle_*` его не переписывает. Зато оно само переписывает соседей: при `nnodes > 1` отключается `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` (кроме MNNVL-железа) и запрещается `--mm-feature-transport cuda_ipc`; авто-выбор транспорта признаков на нескольких узлах дает `cpu` (IPC-хендлы работают только внутри узла), тогда как на одном CUDA-узле без disaggregation он выбирает `cuda_ipc`
+- Эффективное значение: совпадает с заданным — ни один шаг резолва его не декларирует. Зато оно влияет на соседей: при `nnodes > 1` запрещается `--mm-feature-transport cuda_ipc`, а авто-выбор транспорта признаков (`handle_multimodal_feature_transport`) дает `cpu` — кроме GB200/GB300 с MNNVL и смонтированным IMEX-каналом, где для моделей с поддержкой выбирается `cuda_vmm`; на одном узле авто-выбор тоже дает `cpu`, а `cuda_ipc` включается только явно. Custom all-reduce v2 резолв больше не трогает (прежний `_handle_custom_all_reduce_v2_multinode` удален): выбор делается в рантайме по топологии группы
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.nnodes`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_multimodal_feature_transport`, `_handle_custom_all_reduce_v2_multinode`, ветки модельных настроек) → `check_server_args` (делимость) → `PortArgs.init_new` → `_calculate_rank_ranges` (какие ранги поднимает этот узел) → `init_distributed_environment`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (`handle_environment_variables` → `handle_multimodal_feature_transport` в `arg_groups/serving_hook.py`, ветки модельных настроек) → `check_server_args` (`arg_groups/validation_hook.py`, вызывается из `Engine._launch_subprocesses` после резолва; делимость) → `PortArgs.init_new` → `_calculate_rank_ranges` (какие ранги поднимает этот узел) → `init_distributed_environment`
 
 ## Что меняет в движке
 
@@ -72,8 +72,8 @@ HTTP-сервер, tokenizer и detokenizer живут только на узл�
 
 ### Что отключается на нескольких узлах
 
-- `--mm-feature-transport cuda_ipc`: `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` На одном CUDA-узле без disaggregation авто-подбор сам выбирает `cuda_ipc`; на нескольких узлах остается только CPU-транспорт.
-- `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` принудительно выставляется в `0` с предупреждением `Disabling SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2 because nnodes=N (custom all-reduce v2 is intra-node only).` Исключение — MNNVL-fabric при `tp_size <= 8`, где вместо этого включается `SGLANG_ENABLE_CUSTOM_ALL_REDUCE_V2_MULTINODE`.
+- `--mm-feature-transport cuda_ipc`: `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.` Авто-подбор `cuda_ipc` не выбирает и на одном узле — он включается только явно; на нескольких узлах авто-подбор дает CPU-транспорт, а на GB200/GB300 с MNNVL/IMEX — `cuda_vmm` для моделей, которые его поддерживают.
+- Custom all-reduce v2: резолв аргументов `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` больше не сбрасывает, а переменной `SGLANG_ENABLE_CUSTOM_ALL_REDUCE_V2_MULTINODE` больше нет. При создании группы `dispatch_custom_allreduce` (`distributed/device_communicators/custom_all_reduce.py`) берет v2 для межузловой группы, только если `can_use_custom_all_reduce_v2` видит один NVLink-клик (MNNVL) и VMM-аллокатор; остальные межузловые группы уходят на NCCL.
 - Aiter AllReduce Fusion для DeepSeekV3/GPT-OSS рассматривается только при `nnodes == 1`.
 - `--weight-cache-mode daemon` требует заданного `--dist-init-addr`.
 
@@ -95,7 +95,7 @@ HTTP-сервер, tokenizer и detokenizer живут только на узл�
 ## Влияние на производительность и память
 
 - **VRAM.** Сам по себе не влияет: делится то, что уже задано `--tp-size`/`--pp-size`.
-- **Коллективы.** Часть all-reduce уходит на межузловой линк. Оптимизированный custom all-reduce v2 при этом отключается — остается общий путь NCCL.
+- **Коллективы.** Часть all-reduce уходит на межузловой линк. Вне MNNVL-клика custom all-reduce v2 для межузловой группы не выбирается — остается общий путь NCCL.
 - **Время старта.** Растет: добавляется ожидание рандеву; при недоступном узле старт висит до `--dist-timeout`.
 - **Мультимодальные модели.** Дешевый `cuda_ipc`-транспорт признаков становится недоступен даже явным указанием; на больших изображениях CPU-транспорт заметно дороже по TTFT. На одном узле его хотя бы можно включить руками — здесь нет.
 - **Хост.** На каждом узле поднимается `pp_size_per_node * tp_size_per_node` процессов.
@@ -118,7 +118,6 @@ HTTP-сервер, tokenizer и detokenizer живут только на узл�
 - `ValueError: --mm-feature-transport=cuda_ipc only supports a single node.`
 - `AssertionError: multi-node data parallel is not supported unless dp attention!`
 - `ValueError: Multi-node weight cache daemons (nnodes > 1) require --dist-init-addr …`
-- Предупреждение `Disabling SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2 because nnodes=…` — ожидаемо, не ошибка.
 - Апстрим-документация советует при дедлоках на многоузловом TP дополнительно попробовать `--disable-cuda-graph`.
 - Принятое значение — в дампе `server_args=` на каждом узле; фактические ранги узла — по префиксам ` TP<n>` в его логе.
 
@@ -136,6 +135,10 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.1 --tensor-p
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/distributed/device_communicators/custom_all_reduce.py`
+- `sglang/python/sglang/srt/distributed/device_communicators/custom_all_reduce_v2.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`

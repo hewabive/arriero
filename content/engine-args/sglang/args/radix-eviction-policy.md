@@ -33,10 +33,10 @@ The eviction policy of radix trees. 'lru' stands for Least Recently Used, 'lfu' 
 - Тип значения: строка с фиксированным списком
 - Допустимые значения: `lru`, `lfu`, `slru`, `priority`, `tlru`. Список — константа `RADIX_EVICTION_POLICY_CHOICES` в `sglang/python/sglang/srt/arg_groups/choices.py`; функция `add_radix_eviction_policy_choices` позволяет сторонним пакетам его расширить, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `lru`
-- Эффективное значение: не переопределяется в `__post_init__`; для `tlru` `handle_cache_compatibility` там же проверяет параметры из `--radix-eviction-policy-config`
+- Эффективное значение: совпадает с заданным, с одним исключением: model override `_qwen3vl_hopper_serving_overrides` (`sglang/python/sglang/srt/arg_groups/model_overrides/qwen3_vl.py`, собирается в шаге резолва `handle_model_specific_adjustments`) для Qwen3-VL / Qwen3-VL-MoE на Hopper (SM90) с не менее чем 60 ГиБ памяти GPU заменяет явно не заданный `lru` на `priority`. Для `tlru` шаг резолва `handle_cache_compatibility` (`sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`) проверяет параметры из `--radix-eviction-policy-config`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.radix_eviction_policy`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка параметров `tlru`) → конструктор дерева кеша (через `CacheInitParams.eviction_policy` и `eviction_policy_config`; для `tlru` — проверка, что построен `UnifiedRadixCache`) → каждый проход вытеснения
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_model_specific_adjustments` и `handle_cache_compatibility` — проверка параметров `tlru`) → конструктор дерева кеша (через `CacheInitParams.eviction_policy` и `eviction_policy_config`; для `tlru` — проверка, что построен `UnifiedRadixCache`) → каждый проход вытеснения
 
 ## Что меняет в движке
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --radix-evicti
 - `sglang/python/sglang/srt/arg_groups/fields/memory.py`
 - `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/qwen3_vl.py`
 - `sglang/python/sglang/srt/mem_cache/evict_policy.py`
 - `sglang/python/sglang/srt/mem_cache/utils.py`
 - `sglang/python/sglang/srt/mem_cache/radix_cache.py`

@@ -36,15 +36,15 @@ Explicit list of batch sizes to capture for the prefill cuda graph.
 - Группа: `exec.graph`
 - Тип значения: список целых, `nargs="+"` — значения разделяются пробелами; единица измерения — токены
 - Допустимые значения: положительные целые
-- Значение по умолчанию: `null` — список генерируется `_generate_prefill_cuda_graph_batch_sizes(prefill.max_bs)`
-- Эффективное значение: заданный список может быть переписан в трех местах — выравнивание по 8 при MoE a2a backend `deepep` и prefill-backend'е `breakable` (`_apply_deepep_adjustments`), отсечение бакетов больше `max_capture_requests * context_length` в `capture_prefill_graph`, и фильтр CP при `enable_cp_v2_bcg_capture`. Итог записывается обратно в `cuda_graph_config[prefill].bs`
+- Значение по умолчанию: `null` — список генерируется `generate_prefill_cuda_graph_batch_sizes(prefill.max_bs)` (`python/sglang/srt/arg_groups/cuda_graph_hook.py`) в шаге резолва `handle_gpu_memory_settings`
+- Эффективное значение: заданный список может быть переписан в трех местах — выравнивание по 8 при MoE a2a backend `deepep` и prefill-backend'е `breakable` (`apply_deepep_adjustments` в `python/sglang/srt/arg_groups/cuda_graph_hook.py`), отсечение бакетов больше `max_capture_requests * context_length` в `capture_prefill_graph`, и фильтр CP при `enable_cp_v2_bcg_capture`. Итог записывается обратно в `cuda_graph_config[prefill].bs`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_bs_prefill`
 - Статус: обычный; прежний флаг размера prefill-графа удалён
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`, `_apply_deepep_adjustments`) → `capture_prefill_graph` → компиляция (`tc_piecewise`) и захват
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_cuda_graph_config` (внутри — `apply_deepep_adjustments`) и `handle_gpu_memory_settings` → `capture_prefill_graph` → компиляция (`tc_piecewise`) и захват
 
 ## Что меняет в движке
 
-При заданном списке `_handle_gpu_memory_settings` не вызывает генератор сетки, и `--cuda-graph-max-bs-prefill` в расчете не участвует (само поле `prefill.max_bs` остается тем, что вы задали или что подобрал движок, но список от него больше не зависит).
+При заданном списке шаг резолва `handle_gpu_memory_settings` (`python/sglang/srt/arg_groups/memory_hook.py`) не вызывает генератор сетки, и `--cuda-graph-max-bs-prefill` в расчете не участвует (само поле `prefill.max_bs` остается тем, что вы задали или что подобрал движок, но список от него больше не зависит).
 
 `capture_prefill_graph` считает потолок по емкости — `max_capture_tokens = max_capture_requests * context_length`, где `max_capture_requests` равно размеру `req_to_token_pool` (для backend'а `full` — `full_prefill_max_req`) — и оставляет только бакеты не больше него. Отфильтрованный отсортированный список записывается обратно в конфиг, и уже он попадает в лог:
 
@@ -113,6 +113,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/model_executor/runner/prefill_cuda_graph_runner.py`

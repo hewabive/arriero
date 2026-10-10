@@ -21,7 +21,7 @@ related:
 
 ## Кратко
 
-`--mem-fraction-static` — главная ручка объема KV-пула. Формально это `(веса модели + KV-пул) / емкость GPU`; практически это дополнение к резерву: `1 − mem_fraction_static` — та доля памяти, которую движок обязуется **не** трогать статическими аллокациями, чтобы хватило на активации, CUDA graph и временные буферы. Значение по умолчанию не константа: `ServerArgs.__post_init__` считает его из объема карты, из `--chunked-prefill-size` и из размера decode-графа. Трогать его нужно ровно в двух ситуациях — старт падает с OOM (уменьшить) или после старта на карте остается 10–20 ГБ свободной памяти (увеличить).
+`--mem-fraction-static` — главная ручка объема KV-пула. Формально это `(веса модели + KV-пул) / емкость GPU`; практически это дополнение к резерву: `1 − mem_fraction_static` — та доля памяти, которую движок обязуется **не** трогать статическими аллокациями, чтобы хватило на активации, CUDA graph и временные буферы. Значение по умолчанию не константа: шаг резолва `handle_gpu_memory_settings` (`ServerArgs.resolve_once`) считает его из объема карты, из `--chunked-prefill-size` и из размера decode-графа. Трогать его нужно ровно в двух ситуациях — старт падает с OOM (уменьшить) или после старта на карте остается 10–20 ГБ свободной памяти (увеличить).
 
 ## Оригинальная справка
 
@@ -36,34 +36,38 @@ The fraction of the memory used for static allocation (model weights and KV cach
 - Тип значения: float (`Optional[float]`)
 - Допустимые значения: argparse ограничений не накладывает; осмысленный диапазон — примерно `0.5`…`0.95`. Значение `≥ 1.0` argparse примет, но тогда резерв под активации равен нулю или отрицателен, и старт падает на захвате графа либо на первом длинном prefill
 - Значение по умолчанию: `null` — «подберет движок»
-- Эффективное значение: вычисляется в `_handle_gpu_memory_settings` (см. ниже), затем может быть домножено на `0.85` в `_handle_attention_backend_compatibility` при `--attention-backend aiter` и `context_len > 8192`, и на `0.8…1.0` для мультимодальных моделей (`adjust_mem_fraction_for_vlm`, только когда значение подбиралось автоматически)
+- Эффективное значение: вычисляется в шаге `handle_gpu_memory_settings` (см. ниже), затем может быть домножено на `0.85` в шаге `handle_attention_backend_compatibility` при `--attention-backend aiter` и `context_len > 8192` (явно заданное значение не трогается только при `SGLANG_AITER_HONOR_EXPLICIT_MEM_FRACTION`), и примерно на `0.76…1.0` для мультимодальных моделей (`adjust_mem_fraction_for_vlm`, только когда значение подбиралось автоматически). Шаги декларируют итог через `declare_resolution`: при незаданном флаге `server_args.mem_fraction_static` остается `None`, итог виден в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.mem_fraction_static`
 - Статус: обычный
-- Этап применения: `__post_init__` (подбор) → выделение KV-пула в `KVCacheConfigurator._profile_available_bytes` после загрузки весов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_gpu_memory_settings` (подбор) и `handle_attention_backend_compatibility` (поправка aiter) → выделение KV-пула в `KVCacheConfigurator._profile_available_bytes` после загрузки весов
 
 ## Что меняет в движке
 
 ### Автоподбор при незаданном значении
 
-`_handle_gpu_memory_settings(gpu_mem)` получает емкость карты в МиБ (`get_device_memory_capacity`, для CUDA — минимум по всем видимым GPU из `nvidia-smi --query-gpu=memory.total`) и, если `mem_fraction_static is None`, считает резерв:
+`handle_gpu_memory_settings` (`python/sglang/srt/arg_groups/memory_hook.py`) получает емкость карты в МиБ (`get_device_memory_capacity`, для CUDA — минимум по всем видимым GPU из `nvidia-smi --query-gpu=memory.total`) и, если `cfg.mem_fraction_static is None`, считает резерв:
 
 ```python
-activation_tokens = max(self.chunked_prefill_size, 2048)     # chunked prefill включен
+activation_tokens = max(cfg.chunked_prefill_size, 2048)       # chunked prefill включен
 reserved_mem  = 512                                           # константные метаданные backend'ов
 reserved_mem += activation_tokens * 1.5                       # активации
-reserved_mem += self.tp_size * self.pp_size / 8 * 1024        # запас на большой параллелизм
-reserved_mem += self.reserve_for_graph_mb()                   # CUDA graph
+reserved_mem += cfg.tp_size * cfg.pp_size / 8 * 1024          # запас на большой параллелизм
+reserved_mem += reserve_for_graph_mb(server_args)             # CUDA graph
 if gpu_mem is not None and gpu_mem > 60 * 1024:
     reserved_mem = max(reserved_mem, 10 * 1024)               # пол 10 ГиБ для больших карт
-reserved_mem += self.reserve_for_deepep_a2a_mb()              # +2 ГиБ при DeepEP a2a
-self.mem_fraction_static = round((gpu_mem - reserved_mem) / gpu_mem, 3)
+reserved_mem += reserve_for_deepep_a2a_mb(server_args)        # +2 ГиБ при DeepEP a2a
+if get_platform().is_xpu:
+    reserved_mem += 2 * 1024                                  # scratch oneDNN на XPU
+mem_fraction_static = round((gpu_mem - reserved_mem) / gpu_mem, 3)
+declare_resolution(server_args, "_handle_gpu_memory_settings",
+                   mem_fraction_static=mem_fraction_static)
 ```
 
-Все слагаемые — МиБ. `reserve_for_graph_mb()` — это `decode.max_bs * 2` МиБ на decode-граф (плюс надбавки под DP attention и prefill-граф). При отключенном chunked prefill вместо `chunked_prefill_size` берется `max_prefill_tokens`; в режиме `--disaggregation-mode decode` — `max_running_requests * speculative_num_draft_tokens`. Если емкость карты определить не удалось, подставляется `0.88`.
+Все слагаемые — МиБ. `reserve_for_graph_mb` — это `decode.max_bs * 2` МиБ на decode-граф плюс 8 МиБ на каждую форму prefill-графа (1.5 ГиБ для MLA) и надбавки под DP attention и DeepEP на `breakable`-prefill. При отключенном chunked prefill вместо `chunked_prefill_size` берется `max_prefill_tokens`; в режиме `--disaggregation-mode decode` — `max_running_requests * speculative_num_draft_tokens`. Если емкость карты определить не удалось, подставляется `0.95`.
 
-Численно на RTX 4090 (24564 МиБ, tp=1): `chunked_prefill_size` = 2048 и `decode.max_bs` = 24 подбираются в той же функции, резерв = 512 + 3072 + 128 + 48 = 3760 МиБ, итог ≈ `0.847`. На H100 80 ГБ: `chunked_prefill_size` = 8192, `decode.max_bs` = 256, резерв = 512 + 12288 + 128 + 512 = 13440 МиБ (пол 10 ГиБ не срабатывает), итог ≈ `0.836`.
+Численно на RTX 4090 (24564 МиБ, tp=1, prefill-граф `breakable` не отключен каскадом): `chunked_prefill_size` = 4096 и `decode.max_bs` = 48 подбираются в той же функции, резерв = 512 + 6144 + 128 + (96 + 50 × 8) = 7280 МиБ, итог ≈ `0.704`. На H100 80 ГБ: `chunked_prefill_size` = 8192, `decode.max_bs` = 256, резерв = 512 + 12288 + 128 + (512 + 58 × 8) = 13904 МиБ (пол 10 ГиБ не срабатывает), итог ≈ `0.830`.
 
-Ветка `post_capture_kv_sizing_planned()` (переменная окружения `SGLANG_ENABLE_POST_CAPTURE_KV_SIZING`, CUDA, не-MLA и еще семь условий) выкидывает из резерва и активации, и графы: `reserved_mem = 512 + tp*pp/8*1024`. Там пул досчитывается уже после захвата графов, по реально свободной памяти.
+Ветка `post_capture_kv_sizing_planned(server_args)` (`python/sglang/srt/arg_groups/overrides.py`: переменная окружения `SGLANG_ENABLE_POST_CAPTURE_KV_SIZING`, CUDA, не-MLA и еще ряд условий) выкидывает из резерва и активации, и графы: `reserved_mem = 1536 + tp*pp/8*1024`. Там пул досчитывается уже после захвата графов, по реально свободной памяти.
 
 ### Как из значения получается KV-пул
 
@@ -106,7 +110,7 @@ return int(rest_memory * (1 << 30))                      # бюджет KV-пу�
 ## Взаимодействие с другими аргументами
 
 - `--chunked-prefill-size`: главный вход автоподбора (`activation_tokens * 1.5`). Уменьшили chunk — авто-значение выросло, KV-пул стал больше. При явно заданном `--mem-fraction-static` эта связь исчезает, и следить за активациями приходится вручную.
-- `--cuda-graph-max-bs-decode` (и весь `--cuda-graph-config`): второй вход автоподбора через `reserve_for_graph_mb()`. Увеличили decode-граф при явно заданном `--mem-fraction-static` — получите OOM на захвате.
+- `--cuda-graph-max-bs-decode` (и весь `--cuda-graph-config`): второй вход автоподбора через `reserve_for_graph_mb`. Увеличили decode-граф при явно заданном `--mem-fraction-static` — получите OOM на захвате.
 - `--max-total-tokens`: жесткий потолок поверх посчитанного пула. Если он меньше — лишняя память просто не используется.
 - `--max-running-requests`: не влияет на размер пула (кроме `--disaggregation-mode decode`), но сам ограничивается сверху величиной `max_total_num_tokens // 2`.
 - `--context-length`: определяет `cell_size`-независимую часть — размер `req_to_token`-пула и оценку числа запросов; длинный контекст при том же `mem_fraction_static` дает меньшую конкурентность.
@@ -138,6 +142,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --mem-fraction
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool.py`

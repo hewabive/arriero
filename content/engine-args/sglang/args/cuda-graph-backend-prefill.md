@@ -37,10 +37,10 @@ Backend for the prefill phase. Folds into cuda_graph_config[prefill].backend.
 - Тип значения: строка с фиксированным списком
 - Допустимые значения (из `choices`): `full`, `breakable`, `tc_piecewise`, `disabled`
 - Значение по умолчанию: `null` — флаг не задан; `cuda_graph_config.prefill.backend` берет значение `default_prefill_backend()`: `breakable` на CUDA, `tc_piecewise` на остальных платформах (HIP/NPU/…)
-- Эффективное значение: складывается в `cuda_graph_config[prefill].backend` в `_parse_cuda_graph_config`; при **незаданном** флаге далее переписывается `_apply_cuda_graph_compatibility`, `_apply_cuda_graph_disaggregation_roles`, `_disable_prefill_cuda_graph_for_deepseek_trtllm_mla`, `_apply_inkling_prefill_cuda_graph_default` (архитектура Inkling → `full`), правилами EmbeddingGemma и HRM-Text, а также `--enable-mis`
+- Эффективное значение: складывается в `cuda_graph_config[prefill].backend` в `parse_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`); при **незаданном** флаге итог дальше меняют `apply_cuda_graph_compatibility`, `apply_cuda_graph_disaggregation_roles`, шаг `disable_prefill_cuda_graph_for_deepseek_trtllm_mla`, правила EmbeddingGemma и HRM-Text, а также `--enable-mis`; для архитектуры Inkling шаг `apply_inkling_prefill_cuda_graph_default` еще до разбора конфига декларирует `full`. Все это записи `declare_resolution`: `server_args.cuda_graph_backend_prefill` хранит ввод оператора, итоговый `cuda_graph_config` виден в дампе `server_args=` (`resolved_dict()`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.cuda_graph_backend_prefill`
 - Статус: обычный; прежние отдельные переключатели prefill-графа удалены
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_prefill_graph` и `resolve_prefill_backend` при инициализации model runner
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) → `capture_prefill_graph` и `resolve_prefill_backend` при инициализации model runner
 
 ## Что меняет в движке
 
@@ -48,12 +48,12 @@ Backend for the prefill phase. Folds into cuda_graph_config[prefill].backend.
 
 - **`breakable`** (`BreakableCudaGraphBackend`) — сегментированный захват без `torch.compile`. Захватывает один полный prefill-forward на каждое количество токенов из `cuda_graph_config[prefill].bs`. На NVIDIA требует пакет `cuda-python`; несовместим с memory saver.
 - **`tc_piecewise`** (`TcPiecewiseCudaGraphBackend`) — `torch.compile` разрезает FX-граф на attention-слоях, и каждая часть захватывается отдельно. Compiler выбирается `--cuda-graph-tc-compiler` (`eager`/`inductor`). На старте выполняется отдельный проход компиляции по всем формам с прогресс-строками `Compiling num tokens (num_tokens=…)`, что стоит времени.
-- **`full`** (`FullCudaGraphBackend`) — цельный граф на каждый токен-бакет с фиксированным числом слотов запросов (`full_prefill_max_req` из `--cuda-graph-config`). Экспериментальный: `_handle_cuda_graph_config` печатает `cuda_graph_config[prefill].backend='full' is experimental. Use breakable or tc_piecewise for production workloads.` Батчи с числом запросов больше `full_prefill_max_req` уходят в eager.
+- **`full`** (`FullCudaGraphBackend`) — цельный граф на каждый токен-бакет с фиксированным числом слотов запросов (`full_prefill_max_req` из `--cuda-graph-config`). Экспериментальный: `handle_cuda_graph_config` печатает `cuda_graph_config[prefill].backend='full' is experimental. Use breakable or tc_piecewise for production workloads.` Батчи с числом запросов больше `full_prefill_max_req` уходят в eager.
 - **`disabled`** — `capture_prefill_graph` печатает `Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='disabled' (e.g. via --cuda-graph-backend-prefill=disabled or auto-disable rules).` и направляет prefill в `EagerRunner`.
 
 ### Каскад авто-отключения (работает только при незаданном флаге)
 
-`_apply_cuda_graph_compatibility` сначала может подменить `breakable` на `tc_piecewise` для мультимодальных моделей из валидированного списка (лог `Using tc_piecewise CUDA graph for validated multimodal decoder prefill.`), а затем прогоняет правила для выбранного backend'а.
+`apply_cuda_graph_compatibility` сначала может подменить `breakable` на `tc_piecewise` для мультимодальных моделей из валидированного списка (лог `Using tc_piecewise CUDA graph for validated multimodal decoder prefill.`), а затем прогоняет правила для выбранного backend'а.
 
 Для `tc_piecewise` prefill выключается при: модели из черного списка, DP attention, `--enable-torch-compile`, `--pp-size > 1`, не-CUDA железе, MoE a2a backend'е, LoRA, неподдерживаемой мультимодальности, GGUF-квантизации, DLLM, `--cpu-offload-gb > 0` или `--enable-hierarchical-cache`, детерминированном режиме, PD disaggregation, symmetric memory, EPLB/записи распределения экспертов, `attn_cp_size > 1`, `--debug-cuda-graph`, DSA prefill CP, `dcp_size > 1`.
 
@@ -65,7 +65,7 @@ Backend for the prefill phase. Folds into cuda_graph_config[prefill].backend.
 
 ## Значения и формат
 
-- Значение вне списка отвергает argparse. `_validate_cuda_graph_config` дополнительно проверяет итог по `ALLOWED_BACKENDS_PER_PHASE`.
+- Значение вне списка отвергает argparse. `validate_cuda_graph_config` дополнительно проверяет итог по `ALLOWED_BACKENDS_PER_PHASE`.
 - Флаг перекрывает `--disable-prefill-cuda-graph` и legacy `--disable-cuda-graph`.
 - Явное значение ставит замок на `(prefill, "backend")`, из-за чего пропускаются: весь каскад совместимости, правило DeepSeek/`trtllm_mla`, и назначение роли при `--disaggregation-mode decode`.
 - Даже с явным backend'ом граф может не появиться по причинам вне каскада: `capture_prefill_graph` отдельно отказывается при неподдерживаемой LoRA-конфигурации, при модели без атрибута `layers`, при нестандартном GQA, при пустом списке форм и для EAGLE-target на `tc_piecewise`.
@@ -119,6 +119,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --cuda-graph-b
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/utils.py`
 - `sglang/python/sglang/srt/model_executor/runner_backend/tc_piecewise_cuda_graph_backend.py`

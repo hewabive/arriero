@@ -33,10 +33,10 @@ The ip of the seed instance for loading weights from remote instance.
 - Тип значения: строка (`Optional[str]`), IP-адрес или имя хоста
 - Допустимые значения: не ограничены; валидации формата нет
 - Значение по умолчанию: `null`
-- Эффективное значение: не переопределяется; при `--load-format remote_instance` его отсутствие переопределяет **другой** аргумент — `load_format` становится `auto`
+- Эффективное значение: не переопределяется; при `--load-format remote_instance` его отсутствие переопределяет **другой** аргумент — шаг резолва `handle_load_format` декларирует `load_format=auto`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_seed_instance_ip`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format` — проверка полноты) → HTTP-запросы к seed'у и построение коммуникационной группы при загрузке весов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` (`python/sglang/srt/arg_groups/model_path_hook.py` — проверка полноты) → HTTP-запросы к seed'у и построение коммуникационной группы при загрузке весов
 
 ## Что меняет в движке
 
@@ -46,7 +46,7 @@ The ip of the seed instance for loading weights from remote instance.
 2. **`master_address` группы.** В теле обоих POST-запросов тот же адрес передается как `master_address` — по нему целевой ранг и seed-ранг встречаются в NCCL-группе с `world_size = 2`.
 3. **Адрес коннектора.** В `nccl`-ветке `RemoteInstanceModelLoader.load_model` строит URI `instance://<ip>:<порт из --remote-instance-weight-loader-send-weights-group-ports по индексу tp_rank>`.
 
-Проверка полноты в `_handle_load_format`: если формат загрузки `remote_instance`, backend не `modelexpress`, и не задан ip **или** service-порт, печатается `Fallback load_format to 'auto' due to incomplete remote instance weight loader settings.` и загрузка идет с диска.
+Проверка полноты в шаге резолва `handle_load_format` (`sglang/python/sglang/srt/arg_groups/model_path_hook.py`): если формат загрузки `remote_instance`, backend не `modelexpress`, и не задан ip **или** service-порт, печатается `Fallback load_format to 'auto' due to incomplete remote instance weight loader settings.` и загрузка идет с диска.
 
 ## Значения и формат
 
@@ -60,7 +60,7 @@ The ip of the seed instance for loading weights from remote instance.
 
 - Всегда, когда включен `--load-format remote_instance` с backend `nccl` или `transfer_engine`.
 - Не задавайте при backend `modelexpress` — там адрес приходит из конфига ModelExpress.
-- Не задавайте вне `--load-format remote_instance`: значение не будет прочитано (единственное исключение — служебная проверка `remote_instance_weight_loader_use_transfer_engine`, но она смотрит на backend, а не на адрес).
+- Не задавайте вне `--load-format remote_instance`: значение не будет прочитано (единственное исключение — служебная проверка `ServerArgs.remote_instance_weight_loader_use_transfer_engine`, которая делегирует `remote_instance_transfer_engine_of` в `sglang/python/sglang/srt/arg_groups/overrides.py`, но она смотрит на backend, а не на адрес).
 
 ## Влияние на производительность и память
 
@@ -97,6 +97,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

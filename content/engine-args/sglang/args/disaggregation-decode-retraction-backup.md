@@ -37,10 +37,10 @@ Storage backend for KV preserved across PD decode retraction. 'cpu_tensor' uses 
 - Тип значения: optional string
 - Допустимые значения: `cpu_tensor`, `host_pool`, `none`
 - Декларативное значение по умолчанию: `null`
-- Эффективное значение: `null` разрешается в `cpu_tensor` или `host_pool` (но никогда в `none`) функцией `resolve_decode_retraction_backup` после построения KV-пула; при `--disaggregation-decode-host-receive-threshold > 0` обработчик `handle_pd_disaggregation` еще в пайплайне `__post_init__` переписывает значение в `host_pool`
+- Эффективное значение: `null` разрешается в `cpu_tensor` или `host_pool` (но никогда в `none`) функцией `resolve_decode_retraction_backup` после построения KV-пула; при `--disaggregation-decode-host-receive-threshold > 0` шаг `handle_pd_disaggregation` еще в пайплайне резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) декларирует `host_pool` через `declare_resolution` — поле `server_args` при этом хранит ввод оператора, итог виден в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.disaggregation_decode_retraction_backup`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверки `handle_cache_compatibility`, `handle_pd_disaggregation`) → после построения device KV-пула (`resolve_decode_retraction_backup`) → retraction/restore каждого запроса
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_pd_disaggregation`, `handle_cache_compatibility`) → после построения device KV-пула (`resolve_decode_retraction_backup`) → retraction/restore каждого запроса
 
 ## Что меняет в движке
 

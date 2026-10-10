@@ -32,20 +32,22 @@ JSON array passed to the selected sidecar module's main(argv) function. --sideca
 - Тип значения: JSON-массив строк (в extract `type: json`), разбирается парсером `json_list_type` на этапе argparse
 - Допустимые значения: `choices` нет; каждый элемент массива обязан быть строкой
 - Значение по умолчанию: `null` — модулю передается пустой `argv`
-- Эффективное значение: `__post_init__` не переопределяет, но проверяет наличие `--sidecar` и то, что значение — список строк
+- Эффективное значение: ни один шаг резолва его не декларирует, но шаг `handle_deprecated_args` (`arg_groups/serving_hook.py`) проверяет наличие `--sidecar` и то, что значение — список строк
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.sidecar_args`
 - Статус: обычный
-- Этап применения: разбор CLI (`json_list_type`) → валидация в `__post_init__` → `start_sidecar` при запуске дочернего процесса
+- Этап применения: разбор CLI (`json_list_type`) → валидация в `ServerArgs.resolve_once` (шаг `handle_deprecated_args`) → `start_sidecar` при запуске дочернего процесса
 
 ## Что меняет в движке
 
 ### Валидация
 
+В шаге `handle_deprecated_args` (`arg_groups/serving_hook.py`):
+
 ```python
-if self.sidecar_args is not None:
-    if self.sidecar is None:
+if cfg.sidecar_args is not None:
+    if cfg.sidecar is None:
         raise ValueError("--sidecar-args requires --sidecar.")
-    if not isinstance(self.sidecar_args, list) or not all(isinstance(arg, str) for arg in self.sidecar_args):
+    if not isinstance(cfg.sidecar_args, list) or not all(isinstance(arg, str) for arg in cfg.sidecar_args):
         raise ValueError("--sidecar-args must be a JSON array of strings.")
 ```
 
@@ -118,6 +120,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --port 30000 -
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/sidecar.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`

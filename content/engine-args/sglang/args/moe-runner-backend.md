@@ -30,12 +30,12 @@ Choose the runner backend for MoE.
 - Флаги: `--moe-runner-backend`
 - Группа: `exec.moe`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `flashinfer_megamoe`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`, `intel_xpu`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/server_args.py`; функция `add_moe_runner_backend_choices` позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
+- Допустимые значения: `auto`, `deep_gemm`, `triton`, `triton_kernel`, `flashinfer_trtllm`, `experimental_sgl_trtllm`, `flashinfer_trtllm_routed`, `flashinfer_cutlass`, `flashinfer_mxfp4`, `flashinfer_cutedsl`, `flashinfer_megamoe`, `cutlass`, `aiter`, `marlin`, `humming`, `experimental_sgl_marlin`, `hpc_ops`, `megamoe`, `intel_xpu`. Список — константа `MOE_RUNNER_BACKEND_CHOICES` в `sglang/python/sglang/srt/arg_groups/choices.py`; функция `add_moe_runner_backend_choices` из того же модуля позволяет сторонним платформенным пакетам расширить его, поэтому итоговый набор проверяйте по `--help` установленной сборки
 - Значение по умолчанию: `auto`
-- Эффективное значение: переопределяется в нескольких местах — `_moe_runner_backend_quant_constraints` (правила по `--quantization`), `_cutlass_moe_env_override` (устаревшая переменная `SGLANG_CUTLASS_MOE`), `_handle_a2a_moe` (для `pplx`) и, наконец, сам quant-метод слоя при `auto`
+- Эффективное значение: переопределяется в нескольких местах — шаг резолва `handle_mega_moe` (alias `megamoe`), проход `_moe_runner_backend_quant_constraints` внутри шага `handle_moe_kernel_config` (правила по `--quantization`), шаг `handle_a2a_moe` (для `pplx` и `flashinfer_megamoe`) и, наконец, сам quant-метод слоя при `auto`. Шаги декларируют значение через `declare_resolution`, сырое `server_args.moe_runner_backend` хранит ввод оператора. Прежний проход `_cutlass_moe_env_override` удален вместе с переменной `SGLANG_CUTLASS_MOE`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.moe_runner_backend`
 - Статус: обычный
-- Этап применения: `__post_init__` (нормализация и проверки) → `initialize_moe_config` при инициализации model runner → создание `MoeRunner` для каждого MoE-слоя
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (нормализация и проверки в шагах `handle_mega_moe`, `handle_moe_kernel_config`, `handle_a2a_moe`) → `initialize_moe_config` при инициализации model runner → создание `MoeRunner` для каждого MoE-слоя
 
 ## Что меняет в движке
 
@@ -53,7 +53,7 @@ Choose the runner backend for MoE.
 - `--quantization mxfp8` вне NPU: разрешены только `cutlass`, `deep_gemm`, `flashinfer_trtllm`, `flashinfer_trtllm_routed` (плюс `triton` на gfx95); прочее заменяется на дефолт с предупреждением в логе;
 - `auto` + `modelopt_fp4` + SM120: → `flashinfer_cutlass` (ядра trtllm-gen существуют только для SM100).
 
-Дальше `_handle_moe_kernel_config` добавляет жесткие проверки совместимости: `flashinfer_cutlass` и `flashinfer_cutedsl` требуют `ep_size ∈ {1, tp_size}` и своего набора значений `--quantization`; `flashinfer_cutedsl` дополнительно ограничивает `--moe-a2a-backend` значениями `none`/`deepep`/`flashinfer`; `cutlass` с `fp8`/`mxfp8` требует `ep_size == 1`; `hpc_ops` требует SM90 и FP8-метода квантизации и падает с подробным сообщением при несоблюдении.
+Дальше шаг `handle_moe_kernel_config` (`sglang/python/sglang/srt/arg_groups/moe_hook.py`) добавляет жесткие проверки совместимости: `flashinfer_cutlass` и `flashinfer_cutedsl` требуют `ep_size ∈ {1, tp_size}` и своего набора значений `--quantization`; `flashinfer_cutedsl` дополнительно ограничивает `--moe-a2a-backend` значениями `none`/`deepep`/`flashinfer`; `cutlass` с `fp8`/`mxfp8` требует `ep_size == 1`; `hpc_ops` требует SM90 и FP8-метода квантизации и падает с подробным сообщением при несоблюдении.
 
 Отдельно раннер влияет на fused shared experts: `flashinfer_cutedsl`, `flashinfer_trtllm`, `experimental_sgl_trtllm` и `flashinfer_trtllm_routed` принудительно выставляют `disable_shared_experts_fusion`.
 
@@ -62,9 +62,9 @@ Choose the runner backend for MoE.
 - `auto` — рекомендуемое значение. Оно означает «пусть решит quant-метод», а не «выбери самое быстрое».
 - `experimental_sgl_trtllm` и `experimental_sgl_marlin` — экспериментальные варианты, разделяющие подготовку весов с `flashinfer_trtllm` и `marlin` соответственно; контракт может меняться.
 - `hpc_ops` — только SM90 (Hopper) и только FP8 blockwise/per-tensor.
-- `megamoe` — совместимый alias, а не отдельный `MoeRunnerBackend`: в начале `__post_init__` он переписывается в `--moe-runner-backend auto --moe-a2a-backend megamoe`. Если a2a был явно задан иначе, он будет перезаписан с warning.
+- `megamoe` — совместимый alias, а не отдельный `MoeRunnerBackend`: первый же шаг резолва `handle_mega_moe` (`handle_moe_runner_backend_alias` в `sglang/python/sglang/srt/arg_groups/mega_moe_hook.py`) декларирует вместо него `--moe-runner-backend auto --moe-a2a-backend megamoe`. Если a2a был явно задан иначе, он будет перезаписан с warning.
 - `flashinfer_megamoe` — раннер для `--moe-a2a-backend flashinfer_megamoe`; связка проверяет архитектуру модели, DP-attention и устройство SM100. При a2a `flashinfer_megamoe` значение `auto` этого флага разрешается в нужный раннер.
-- Устаревшая переменная окружения `SGLANG_CUTLASS_MOE` продолжает работать и перетирает значение на `cutlass`, печатая рекомендацию использовать этот флаг вместо нее.
+- Устаревшая переменная окружения `SGLANG_CUTLASS_MOE` больше не читается: обрабатывавший ее проход удален в v0.5.18, в дереве ссылок на нее не осталось. Раннер `cutlass` выбирается только этим флагом.
 - Значение вне списка отвергает argparse; значение из списка, но неподдерживаемое вашим железом или форматом весов, отвергается ассертом уже после разбора.
 
 ## Когда использовать
@@ -96,7 +96,7 @@ Choose the runner backend for MoE.
 - `The expert parallel size must be 1 or the same as the tensor parallel size` — нарушено ограничение `flashinfer_cutlass`/`flashinfer_cutedsl` на `--ep-size`.
 - `--moe-runner-backend hpc_ops only supports Fp8MoEMethod …` или `requires an SM90 (Hopper) GPU` — раннер выбран для неподходящей модели/карты.
 - `mxfp8 quantization supports only …. Overriding '<x>'` — предупреждение, а не ошибка: значение молча заменено. Проверяйте лог, если ожидали другое ядро.
-- `SGLANG_CUTLASS_MOE is deprecated …` — раннер перетерт переменной окружения.
+- Выставленная по старой памяти `SGLANG_CUTLASS_MOE=1` ничего не меняет и предупреждения не печатает — задайте `--moe-runner-backend cutlass` явно.
 - Что реально выбрано, видно по дампу `server_args=` при старте (`sglang/python/sglang/srt/entrypoints/engine.py`) — там уже разрешенное значение — и по информационной строке о deferred finalize в `fused_moe_triton/layer.py`, которая печатает `moe_runner_backend=` и имя quant-метода.
 
 ## Примеры
@@ -114,6 +114,9 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --moe-runner-backe
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
+- `sglang/python/sglang/srt/arg_groups/mega_moe_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/layers/moe/utils.py`
 - `sglang/python/sglang/srt/layers/moe/moe_runner/runner.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`

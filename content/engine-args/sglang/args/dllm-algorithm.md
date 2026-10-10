@@ -39,10 +39,10 @@ The diffusion LLM algorithm, such as LowConfidence.
 - Тип значения: str (`Optional[str]`) — имя класса алгоритма
 - Допустимые значения: в argparse не ограничены (`choices: null`). Список собирается в runtime: `import_algorithms` перебирает модули пакета `sglang.srt.dllm.algorithm` и берет из каждого атрибут `Algorithm`. В checkout'е это `LowConfidence` (`low_confidence.py`) и `JointThreshold` (`joint_threshold.py`). Посмотреть список на своей сборке: `python -c "from sglang.srt.dllm.algorithm import algo_name_to_cls; print(list(algo_name_to_cls))"`
 - Значение по умолчанию: `null` — режим выключен
-- Эффективное значение: совпадает с заданным; вместо него переписываются соседние аргументы
+- Эффективное значение: совпадает с заданным; вместо него резолв декларирует новые значения соседних аргументов
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecDllm.dllm_algorithm`
 - Статус: обычный, но отдельный режим обслуживания — комбинировать его с остальной функциональностью сервера нельзя произвольно
-- Этап применения: `__post_init__` (`_handle_dllm_inference` и три пасса резолюции) → инициализация scheduler'а (`DllmConfig.from_server_args`, `get_algorithm`) → каждый forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_dllm_inference` (`python/sglang/srt/arg_groups/dllm_hook.py`; внутри — `configure_server_args` класса алгоритма и три пасса резолюции из `arg_groups/overrides.py`) → инициализация scheduler'а (`DllmConfig.from_server_args`, `get_algorithm`) → каждый forward
 
 ## Что меняет в движке
 
@@ -139,4 +139,5 @@ python -m sglang.launch_server --model-path /models/LLaDA2.0-mini-preview --dllm
 - `sglang/python/sglang/srt/dllm/algorithm/low_confidence.py`
 - `sglang/python/sglang/srt/dllm/algorithm/joint_threshold.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
 - `sglang/python/sglang/srt/dllm/mixin/scheduler.py`

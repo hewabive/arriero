@@ -36,7 +36,7 @@ When any LoRA adapter request waits longer than this threshold (in seconds), the
 - Эффективное значение: не переопределяется
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_drain_wait_threshold`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → `Scheduler.init_lora_drainer` (объект создается только при значении > 0) → каждый раунд сборки prefill-батча
+- Этап применения: `ServerArgs.check_server_args` → `check_lora_server_args` (валидация; `python/sglang/srt/arg_groups/lora_hook.py`, вызывается из `Engine._launch_subprocesses` после `resolve_once` и до `publish`) → `Scheduler.init_lora_drainer` (объект создается только при значении > 0) → каждый раунд сборки prefill-батча
 
 ## Что меняет в движке
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 - `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
 - `sglang/python/sglang/srt/lora/lora_drainer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`

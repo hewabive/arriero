@@ -35,14 +35,14 @@ Enable Waterfill: dispatch the fused shared expert as an extra routed expert slo
 - Тип значения: булев флаг (`store_true`); парного `--no-*` нет
 - Допустимые значения: наличие или отсутствие флага
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется, но сам переопределяет три вещи в `__post_init__` — `--moe-a2a-backend` подтягивается к `deepep`, если это не `deepep`/`megamoe`; `--disable-shared-experts-fusion` принудительно сбрасывается в `false`; `--enforce-shared-experts-fusion` принудительно ставится в `true`
+- Эффективное значение: ни один шаг резолва его не декларирует, но по нему шаг `handle_a2a_moe` декларирует три вещи — `--moe-a2a-backend` подтягивается к `deepep`, если это не `deepep`/`megamoe`; `--disable-shared-experts-fusion` принудительно сбрасывается в `false`; `--enforce-shared-experts-fusion` принудительно ставится в `true`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.enable_waterfill`
 - Статус: обычный, но подсистема экспериментальная — в апстрим-документации помечена как Experimental
-- Этап применения: `__post_init__` (`_a2a_backend_overrides`, `_a2a_fusion_adjustments`, `_handle_a2a_moe`) → построение TopK-модулей → `prepare_moe_topk` после загрузки весов → каждый forward-проход
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_a2a_moe` (`arg_groups/moe_hook.py`; внутри — проходы `_a2a_backend_overrides` и `_a2a_fusion_adjustments` из `arg_groups/overrides.py`) → построение TopK-модулей → `prepare_moe_topk` после загрузки весов → каждый forward-проход
 
 ## Что меняет в движке
 
-**На разборе конфигурации.** `_a2a_backend_overrides` пишет `moe_a2a_backend is overridden to 'deepep' because Waterfill requires the DeepEP or MegaMOE backend.` Затем `_a2a_fusion_adjustments` при заданном `--disable-shared-experts-fusion` печатает `disable_shared_experts_fusion is overridden to False because Waterfill requires shared expert fusion.` и сбрасывает его. Наконец, `_handle_a2a_moe` выставляет `enforce_shared_experts_fusion = True` и логирует `Waterfill is enabled with moe_a2a_backend='...'.`
+**На разборе конфигурации.** `_a2a_backend_overrides` пишет `moe_a2a_backend is overridden to 'deepep' because Waterfill requires the DeepEP or MegaMOE backend.` Затем `_a2a_fusion_adjustments` при заданном `--disable-shared-experts-fusion` печатает `disable_shared_experts_fusion is overridden to False because Waterfill requires shared expert fusion.` и сбрасывает его. Наконец, `handle_a2a_moe` декларирует `enforce_shared_experts_fusion=True` и логирует `Waterfill is enabled with moe_a2a_backend='...'.`
 
 **При построении модели.** В `TopK` и `HashTopK` (`sglang/python/sglang/srt/layers/moe/topk.py`, `hash_topk.py`) поле `enable_waterfill` вычисляется как `num_fused_shared_experts > 0 and <флаг>`. То есть если модель по своим причинам не слила shared expert (архитектура вне списка, неподходящая квантизация, включенный TBO/SBO), Waterfill останется выключенным — молча, без ошибки. Проверять надо по факту.
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/moe_hook.py`
 - `sglang/python/sglang/srt/layers/moe/waterfill.py`
 - `sglang/python/sglang/srt/layers/moe/topk.py`
 - `sglang/python/sglang/srt/layers/moe/hash_topk.py`

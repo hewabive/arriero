@@ -36,10 +36,10 @@ Disable the prefill-phase CUDA graph. Convenience for --cuda-graph-backend-prefi
 - Тип значения: bool, `action="store_true"` — значение не принимает
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
-- Эффективное значение: в `_parse_cuda_graph_config` пишет `disabled` в `cuda_graph_config[prefill].backend` и фиксирует пару `(prefill, "backend")`. Перекрывается более поздним `--cuda-graph-backend-prefill` и `--cuda-graph-config`
+- Эффективное значение: `parse_cuda_graph_config` (`arg_groups/cuda_graph_hook.py`) декларирует `disabled` в разрешенном `cuda_graph_config[prefill].backend` и фиксирует пару `(prefill, "backend")`. Перекрывается более поздним `--cuda-graph-backend-prefill` и `--cuda-graph-config`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_prefill_cuda_graph`
 - Статус: обычный. Устаревший аналог — `--cuda-graph-backend-prefill disabled` (транслируется в `--cuda-graph-backend-prefill=disabled`), а `--disable-cuda-graph` гасит сразу обе фазы
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_prefill_graph` направляет prefill в `EagerRunner`
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_cuda_graph_config` → `capture_prefill_graph` направляет prefill в `EagerRunner`
 
 ## Что меняет в движке
 
@@ -53,16 +53,16 @@ Disable prefill CUDA graph because cuda_graph_config resolved prefill.backend='d
 
 Дополнительно флаг гасит два побочных эффекта:
 
-- `reserve_for_graph_mb()` перестает добавлять prefill-слагаемое в резерв автоподбора `--mem-fraction-static` (`len(prefill.bs) * 8` МиБ для не-MLA моделей, 1.5 ГиБ для MLA, плюс 1 ГиБ при `breakable` вместе с DeepEP);
-- `post_capture_kv_sizing_planned()` отключает досчет KV-пула после захвата.
+- `reserve_for_graph_mb` (`arg_groups/memory_hook.py`) перестает добавлять prefill-слагаемое в резерв автоподбора `--mem-fraction-static` (`len(prefill.bs) * 8` МиБ для не-MLA моделей, 1.5 ГиБ для MLA, плюс 1 ГиБ при `breakable` вместе с DeepEP);
+- `post_capture_kv_sizing_planned` (`arg_groups/overrides.py`) отключает досчет KV-пула после захвата.
 
-Флаг также раньше всех выключает `_apply_inkling_prefill_cuda_graph_default` — архитектурное переопределение prefill-графа на `full` для Inkling проверяет его напрямую.
+Флаг также раньше всех выключает шаг `apply_inkling_prefill_cuda_graph_default` (он идет перед `handle_cuda_graph_config`) — архитектурное переопределение prefill-графа на `full` для Inkling проверяет его напрямую.
 
 ## Значения и формат
 
 - Значения не принимает.
 - Отменяется только более приоритетным флагом: `--cuda-graph-backend-prefill breakable` или `--cuda-graph-config '{"prefill":{"backend":"breakable"}}'`.
-- Замок на `(prefill, "backend")` пропускает каскад `_apply_cuda_graph_compatibility` и правило DeepSeek/`trtllm_mla`. Смысла в этом нет — фаза и так выключена, — но в логе вы не увидите ни одной строки `… is incompatible with …`, и это не признак того, что конфигурация совместима.
+- Замок на `(prefill, "backend")` пропускает каскад `apply_cuda_graph_compatibility` и правило DeepSeek/`trtllm_mla` (`disable_prefill_cuda_graph_for_deepseek_trtllm_mla`). Смысла в этом нет — фаза и так выключена, — но в логе вы не увидите ни одной строки `… is incompatible with …`, и это не признак того, что конфигурация совместима.
 
 ## Когда использовать
 
@@ -110,6 +110,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --disable-pref
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/model_executor/runner/prefill_cuda_graph_runner.py`

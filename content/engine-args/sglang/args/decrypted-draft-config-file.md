@@ -35,7 +35,7 @@ The path of the decrypted draft config file.
 - Эффективное значение: не переопределяется; пустая строка и пробелы эквивалентны отсутствию (`if override_config_file and override_config_file.strip()`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.decrypted_draft_config_file`
 - Статус: обычный, узкая интеграция со схемой шифрованных чекпоинтов
-- Этап применения: `handle_speculative_decoding` в `__post_init__` (резолв алгоритма) и построение `ModelConfig` draft-модели
+- Этап применения: шаг резолва `handle_speculative_decoding` (`ServerArgs.resolve_once` → `run_resolution_pipeline`; резолв алгоритма) и построение `ModelConfig` draft-модели
 
 ## Что меняет в движке
 
@@ -44,12 +44,18 @@ The path of the decrypted draft config file.
 1. `sglang/python/sglang/srt/arg_groups/speculative_hook.py`:
 
 ```python
-override_config_file = server_args.decrypted_draft_config_file
+override_config_file = cfg.decrypted_draft_config_file
 if override_config_file and override_config_file.strip():
     kwargs["_configuration_file"] = override_config_file.strip()
-server_args.speculative_algorithm = _resolve_speculative_algorithm_alias(
-    server_args.speculative_algorithm, server_args.speculative_draft_model_path,
-    trust_remote_code=server_args.trust_remote_code, kwargs=kwargs,
+declare_resolution(
+    server_args,
+    "handle_speculative_decoding",
+    speculative_algorithm=_resolve_speculative_algorithm_alias(
+        cfg.speculative_algorithm,
+        cfg.speculative_draft_model_path,
+        trust_remote_code=cfg.trust_remote_code,
+        kwargs=kwargs,
+    ),
 )
 ```
 

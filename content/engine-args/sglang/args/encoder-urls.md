@@ -39,7 +39,7 @@ List of encoder server urls.
 - Эффективное значение: само поле не переписывается, но фактический набор адресов в runtime — это **копия** списка, которую `EncoderBootstrapServer` дальше мутирует: `list(self.server_args.encoder_urls)` в `TokenizerManager.init_disaggregation`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_urls`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_encoder_disaggregation` (только информационное сообщение при пустом списке) → `TokenizerManager.init_disaggregation` (создание разделяемого списка и реестра) → на каждый мультимодальный запрос при раскладке элементов
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_encoder_disaggregation` (`python/sglang/srt/arg_groups/pd_disaggregation_hook.py`; только информационное сообщение при пустом списке) → `TokenizerManager.init_disaggregation` (создание разделяемого списка и реестра) → на каждый мультимодальный запрос при раскладке элементов
 
 ## Что меняет в движке
 
@@ -117,6 +117,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
 - `sglang/python/sglang/srt/disaggregation/encode_server.py`

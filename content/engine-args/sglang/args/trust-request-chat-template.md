@@ -32,7 +32,7 @@ Allow a request to override the server chat template via its chat_template_kwarg
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: есть / нет
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; `__post_init__` его не трогает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.trust_request_chat_template`
 - Статус: обычный
 - Этап применения: HTTP-слой, валидация каждого чат-запроса (`OpenAIServingChat._validate_request`) до его преобразования во внутренний формат

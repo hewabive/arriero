@@ -35,7 +35,7 @@ Whether or not to allow for custom models defined on the Hub in their own modeli
 - Тип значения: булев переключатель (`store_true`); парной формы `--no-trust-remote-code` нет
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется ни одним `_handle_*`
+- Эффективное значение: ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.trust_remote_code`
 - Статус: обычный, но это граница безопасности, а не настройка производительности
 - Этап применения: построение `ModelConfig` (чтение `config.json`), инициализация токенизатора/процессора в tokenizer manager, detokenizer и TP-воркерах, определение чат-шаблона, разбор конфигов драфт-моделей; при `--weight-cache-mode daemon` — проброс в порожденные процессы демона

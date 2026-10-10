@@ -36,7 +36,7 @@ Enable prefill delayer for DP attention to reduce idle time.
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: флаг присутствует или отсутствует; парного `--no-*` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: принудительно `true`, если задана устаревшая переменная окружения `SGLANG_SCHEDULER_DECREASE_PREFILL_IDLE` (`_handle_prefill_delayer_env_compat`); на `--disaggregation-mode decode` объект delayer'а не создается вовсе
+- Эффективное значение: принудительно `true`, если задана устаревшая переменная окружения `SGLANG_SCHEDULER_DECREASE_PREFILL_IDLE` (шаг резолва `handle_prefill_delayer_env_compat` в `arg_groups/serving_hook.py` декларирует значение через `declare_resolution`); на `--disaggregation-mode decode` объект delayer'а не создается вовсе
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.enable_prefill_delayer`
 - Статус: обычный
 - Этап применения: `Scheduler.init_schedule_policy` (создание `PrefillDelayer`) → на каждом проходе admission внутри `PrefillAdder`
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --enable-dp-at
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

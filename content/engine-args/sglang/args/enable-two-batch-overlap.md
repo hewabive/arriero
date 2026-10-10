@@ -41,7 +41,7 @@ Enabling two micro batches to overlap.
 - Эффективное значение: совпадает с заданным; сам движок его не включает
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecOverlap.enable_two_batch_overlap`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_check_two_batch_overlap`, модельные проверки DSA) → инициализация MoE-конфигурации (`initialize_moe_config`) → создание attention backend'а (`TboAttnBackend`) → подготовка каждого батча (разбиение) → захват CUDA graph
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (модельные проверки DSA в шаге `handle_model_specific_adjustments`, ассерты совместимости в других шагах) → `check_server_args` в `Engine._launch_subprocesses` (`check_two_batch_overlap` в `arg_groups/validation_hook.py`, уже после резолва) → инициализация MoE-конфигурации (`initialize_moe_config`) → создание attention backend'а (`TboAttnBackend`) → подготовка каждого батча (разбиение) → захват CUDA graph
 
 ## Что меняет в движке
 
@@ -124,6 +124,8 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --tp-size 8 --en
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/batch_overlap/two_batch_overlap.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`
 - `sglang/python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py`

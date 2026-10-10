@@ -33,10 +33,10 @@ Enable the experimental FP4 C4 indexer path for DeepSeek V4. Default keeps the e
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: не переопределяется, но проверяется в `__post_init__`: без SM100/SM120 — `ValueError: --enable-deepseek-v4-fp4-indexer requires SM100 or SM120 GPUs with DeepGEMM FP4 indexer support.`
+- Эффективное значение: ни один шаг резолва его не декларирует, но шаг `handle_environment_variables` (`python/sglang/srt/arg_groups/serving_hook.py`) проверяет платформу: без SM100/SM120 или gfx95 — `ValueError: --enable-deepseek-v4-fp4-indexer requires SM100, SM120, or gfx95 GPUs with FP4 indexer support.`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.enable_deepseek_v4_fp4_indexer`
 - Статус: обычный по форме, экспериментальный по содержанию (так написано в самой справке); контракт может измениться без предупреждения
-- Этап применения: разбор CLI → проверка capability в `__post_init__` → создание индексного KV-пула (`DeepSeekV4TokenToKVPool`) → конструктор `DeepseekV4AttnBackend` → каждый forward индексера
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, проверка capability в шаге `handle_environment_variables` → создание индексного KV-пула (`DeepSeekV4TokenToKVPool`) → конструктор `DeepseekV4AttnBackend` → каждый forward индексера
 
 ## Что меняет в движке
 
@@ -44,7 +44,7 @@ Enable the experimental FP4 C4 indexer path for DeepSeek V4. Default keeps the e
 2. **Ядро подготовки q.** Индексер (`sglang/python/sglang/srt/layers/attention/dsv4/indexer.py`) при включенном флаге вызывает `fused_q_indexer_rope_hadamard_fp4_quant` вместо `fused_q_indexer_rope_hadamard_quant`.
 3. **Запись в буфер.** Компрессор (`sglang/python/sglang/srt/layers/attention/dsv4/compressor.py`, `compressor_v2.py`) вместо `set_index_k_scale_buffer` / `set_index_k_fused` вызывает `set_index_k_fp4`. Обратите внимание: FP4-ветка приоритетнее оптимизации `SGLANG_OPT_USE_FUSED_STORE_CACHE`, то есть включение флага меняет и путь записи.
 4. **Метаданные индексера.** На SM120 `DeepseekV4AttnBackend.init_forward_metadata_indexer` выставляет `force_deep_gemm_metadata=True`, потому что SM120-ядро FP4 планирует `split_kv=128`, а универсальный JIT-планировщик кодирует 256.
-5. ROCm-вариант backend'а (`deepseek_v4_backend_hip_radix.py`) поле тоже читает, но проверка capability в `__post_init__` пропустит только SM100/SM120 — то есть на ROCm флаг включить нельзя.
+5. ROCm-вариант backend'а (`deepseek_v4_backend_hip_radix.py`) поле тоже читает: проверка capability пропускает gfx95 (`is_gfx95_supported()`), и на таких картах FP4-индексер работает через расписание AITER (`fp4_indexer_schedule_hip`). На прочих ROCm-картах флаг включить нельзя.
 
 Аргумент значим только для архитектуры DeepSeek V4 (`DeepseekV4ForCausalLM`), для которой движок сам ставит `--attention-backend dsv4` и `--page-size 256` (128 на NPU).
 
@@ -79,7 +79,7 @@ Enable the experimental FP4 C4 indexer path for DeepSeek V4. Default keeps the e
 
 ## Типовые проблемы и диагностика
 
-- **Симптом:** `ValueError: --enable-deepseek-v4-fp4-indexer requires SM100 or SM120 GPUs with DeepGEMM FP4 indexer support.` **Причина:** карта не Blackwell. **Решение:** убрать флаг.
+- **Симптом:** `ValueError: --enable-deepseek-v4-fp4-indexer requires SM100, SM120, or gfx95 GPUs with FP4 indexer support.` **Причина:** карта не Blackwell (SM100/SM120) и не gfx95. **Решение:** убрать флаг.
 - **Симптом:** флаг включен, а `max_total_num_tokens` не вырос. **Причина:** модель не DeepSeek V4, поле не читается.
 - **Симптом:** качество ответов на длинном контексте просело после включения. **Причина:** более грубый индексер отбирает другие позиции. **Решение:** вернуться к дефолту.
 - **Проверка:** дамп `server_args=` при старте показывает флаг; эффект на память виден по строке планировщика с `max_total_num_tokens=…`.
@@ -98,9 +98,11 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V4 --enable-deepsee
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/mem_cache/deepseek_v4_memory_pool.py`
 - `sglang/python/sglang/srt/layers/attention/dsv4/indexer.py`
 - `sglang/python/sglang/srt/layers/attention/dsv4/compressor.py`
 - `sglang/python/sglang/srt/layers/attention/dsv4/compressor_v2.py`
 - `sglang/python/sglang/srt/layers/attention/deepseek_v4_backend.py`
+- `sglang/python/sglang/srt/layers/attention/deepseek_v4_backend_hip_radix.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`

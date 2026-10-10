@@ -24,7 +24,7 @@ related:
 - `sglang:prompt_tokens_histogram` — длина промпта;
 - `sglang:uncached_prompt_tokens_histogram` — та часть промпта, которую действительно пришлось считать (не попала в префиксный кеш).
 
-Обе получают один и тот же список границ из этого аргумента. Коллектор создается только при `--enable-metrics`, но синтаксическая проверка значения (`validate_buckets_rule` в `__post_init__`) выполняется всегда — некорректное правило уронит старт даже без метрик.
+Обе получают один и тот же список границ из этого аргумента. Коллектор создается только при `--enable-metrics`, но синтаксическая проверка значения (`validate_buckets_rule` из `check_server_args`, `arg_groups/validation_hook.py`) выполняется всегда — некорректное правило уронит старт даже без метрик.
 
 ## Оригинальная справка
 
@@ -42,7 +42,7 @@ The buckets rule of prompt tokens. Supports 3 rule types: 'default' uses predefi
 - Эффективное значение: `default` разворачивается в встроенный список из 35 значений от `100` до `1 100 000` (`default_bucket_prompt_tokens` в `metrics_collector.py`); `+Inf` добавляет сам `prometheus_client`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.prompt_tokens_buckets`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → создание `TokenizerMetricsCollector` при инициализации `TokenizerManager`, если задан `--enable-metrics`
+- Этап применения: `check_server_args` (при старте из `Engine._launch_subprocesses` после `ServerArgs.resolve_once`, валидация) → создание `TokenizerMetricsCollector` при инициализации `TokenizerManager`, если задан `--enable-metrics`
 
 ## Что меняет в движке
 
@@ -117,4 +117,5 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 127.0.0
 - `sglang/python/sglang/srt/observability/metrics_collector.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `apps/api/src/process/log-filter.ts`

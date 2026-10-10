@@ -34,18 +34,18 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - Флаги: `--decode-attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
+- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices` (`python/sglang/srt/arg_groups/choices.py`)
 - Значение по умолчанию: `null` — фаза decode наследует разрешенный `--attention-backend`
 - Эффективное значение: `attention_backends_of` возвращает `decode_attention_backend or attention_backend`. Само поле дописывается движком при `--device npu` (`ascend`) и для DeepSeek V4 на NPU (`dsv4`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.decode_attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`
-- Этап применения: разбор CLI → `__post_init__` (привязки `--page-size`, проверки KV-dtype и SM) → создание backend'а в model runner → захват decode-графа CUDA → каждый шаг декодирования
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_attention_backend_compatibility` (`python/sglang/srt/arg_groups/attention_hook.py`: привязки `--page-size`, проверки KV-dtype и SM через пассы `arg_groups/overrides.py`) → создание backend'а в model runner → захват decode-графа CUDA → каждый шаг декодирования
 
 ## Что меняет в движке
 
 Новые значения `minicpm_flashattn` и `minicpm_flashinfer` создают `MiniCPMSparseBackend` с `use_flashinfer=False` и `True` соответственно. Это специализированный sparse attention MiniCPM, а не общая замена FlashAttention/FlashInfer для произвольной архитектуры. Наличие этих значений проверяйте в `--help` установленного окружения.
 
-- `_attention_backend_default` записывает значение в общее поле `attention_backend` только тогда, когда prefill и decode заданы одинаково. Если задан только decode, prefill получит автоподбор `_get_default_attn_backend`, и конфигурация станет гибридной.
+- `_attention_backend_default` записывает значение в общее поле `attention_backend` только тогда, когда prefill и decode заданы одинаково. Если задан только decode, prefill получит автоподбор `get_default_attn_backend` (`python/sglang/srt/arg_groups/model_override_base.py`), и конфигурация станет гибридной.
 - При разных backend'ах создается `HybridAttnBackend` (`sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`) с двумя вложенными backend'ами; он же решает, какая половина обслуживает спекулятивный verify — по `--speculative-attention-mode`.
 - Привязки `--page-size`, которые проверяют именно decode-поле (`_mla_backend_page_constraints`): `flashmla` → 64, `trtllm_mla` → 32/64 (иначе 64), `tokenspeed_mla` → 32/64, `cutedsl_mla` → 32/64, `trtllm_mha` → 16/32/64/128, `hpc_ops` → 64. Полная картина — в справке `--page-size`.
 - Проверки KV-dtype `_mla_kv_cache_dtype_checks` тоже смотрят на decode-поле: `trtllm_mla` требует Blackwell и `fp8_e4m3`/`bf16`/`auto`, `tokenspeed_mla` — Blackwell и строго `fp8_e4m3`.
@@ -105,6 +105,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --decode-atten
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`
 - `sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`

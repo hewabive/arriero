@@ -44,7 +44,7 @@ Data type for model weights and activations.
 - Эффективное значение: разрешается в `_get_and_verify_dtype` по конфигу модели; кроме того поле объявлено `resolvable=True`, то есть его перекрывают per-architecture декларации — `MistralLarge3ForCausalLM` и `PixtralForConditionalGeneration` жестко переводятся в `bfloat16`, а GPT-OSS с `quant_method == "mxfp4"` тоже получает `bfloat16` («use bf16 for mxfp4 triton kernels»)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.dtype`
 - Статус: обычный
-- Этап применения: разбор CLI → декларации архитектуры в `__post_init__` → `ModelConfig` (`_get_and_verify_dtype`) → создание модели и загрузка весов → сюда же завязан `auto` у `--kv-cache-dtype`
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_model_specific_adjustments` (`arg_groups/model_hook.py`; декларации архитектуры из `MODEL_OVERRIDES` в `arg_groups/model_override_base.py` и `arg_groups/model_overrides/`) → `ModelConfig` (`_get_and_verify_dtype`) → создание модели и загрузка весов → сюда же завязан `auto` у `--kv-cache-dtype`
 
 ## Что меняет в движке
 
@@ -97,7 +97,7 @@ Data type for model weights and activations.
 ## Типовые проблемы и диагностика
 
 - `NotImplementedError: GptOssForCausalLM on Intel XPU only supports bfloat16 dtype, but got '…'` — платформенное ограничение, лечится `--dtype bfloat16` или снятием флага.
-- Значение задано, а в логе видно другое — сработала архитектурная декларация (`MODEL_OVERRIDES`) или mxfp4-ветка. Проверяется по дампу `server_args=` при старте: декларации материализуются в поля до печати дампа, поэтому там уже итоговое значение.
+- Значение задано, а в логе видно другое — сработала архитектурная декларация (`MODEL_OVERRIDES`) или mxfp4-ветка. Проверяется по дампу `server_args=` при старте: он строится из `resolved_dict()`, поэтому там уже итоговое значение с учетом деклараций, а не сырой ввод `server_args.dtype`.
 - Резкая деградация качества без ошибок на bf16-модели — проверьте, не выставлен ли вручную `float16`.
 - Неожиданно маленький `max_total_num_tokens` — при `--kv-cache-dtype auto` вы платите за KV тем же типом, что задали здесь.
 - Фактический расход весов печатает строка `Load weight end. elapsed=… s, type=…, avail mem=… GB, mem usage=… GB.`
@@ -118,6 +118,9 @@ python -m sglang.launch_server --model-path /models/Llama-3-8B-AWQ --dtype half 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/gpt_oss.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_dtype.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

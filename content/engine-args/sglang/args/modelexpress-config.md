@@ -32,14 +32,14 @@ JSON config for ModelExpress P2P weight loading. Keys: "url" (optional gRPC host
 - Тип значения: строка с JSON-объектом
 - Допустимые значения: ключи `url` (строка `host:port`) и `transport` (`nixl` либо `transfer_engine`); список ключей нигде не валидируется — лишние молча игнорируются
 - Значение по умолчанию: `null`
-- Эффективное значение: разбирается ленивым свойством `_parsed_modelexpress_config` (результат кешируется в `_mx_config_cache`); отсутствующий `transport` подставляется как `nixl`, отсутствующий `url` остается `None` и означает «использовать дефолт клиента ModelExpress»
+- Эффективное значение: ни один шаг резолва его не декларирует; строку разбирает функция `modelexpress_config_of` (`arg_groups/overrides.py`) при каждом обращении, без кеша; отсутствующий `transport` подставляется как `nixl` (`modelexpress_transport_of`), отсутствующий `url` остается `None` и означает «использовать дефолт клиента ModelExpress»
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.modelexpress_config`
 - Статус: обычный, интеграция с внешним пакетом
 - Этап применения: построение `LoadConfig` и выбор ветки загрузчика `RemoteInstanceModelLoader`
 
 ## Что меняет в движке
 
-Свойства `ServerArgs.modelexpress_url` и `ServerArgs.modelexpress_transport` читают разобранный словарь и уходят в `LoadConfig` (`model_runner_components/load_model_utils.py`). Дальше `RemoteInstanceModelLoader` (`model_loader/loader.py`) в ветке `remote_instance_weight_loader_backend == MODELEXPRESS` импортирует внешний загрузчик:
+Функции `modelexpress_url_of(server_args)` и `modelexpress_transport_of(server_args)` (`arg_groups/overrides.py`; раньше — свойства `ServerArgs.modelexpress_url` / `modelexpress_transport`) читают разобранный словарь и уходят в `LoadConfig` (`model_runner_components/load_model_utils.py`). Дальше `RemoteInstanceModelLoader` (`model_loader/loader.py`) в ветке `remote_instance_weight_loader_backend == MODELEXPRESS` импортирует внешний загрузчик:
 
 ```python
 try:
@@ -49,14 +49,14 @@ except ImportError as exc:
 model = MxModelLoader(load_config).load_model(model=model, model_config=model_config, device_config=device_config)
 ```
 
-Значение `transport` дополнительно влияет на решение поднимать ли transfer engine: `remote_instance_weight_loader_use_transfer_engine()` возвращает True, когда backend `modelexpress` и `transport == "transfer_engine"`. При `nixl` transfer engine не поднимается.
+Значение `transport` дополнительно влияет на решение поднимать ли transfer engine: `remote_instance_transfer_engine_of` (`arg_groups/overrides.py`; в рантайме его вызывает `runtime_context.remote_instance_transfer_engine_enabled()`, а метод `ServerArgs.remote_instance_weight_loader_use_transfer_engine()` — обертка над тем же расчетом) возвращает True, когда backend `modelexpress` и `transport == "transfer_engine"`. При `nixl` transfer engine не поднимается.
 
-Важная деталь конфигурации: `_handle_load_format` откатывает `--load-format remote_instance` обратно в `auto`, если не хватает данных о seed-инстансе, но для backend'а `modelexpress` эта проверка **не применяется** — там IP и порт seed-инстанса не требуются.
+Важная деталь конфигурации: шаг резолва `handle_load_format` (`arg_groups/model_path_hook.py`) откатывает `--load-format remote_instance` обратно в `auto`, если не хватает данных о seed-инстансе, но для backend'а `modelexpress` эта проверка **не применяется** — там IP и порт seed-инстанса не требуются.
 
 ## Значения и формат
 
 - Одна строка JSON; в shell — в одинарных кавычках.
-- Невалидный JSON падает при первом обращении к свойству, то есть уже на этапе загрузки весов, а не при разборе CLI.
+- Невалидный JSON падает при первом вызове `modelexpress_config_of`, то есть уже на этапе загрузки весов, а не при разборе CLI.
 - `url` — адрес gRPC-сервиса ModelExpress в форме `host:port`, без схемы.
 - `transport` принимает только два осмысленных значения; неизвестное значение не отвергается, но `transfer_engine`-ветка просто не включится.
 - Пустой объект `{}` эквивалентен «дефолтный URL, транспорт nixl».
@@ -103,6 +103,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --load-format remot
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`

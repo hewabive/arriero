@@ -32,10 +32,10 @@ Load replicated MLA KV on rank 0 and broadcast each layer with the Mooncake link
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: есть / нет
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; `handle_hicache` (`arg_groups/hicache_hook.py`) его не переписывает, а только отвергает конфигурацию без Mooncake-linker. Фактически дедупликация включается при построении linker'а, и только если пулы rank-replicated и размер attention-TP группы больше 1 — иначе флаг молча ничего не делает
+- Эффективное значение: совпадает с заданным; шаг резолва `handle_hicache` (`arg_groups/hicache_hook.py`) его не декларирует, а только отвергает конфигурацию без Mooncake-linker. Фактически дедупликация включается при построении linker'а, и только если пулы rank-replicated и размер attention-TP группы больше 1 — иначе флаг молча ничего не делает
 - Где объявлен: `python/sglang/srt/arg_groups/fields/memory.py:Memory.enable_linker_mla_dedup`
 - Статус: обычный, opt-in
-- Этап применения: проверка в `__post_init__` (`handle_hicache`) → конструктор `MooncakeDirectLinker` при создании дерева кеша (создание NCCL-группы и staging-буфера) → каждый батч с загрузкой префикса из Mooncake
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, проверка в шаге `handle_hicache` → конструктор `MooncakeDirectLinker` при создании дерева кеша (создание NCCL-группы и staging-буфера) → каждый батч с загрузкой префикса из Mooncake
 
 ## Что меняет в движке
 

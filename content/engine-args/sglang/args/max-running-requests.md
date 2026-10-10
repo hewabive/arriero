@@ -42,7 +42,7 @@ The maximum number of running requests.
 - Эффективное значение: `48` при любом включенном `--speculative-algorithm` (все хуки в `arg_groups/speculative_hook.py` пишут это с предупреждением `Max running requests is reset to 48 for speculative decoding`); иначе — `resolve_max_num_reqs` (см. ниже); дополнительно ограничивается mamba-пулом и повторным расчетом после захвата CUDA graph
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.max_running_requests`
 - Статус: обычный
-- Этап применения: `__post_init__` (только спекулятивная подстановка) → выделение KV-пула (`KVCacheConfigurator.resolve_max_num_reqs`) → `Scheduler` (admission)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (спекулятивная подстановка `48` в шаге `handle_speculative_decoding`; для DeepSeek-V4 раньше нее `apply_deepseek_v4_defaults` декларирует `256`, и тогда спекулятивная подстановка уже не срабатывает) → выделение KV-пула (`KVCacheConfigurator.resolve_max_num_reqs`) → `Scheduler` (admission)
 
 ## Что меняет в движке
 
@@ -139,5 +139,6 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --max-running-
 - `sglang/python/sglang/srt/model_executor/model_runner_components/kv_pool_runtime.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
 - `sglang/docs/docs/advanced_features/hyperparameter_tuning.mdx`
 - arriero: `docs/ENGINE_ADAPTERS.md`, `docs/KTRANSFORMERS_OPERATIONS.md`

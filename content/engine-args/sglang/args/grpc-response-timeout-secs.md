@@ -31,10 +31,10 @@ Timeout in seconds waiting for each native gRPC response chunk, including the fi
 - Тип значения: int, секунды
 - Допустимые значения: целое `> 0`
 - Значение по умолчанию: `300`
-- Эффективное значение: совпадает с заданным; `handle_deprecated_args` (`arg_groups/serving_hook.py`) только проверяет `> 0` и не переписывает значение
+- Эффективное значение: совпадает с заданным; `handle_deprecated_args` (`arg_groups/serving_hook.py`) только проверяет `> 0` и не декларирует нового значения
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_response_timeout_secs`
 - Статус: обычный
-- Этап применения: проверка в `__post_init__` → `_start_native_grpc_server_for_runtime` в `lifespan` HTTP-сервера (передается в `start_server` Rust-расширения) → ожидание каждого чанка ответа в обработчиках RPC
+- Этап применения: проверка в шаге `handle_deprecated_args` (`ServerArgs.resolve_once` → `run_resolution_pipeline`) → `_start_native_grpc_server_for_runtime` в `lifespan` HTTP-сервера (передается в `start_server` Rust-расширения) → ожидание каждого чанка ответа в обработчиках RPC
 
 ## Что меняет в движке
 

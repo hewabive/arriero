@@ -20,7 +20,7 @@ related:
 
 ## Кратко
 
-Скоринг «запрос против N кандидатов» наивно требует N прогонов, каждый из которых заново считает prefill одного и того же запроса. MIS собирает `query<delim>item1<delim>item2<delim>…` в одну последовательность и с помощью кастомной маски внимания FlashInfer добивается того, что каждый кандидат видит запрос, но не видит других кандидатов. Запрос считается один раз, кандидаты — параллельно. Цена высокая и уплачивается всем инстансом: `_handle_multi_item_scoring` выключает CUDA graph на обеих фазах, radix cache и chunked prefill, а несовместимый backend внимания приводит к падению на старте. Это конфигурация под эндпоинт `/v1/score`, а не флаг, который можно добавить к обычному чат-серверу.
+Скоринг «запрос против N кандидатов» наивно требует N прогонов, каждый из которых заново считает prefill одного и того же запроса. MIS собирает `query<delim>item1<delim>item2<delim>…` в одну последовательность и с помощью кастомной маски внимания FlashInfer добивается того, что каждый кандидат видит запрос, но не видит других кандидатов. Запрос считается один раз, кандидаты — параллельно. Цена высокая и уплачивается всем инстансом: шаг резолва `handle_multi_item_scoring` выключает CUDA graph на обеих фазах, radix cache и chunked prefill, а несовместимый backend внимания приводит к падению на старте. Это конфигурация под эндпоинт `/v1/score`, а не флаг, который можно добавить к обычному чат-серверу.
 
 ## Оригинальная справка
 
@@ -35,10 +35,10 @@ Enable Multi-Item Scoring optimization. Combines query and multiple items into a
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: само поле не переписывается, но оно **переписывает три других**. `_handle_multi_item_scoring` (`sglang/python/sglang/srt/server_args.py`) выставляет `cuda_graph_config.decode.backend = DISABLED` и `cuda_graph_config.prefill.backend = DISABLED`, `disable_radix_cache = True`, `chunked_prefill_size = -1`, каждое — с предупреждением вида `CUDA graph is disabled because --enable-mis is set.` Затем идет ассерт на backend внимания
+- Эффективное значение: само поле ни один шаг резолва не декларирует, но оно **меняет эффективное значение трех других**. Шаг `handle_multi_item_scoring` (`sglang/python/sglang/srt/arg_groups/attention_hook.py`) декларирует `cuda_graph_config.decode.backend = DISABLED` и `cuda_graph_config.prefill.backend = DISABLED`, `disable_radix_cache = True`, `chunked_prefill_size = -1` (сами поля `server_args` хранят ввод оператора, итог виден в `resolved_dict()`), каждое — с предупреждением вида `CUDA graph is disabled because --enable-mis is set.` Затем идет ассерт на backend внимания
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_mis`
 - Статус: обычный
-- Этап применения: разбор CLI → `__post_init__`: `_handle_multi_item_scoring` **после** разрешения backend'а внимания и `chunked_prefill_size` → построение FlashInfer-backend'а → сборка последовательности в `/v1/score` → prefill
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_multi_item_scoring` **после** разрешения backend'а внимания и `chunked_prefill_size` → построение FlashInfer-backend'а → сборка последовательности в `/v1/score` → prefill
 
 ## Что меняет в движке
 
@@ -47,7 +47,7 @@ Enable Multi-Item Scoring optimization. Combines query and multiple items into a
 Ассерт формулирует требование прямо:
 
 ```python
-prefill_backend, decode_backend = self._resolved_attention_backends()
+prefill_backend, decode_backend = attention_backends_of(resolved_view(server_args))
 assert prefill_backend == "flashinfer" and decode_backend == "flashinfer", (
     "Multi-item scoring requires flashinfer attention backend for custom attention mask support. "
     f"Please set --attention-backend flashinfer when using --enable-mis. "
@@ -55,11 +55,11 @@ assert prefill_backend == "flashinfer" and decode_backend == "flashinfer", (
 )
 ```
 
-Проверяются **разрешенные** значения, то есть результат всего автоподбора. Модель, для которой `_handle_model_specific_adjustments` навязывает свой backend, с MIS не совместима.
+Проверяются **разрешенные** значения, то есть результат всего автоподбора. Модель, для которой `handle_model_specific_adjustments` навязывает свой backend, с MIS не совместима.
 
 ### Сборка последовательности
 
-`tokenizer_manager_score_mixin.py` при включенном флаге токенизирует запрос и кандидаты по отдельности и склеивает их через `MIS_DELIMITER_TOKEN_ID` (константа `9999` в `server_args.py`). Позиции разделителей считаются по длинам кандидатов и передаются как `multi_item_delimiter_indices` — сам токен нужен только для совместимости с маской FlashInfer и для индексации колонок logprob'ов; в комментарии кода прямо сказано, что его уберут, когда backend научится работать по позициям.
+`tokenizer_manager_score_mixin.py` при включенном флаге токенизирует запрос и кандидаты по отдельности и склеивает их через `MIS_DELIMITER_TOKEN_ID` (константа `9999` в `constants.py`). Позиции разделителей считаются по длинам кандидатов и передаются как `multi_item_delimiter_indices` — сам токен нужен только для совместимости с маской FlashInfer и для индексации колонок logprob'ов; в комментарии кода прямо сказано, что его уберут, когда backend научится работать по позициям.
 
 ### Внимание
 
@@ -84,7 +84,7 @@ assert prefill_backend == "flashinfer" and decode_backend == "flashinfer", (
 
 - Выделенный инстанс-скорер: реранкинг, классификация по набору меток, отбор кандидатов. Один запрос — десятки кандидатов, каждый короткий.
 - Не включайте на инстансе, обслуживающем генерацию: отключенные CUDA graph и radix cache бьют по TPOT и TTFT сильнее, чем MIS выигрывает на скоринге.
-- Не включайте на модели, у которой backend внимания навязан архитектурой (DeepSeek DSA/V4, Llama4, Gemma4 и прочие ветки `_handle_model_specific_adjustments`): ассерт не даст стартовать.
+- Не включайте на модели, у которой backend внимания навязан архитектурой (DeepSeek DSA/V4, Llama4, Gemma4 и прочие ветки `handle_model_specific_adjustments`): ассерт не даст стартовать.
 - Не рассчитывайте, что MIS ускорит скоринг одного кандидата: выигрыш пропорционален числу кандидатов на один запрос.
 
 ## Влияние на производительность и память
@@ -127,6 +127,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --attention-backend
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/constants.py`
 - `sglang/python/sglang/srt/layers/attention/flashinfer_backend.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager_score_mixin.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/logprob_result_processor.py`

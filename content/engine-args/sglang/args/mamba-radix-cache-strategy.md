@@ -42,7 +42,7 @@ The strategy to use for mamba radix cache.
 - Эффективное значение: разрешается пассом `_mamba_radix_cache_resolution` (`arg_groups/overrides.py`) — см. ниже. Отдельно архитектура Inkling принудительно ставит `extra_buffer`, если оператор оставил значение по умолчанию
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_radix_cache_strategy`; поле помечено `resolvable=True`
 - Статус: обычный
-- Этап применения: `__post_init__` → `_handle_mamba_radix_cache` (резолюция `auto` и валидация) → построение пулов и префиксного кеша
+- Этап применения: `ServerArgs.resolve_once` → шаг резолва `handle_model_specific_adjustments` → `handle_mamba_radix_cache` (`python/sglang/srt/arg_groups/model_hook.py`: запуск пасса `_mamba_radix_cache_resolution` и валидация) → построение пулов и префиксного кеша
 
 ## Что меняет в движке
 
@@ -66,19 +66,19 @@ else:
 
 ### Что проверяется у каждой стратегии
 
-`no_buffer` (`_validate_mamba_no_buffer`):
+`no_buffer` (`validate_mamba_no_buffer` в `arg_groups/mamba_hook.py`):
 
 - `--page-size` только `1`;
 - overlap-планировщик обязан быть выключен;
 - `--attention-backend trtllm_mha` запрещен.
 
-`extra_buffer` (`_validate_mamba_extra_buffer`):
+`extra_buffer` (`validate_mamba_extra_buffer` в `arg_groups/mamba_hook.py`):
 
 - архитектура должна поддерживать режим, иначе `extra_buffer is not supported for <arch>; use no_buffer.`;
 - платформа CUDA, MUSA, NPU или ROCm;
 - при спекуляции `--mamba-track-interval` должен быть не меньше `--speculative-num-draft-tokens`;
 - `--mamba-track-interval` должен делиться на `--page-size` нацело;
-- если `--chunked-prefill-size` меньше внутреннего `mamba_cache_chunk_size`, печатается warning о пропуске чекпоинтов состояния на границе незавершенного chunked prefill.
+- если `--chunked-prefill-size` меньше внутреннего `mamba_cache_chunk_size` (функция в `arg_groups/overrides.py`), печатается warning о пропуске чекпоинтов состояния на границе незавершенного chunked prefill.
 
 `extra_buffer_lazy` — тот же `extra_buffer` с отложенным выделением слотов, плюс два запрета: PD-disaggregation (`extra_buffer_lazy unsupported under PD disaggregation; use --mamba-radix-cache-strategy extra_buffer.`) и алгоритм спекуляции DFLASH.
 
@@ -146,6 +146,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-Next-80B-A3B-Instruct 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/mamba_hook.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/mem_cache/unified_cache/components/mamba_component.py`
 - `sglang/python/sglang/srt/mem_cache/registry.py`

@@ -37,7 +37,7 @@ The buliltin chat template name or the path of the chat template file. This is o
 - Тип значения: строка — имя встроенного шаблона либо путь к файлу
 - Допустимые значения: `choices` нет. Список встроенных имен собирается в runtime из глобального реестра `chat_templates` в `sglang/python/sglang/srt/parser/conversation.py` (заполняется вызовами `register_conv_template` при импорте модуля), поэтому статически он не зафиксирован; см. «Значения и формат»
 - Значение по умолчанию: `null` — «шаблон подберет движок»
-- Эффективное значение: при `null` работает цепочка автоподбора `TemplateManager.load_chat_template` (по пути модели → HF-шаблон токенизатора/процессора → отсутствие шаблона). `__post_init__` это поле не трогает
+- Эффективное значение: при `null` работает цепочка автоподбора `TemplateManager.load_chat_template` (по пути модели → HF-шаблон токенизатора/процессора → отсутствие шаблона). Ни один шаг резолва (`ServerArgs.resolve_once`) это поле не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.chat_template`
 - Статус: обычный
 - Этап применения: старт HTTP-слоя (`TemplateManager.initialize_templates` до приема запросов) → рендеринг каждого запроса к `/v1/chat/completions`

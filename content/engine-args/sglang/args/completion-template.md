@@ -33,7 +33,7 @@ The buliltin completion template name or the path of the completion template fil
 - Тип значения: строка — имя встроенного шаблона либо путь к `.json`
 - Допустимые значения: `choices` нет. Встроенные имена лежат в реестре `completion_templates` (`sglang/python/sglang/srt/parser/code_completion_parser.py`), на checkout'е extract'а это `deepseek_coder`, `star_coder`, `qwen_coder`; список собирается при импорте модуля, поэтому статически не зафиксирован
 - Значение по умолчанию: `null` — FIM-обертка отключена
-- Эффективное значение: в `__post_init__` не переопределяется
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.completion_template`
 - Статус: обычный
 - Этап применения: старт HTTP-слоя (`TemplateManager.initialize_templates`) → обработка каждого запроса к `/v1/completions`

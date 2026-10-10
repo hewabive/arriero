@@ -38,10 +38,10 @@ Use Granian instead of Uvicorn as the ASGI server, enabling HTTP/1.1 and HTTP/2 
 - Тип значения: bool; поле объявлено как `bool`, поэтому argparse получает `action="store_true"` без парного `--no-*`
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False` — работает uvicorn
-- Эффективное значение: совпадает с заданным; переписывания нет. Но проверка доступности выполняется рано: `_handle_ssl_validation` в `__post_init__` пробует `import granian` и падает, если пакета нет
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует. Но проверка доступности выполняется рано: шаг резолва `handle_ssl_validation` (`python/sglang/srt/arg_groups/serving_hook.py`) пробует `import granian` и падает, если пакета нет
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_http2`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверка импорта и конфликта с hot-reload) → HTTP-слой, выбор ветки запуска в `_setup_and_run_http_server`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_ssl_validation` (проверка импорта и конфликта с hot-reload) → HTTP-слой, выбор ветки запуска в `_setup_and_run_http_server`
 
 ## Что меняет в движке
 
@@ -121,6 +121,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --host 0.0.0.0
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/pyproject.toml`
 - arriero: `apps/api/src/process/log-parsers/sglang.ts`, `docs/KTRANSFORMERS_OPERATIONS.md`

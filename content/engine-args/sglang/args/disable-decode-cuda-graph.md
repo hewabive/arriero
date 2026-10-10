@@ -35,16 +35,16 @@ Disable the decode-phase CUDA graph. Convenience for --cuda-graph-backend-decode
 - Тип значения: bool, `action="store_true"` — значение не принимает
 - Допустимые значения: флаг либо есть, либо его нет
 - Значение по умолчанию: `false`
-- Эффективное значение: в `_parse_cuda_graph_config` пишет `disabled` в `cuda_graph_config[decode].backend` и фиксирует пару `(decode, "backend")`. Перекрывается более поздним `--cuda-graph-backend-decode` и `--cuda-graph-config`
+- Эффективное значение: в `parse_cuda_graph_config` (`python/sglang/srt/arg_groups/cuda_graph_hook.py`) пишет `disabled` в `cuda_graph_config[decode].backend` и фиксирует пару `(decode, "backend")`. Перекрывается более поздним `--cuda-graph-backend-decode` и `--cuda-graph-config`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecGraph.disable_decode_cuda_graph`
 - Статус: обычный (это актуальная замена части контракта устаревшего `--disable-cuda-graph`, который гасит обе фазы сразу)
-- Этап применения: разбор CLI → `__post_init__` (`_handle_cuda_graph_config`) → `capture_decode_graph` пропускает создание runner'а
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_cuda_graph_config` (`python/sglang/srt/arg_groups/cuda_graph_hook.py`) → `capture_decode_graph` пропускает создание runner'а
 
 ## Что меняет в движке
 
 `capture_decode_graph` в `model_runner_components/cuda_graph_setup.py` проверяет `check_cuda_graph_backend(Phase.DECODE, Backend.DISABLED)` и возвращает пустой `GraphCapture`: runner отсутствует, `graph_memory_usage["decode"] = 0`, `graph_time_usage["decode"] = 0`. Строки `Capture target decode CUDA graph begin/end` в логе не появляются вовсе.
 
-Дальше это значение читают и другие места: `reserve_for_graph_mb()` перестает добавлять `decode.max_bs * 2` МиБ в резерв автоподбора `--mem-fraction-static`, `reserve_for_deepep_a2a_mb()` перестает резервировать 2 ГиБ под буферы DeepEP a2a, а `post_capture_kv_sizing_planned()` отключает досчет KV-пула после захвата. Итог: при незаданном `--mem-fraction-static` отключение decode-графа автоматически увеличивает KV-пул.
+Дальше это значение читают и другие места шага резолва `handle_gpu_memory_settings`: `reserve_for_graph_mb()` (`python/sglang/srt/arg_groups/memory_hook.py`) перестает добавлять `decode.max_bs * 2` МиБ в резерв автоподбора `--mem-fraction-static`, `reserve_for_deepep_a2a_mb()` (там же) перестает резервировать 2 ГиБ под буферы DeepEP a2a, а `post_capture_kv_sizing_planned()` (`python/sglang/srt/arg_groups/overrides.py`) отключает досчет KV-пула после захвата. Итог: при незаданном `--mem-fraction-static` отключение decode-графа автоматически увеличивает KV-пул.
 
 Флаг не влияет на prefill-граф: его отключают `--disable-prefill-cuda-graph` или `--cuda-graph-backend-prefill disabled`.
 
@@ -99,6 +99,9 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --disable-deco
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/model_executor/cuda_graph_config.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`

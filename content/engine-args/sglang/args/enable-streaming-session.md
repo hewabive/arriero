@@ -36,7 +36,7 @@ Enable streaming session mode and StreamingSession wrapper.
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `__post_init__` не переопределяет
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_streaming_session`
 - Статус: обычный
 - Этап применения: инициализация prefix cache в планировщике (обертка) → проверка в `TokenizerManager.open_session` на каждом вызове → удержание KV между ходами сессии

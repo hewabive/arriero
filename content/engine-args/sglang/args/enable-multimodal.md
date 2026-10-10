@@ -58,7 +58,7 @@ Enable the multimodal functionality for the served model. If the model being ser
 - `is_multimodal` — главный признак; от него зависят выбор процессора (`get_processor_wrapper`), путь `general_mm_embed_routine` в forward, авто-выбор `--mm-feature-transport`;
 - `is_audio_model`, `is_image_understandable_model`, `is_audio_understandable_model` — какие модальности сервер объявляет поддерживаемыми;
 - `is_multimodal_chunked_prefill_supported` — можно ли резать prefill мультимодального запроса;
-- `is_multimodal_piecewise_cuda_graph_supported` / `is_multimodal_breakable_cuda_graph_supported` — белый список архитектур, у которых LM-часть prefill всё-таки можно захватить в piecewise CUDA graph. Для остальных мультимодальных моделей prefill-граф отключается правилом «multimodal model» в `_handle_cuda_graph_config`.
+- `is_multimodal_piecewise_cuda_graph_supported` / `is_multimodal_breakable_cuda_graph_supported` — белый список архитектур, у которых LM-часть prefill всё-таки можно захватить в piecewise CUDA graph. Для остальных мультимодальных моделей prefill-граф отключается правилом «multimodal model» в шаге резолва `handle_cuda_graph_config` (`python/sglang/srt/arg_groups/cuda_graph_hook.py`).
 
 Отдельные модели читают значение напрямую: `mllama4.py` строит vision-часть только при `has_vision_weights and enable_multimodal`, `inkling.py` — только при `bool(enable_multimodal)`.
 
@@ -118,6 +118,7 @@ python -m sglang.launch_server --model-path /models/Llama-4-Scout-17B-16E-Instru
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
+- `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
 - `sglang/python/sglang/srt/arg_groups/arg_utils.py`
 - `sglang/python/sglang/srt/server_args_config_parser.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`

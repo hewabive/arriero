@@ -21,7 +21,7 @@ related:
 
 Флаг создает в `TokenizerManager` объект `AsyncDynamicbatchTokenizer` — асинхронную очередь, в которую складываются запросы на токенизацию **одиночной строки**, приходящие от разных клиентов. Фоновый цикл забирает первый элемент, добирает соседей до `--dynamic-batch-tokenizer-batch-size` или до истечения `--dynamic-batch-tokenizer-batch-timeout`, и токенизирует их одним вызовом в отдельном потоке.
 
-Ключевое отличие от `--enable-tokenizer-batch-encode`: тот батчит входы **внутри одного запроса**, этот — **между разными запросами**. Включить оба сразу нельзя, `__post_init__` бросает `ValueError`.
+Ключевое отличие от `--enable-tokenizer-batch-encode`: тот батчит входы **внутри одного запроса**, этот — **между разными запросами**. Включить оба сразу нельзя: шаг резолва `handle_tokenizer_batching` (`arg_groups/serving_hook.py`) бросает `ValueError`.
 
 Важно, что задержка не начисляется впустую: если очередь пуста в момент забора элемента, он обрабатывается немедленно, без ожидания окна.
 
@@ -41,7 +41,7 @@ Enable async dynamic batch tokenizer for improved performance when multiple requ
 - Эффективное значение: **принудительно `False`** при `--skip-tokenizer-init` (предупреждение `skip_tokenizer_init=True ignores --enable-dynamic-batch-tokenizer; disabling it.`). Кроме того, объект не создается, если `skip_tokenizer_init` истинно, даже минуя этот сброс: условие в `TokenizerManager` — `enable_dynamic_batch_tokenizer and not skip_tokenizer_init`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_dynamic_batch_tokenizer`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_tokenizer_batching`) → инициализация `TokenizerManager` в каждом HTTP-процессе → обработка каждого запроса в `_tokenize_texts`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_tokenizer_batching` (`arg_groups/serving_hook.py`) → инициализация `TokenizerManager` в каждом HTTP-процессе → обработка каждого запроса в `_tokenize_texts`
 
 ## Что меняет в движке
 
@@ -143,6 +143,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-4B --host 127.0.0.1 --
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/async_dynamic_batch_tokenizer.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`

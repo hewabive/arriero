@@ -36,7 +36,7 @@ Maximum forward passes to delay prefill.
 - Тип значения: целое
 - Допустимые значения: не ограничены на уровне argparse; осмысленны значения от 2 (гистограмма строит корзину `max_delay_passes - 1`, при значении 1 корзина вырождается в 0)
 - Значение по умолчанию: `30`
-- Эффективное значение: переопределяется переменной окружения `SGLANG_PREFILL_DELAYER_MAX_DELAY_PASSES`, если она задана и непустая (`_handle_prefill_delayer_env_compat`); CLI в этом случае проигрывает
+- Эффективное значение: переопределяется переменной окружения `SGLANG_PREFILL_DELAYER_MAX_DELAY_PASSES`, если она задана и непустая (шаг резолва `handle_prefill_delayer_env_compat` в `arg_groups/serving_hook.py` декларирует значение через `declare_resolution`); CLI в этом случае проигрывает
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.prefill_delayer_max_delay_passes`
 - Статус: обычный; читается только при `--enable-prefill-delayer`
 - Этап применения: создание `PrefillDelayer` в `Scheduler.init_schedule_policy` → каждый проход сборки prefill-батча
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --enable-dp-at
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/prefill_delayer.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

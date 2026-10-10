@@ -35,10 +35,10 @@ The list of LoRA adapters to load. Each adapter must be specified in one of the 
 - Тип значения: список строк; `action=LoRAPathAction` с `type=str, nargs="*"`
 - Допустимые значения: `<PATH>` | `<NAME>=<PATH>` | JSON-объект `{"lora_name":str,"lora_path":str,"pinned":bool}`
 - Значение по умолчанию: `null`; `check_lora_server_args` превращает его в пустой список
-- Эффективное значение: строки разбираются в объекты `LoRARef` (`lora_id`, `lora_name`, `lora_path`, `pinned`) на этапе `check_lora_server_args`
+- Эффективное значение: строки разбираются в объекты `LoRARef` (`lora_id`, `lora_name`, `lora_path`, `pinned`) на этапе `check_lora_server_args` (`arg_groups/lora_hook.py`) и декларируются через `declare_resolution`: `server_args.lora_paths` хранит исходные строки, а model runner получает список `LoRARef` через `get_lora().lora_paths`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.lora_paths`
 - Статус: обычный
-- Этап применения: разбор CLI (`LoRAPathAction`) → `check_lora_server_args` → `LoRAManager.init_lora_adapters` после загрузки весов модели
+- Этап применения: разбор CLI (`LoRAPathAction`) → `ServerArgs.resolve_once` → `check_server_args` → `check_lora_server_args` (в `Engine._launch_subprocesses`, до запуска процессов) → `LoRAManager.init_lora_adapters` после загрузки весов модели
 
 ## Что меняет в движке
 
@@ -136,6 +136,7 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 - `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
 - `sglang/python/sglang/srt/arg_groups/argparse_actions.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/lora_config.py`

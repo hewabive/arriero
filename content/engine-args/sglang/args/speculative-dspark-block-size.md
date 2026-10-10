@@ -38,7 +38,7 @@ DSPARK only. Draft block size gamma (number of proposed draft tokens). The verif
 - Эффективное значение: при заданном значении `speculative_num_draft_tokens = gamma + 1`. При незаданном гамма читается из конфига draft-чекпоинта (`read_draft_checkpoint_gamma`); если конфиг не прочитался и `--speculative-num-draft-tokens` тоже не задан, берётся `DEFAULT_DSPARK_GAMMA = 7` с предупреждением. Здесь же `speculative_num_steps` и `speculative_eagle_topk` принудительно становятся `1`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_dspark_block_size`
 - Статус: обычный, алгоритмо-специфичный: читатели — `_handle_dspark` и модельный override Kimi-K3
-- Этап применения: `__post_init__` (модельный override Kimi-K3 → `_handle_dspark`) → ширина verify-форварда и резерв KV → захват CUDA graph → forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаг `handle_model_specific_adjustments` (модельный override Kimi-K3, `arg_groups/model_overrides/kimi_k3.py`) → шаг `handle_speculative_decoding` (`_handle_dspark` в `arg_groups/speculative_hook.py`, через `SpeculativeAlgorithm.handle_server_args`) → ширина verify-форварда и резерв KV → захват CUDA graph → forward
 
 ## Что меняет в движке
 
@@ -47,7 +47,7 @@ DSPARK only. Draft block size gamma (number of proposed draft tokens). The verif
 1. неположительное значение — `ValueError`;
 2. иначе `gamma` = заданное значение, а если не задано — `read_draft_checkpoint_gamma(...)` по hf-конфигу draft'а (ключ `dspark_block_size` / `block_size`); при исключении печатается предупреждение и, если `--speculative-num-draft-tokens` тоже пуст, подставляется 7;
 3. `verify_window = gamma + 1`; если `--speculative-num-draft-tokens` задан и не равен окну — `ValueError` с обоими числами;
-4. итог записывается в `speculative_num_draft_tokens`; значение меньше 2 отвергается.
+4. итог декларируется в `speculative_num_draft_tokens` (`declare_resolution`); значение меньше 2 отвергается.
 
 Позже, уже при инициализации воркера, `resolve_runtime_config` повторяет сверку с чекпоинтом и при расхождении печатает `DSpark gamma mismatch: using gamma=X (from speculative_num_draft_tokens=Y) but draft config block_size=Z`. Оттуда же берутся `mask_token_id` и требование `markov_rank > 0`.
 
@@ -113,6 +113,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2-Exp --speculat
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_config.py`
 - `sglang/python/sglang/srt/speculative/dspark_components/dspark_worker_v2.py`
 - `sglang/python/sglang/srt/mem_cache/allocation_sizing.py`

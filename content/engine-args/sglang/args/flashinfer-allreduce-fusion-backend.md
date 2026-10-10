@@ -41,15 +41,15 @@ Enable FlashInfer allreduce fusion and choose backend. Requires SM90 or SM10X NV
 - Тип значения: строка с фиксированным списком (`Optional[Literal[...]]`)
 - Допустимые значения: `auto`, `trtllm`, `mnnvl`, `cutedsl`
 - Значение по умолчанию: `null` — фьюжен выключен
-- Эффективное значение: переписывается тремя проходами реестра `arg_groups/overrides.py`, в этом порядке:
+- Эффективное значение: решают три пасса из `arg_groups/overrides.py` (первые два запускаются внутри шага резолва `handle_model_specific_adjustments`, третий — внутри `handle_deterministic_inference`; каждый декларирует итог через `declare_resolution`, а `server_args.flashinfer_allreduce_fusion_backend` хранит ввод оператора), в этом порядке:
   1. `_flashinfer_allreduce_fusion_auto_enable` ставит `"auto"`, если значение не задано, архитектура входит в `_FLASHINFER_ALLREDUCE_FUSION_ARCHS`, платформа SM90 или SM100, `tp_size > 1`, DP-attention выключен, `moe_a2a_backend == "none"` и либо `nnodes == 1`, либо платформа SM100. Исключение — DeepSeek-V4.1 с `hidden_size` 5120 при TP4 на одном Blackwell-узле без `--disable-custom-all-reduce`: там предпочтен собственный custom-путь, и `auto` не ставится. Значение `cutedsl` авто-включение не подставляет никогда. В лог идет `Auto-enabling FlashInfer AllReduce Fusion on SM90/SM10X for <Arch>`;
   2. `_enforce_disable_allreduce_fusion` сбрасывает значение в `None`, если задан `--enforce-disable-flashinfer-allreduce-fusion`;
   3. `_deterministic_allreduce_fusion_disable` сбрасывает в `None` при `--enable-deterministic-inference` (`Disable --flashinfer-allreduce-fusion-backend because deterministic inference is enabled.`).
 
-  Плюс устаревший флаг `--enable-flashinfer-allreduce-fusion` (см. ниже) в `_handle_deprecated_args` ставит `"auto"`. Прежняя переменная окружения `SGLANG_FLASHINFER_MNNVL_CUTEDSL_AR_FUSION`, включавшая CuTe DSL-фьюжен для Qwen3.5, теперь объявлена устаревшей с подсказкой задавать `--flashinfer-allreduce-fusion-backend cutedsl`; без флага подходящая модель получит `auto`, то есть `mnnvl`
+  Плюс устаревший флаг `--enable-flashinfer-allreduce-fusion` (см. ниже) в шаге `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`) ставит `"auto"`. Прежняя переменная окружения `SGLANG_FLASHINFER_MNNVL_CUTEDSL_AR_FUSION`, включавшая CuTe DSL-фьюжен для Qwen3.5, теперь объявлена устаревшей с подсказкой задавать `--flashinfer-allreduce-fusion-backend cutedsl`; без флага подходящая модель получит `auto`, то есть `mnnvl`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecComm.flashinfer_allreduce_fusion_backend`; поле помечено `resolvable=True`
-- Статус: обычный. Его предшественник `--enable-flashinfer-allreduce-fusion` остается рабочим флагом командной строки: поле датакласса помечено `Arg(no_cli=True)`, чтобы не регистрироваться автоматически, а сам флаг объявлен литеральным `parser.add_argument` в `add_cli_args` — поэтому он есть и в `--help`, и в extract (описан в `enable-flashinfer-allreduce-fusion.md`). При его использовании `_handle_deprecated_args` печатает `--enable-flashinfer-allreduce-fusion is deprecated. Please use --flashinfer-allreduce-fusion-backend=auto instead.` и подставляет сюда `auto`. В новых строках запуска задавайте `--flashinfer-allreduce-fusion-backend auto` напрямую
-- Этап применения: разбор CLI → `_handle_deprecated_args` → реестр переопределений (`auto`-включение, enforce-disable, детерминизм) → построение модели (для `cutedsl` — установка `CuteDSLFusion` в слои) → `_pre_initialize_flashinfer_allreduce_workspace` до захвата CUDA graph → каждый forward
+- Статус: обычный. Его предшественник `--enable-flashinfer-allreduce-fusion` остается рабочим флагом командной строки: поле датакласса помечено `Arg(no_cli=True)`, чтобы не регистрироваться автоматически, а сам флаг объявлен литеральным `parser.add_argument` в `add_cli_args` — поэтому он есть и в `--help`, и в extract (описан в `enable-flashinfer-allreduce-fusion.md`). При его использовании шаг `handle_deprecated_args` печатает `--enable-flashinfer-allreduce-fusion is deprecated. Please use --flashinfer-allreduce-fusion-backend=auto instead.` и подставляет сюда `auto`. В новых строках запуска задавайте `--flashinfer-allreduce-fusion-backend auto` напрямую
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаг `handle_deprecated_args` → `handle_model_specific_adjustments` (`auto`-включение, enforce-disable) → `handle_deterministic_inference` (детерминизм) → построение модели (для `cutedsl` — установка `CuteDSLFusion` в слои) → `_pre_initialize_flashinfer_allreduce_workspace` до захвата CUDA graph → каждый forward
 
 ## Что меняет в движке
 
@@ -115,7 +115,7 @@ Enable FlashInfer allreduce fusion and choose backend. Requires SM90 or SM10X NV
 ## Взаимодействие с другими аргументами
 
 - `--enforce-disable-flashinfer-allreduce-fusion`: единственный способ отменить авто-включение; выполняется сразу после него.
-- `--enable-deterministic-inference`: сбрасывает значение в `None` и дополнительно взводит `enforce_disable_flashinfer_allreduce_fusion` в `_handle_model_specific_adjustments`.
+- `--enable-deterministic-inference`: сбрасывает значение в `None` и дополнительно взводит `enforce_disable_flashinfer_allreduce_fusion` в шаге `handle_model_specific_adjustments` (`arg_groups/model_hook.py`).
 - `--enable-aiter-allreduce-fusion`: ROCm-аналог, проверяется в том же `or`; на одной платформе истинным может быть только один из двух.
 - `--enable-dp-attention`: блокирует и авто-включение, и сам фьюжен на forward.
 - `--moe-a2a-backend`: любое значение, кроме `none`, отменяет авто-включение (но не запрещает задать флаг руками).
@@ -159,6 +159,9 @@ python -m sglang.launch_server --model-path /models/Qwen3.5-397B-A17B --tensor-p
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/layers/flashinfer_comm_fusion.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/residual/add_norm.py`
 - `sglang/python/sglang/srt/layers/layer_boundary/fusions/cutedsl.py`

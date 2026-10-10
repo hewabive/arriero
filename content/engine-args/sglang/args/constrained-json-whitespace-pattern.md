@@ -33,7 +33,7 @@ related:
 - Тип значения: строка — регулярное выражение
 - Допустимые значения: `choices` нет; синтаксис регулярки диктует выбранный backend (для `outlines` — `interegular`/`outlines.fsm`, для `llguidance` — его собственный движок)
 - Значение по умолчанию: `null` — backend использует свой встроенный набор допустимых пробелов
-- Эффективное значение: `__post_init__` не переопределяет
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.constrained_json_whitespace_pattern`
 - Статус: обычный
 - Этап применения: создание grammar-backend при инициализации планировщика → компиляция грамматики под каждую новую JSON-схему

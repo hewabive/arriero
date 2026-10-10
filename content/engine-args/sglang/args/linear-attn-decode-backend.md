@@ -37,10 +37,10 @@ Override the kernel backend for linear attention decode. If not set, uses --line
 - Тип значения: строка с фиксированным списком (`Optional[str]`)
 - Допустимые значения: `triton`, `cutedsl`, `flashinfer`, `flashkda`, `nvidia_kda`, `ptx_kda`, `helion`, `intel_xpu` (общий список; `helion` — decode только для KDA)
 - Значение по умолчанию: `null` — берется `--linear-attn-backend`
-- Эффективное значение: `_handle_linear_attn_backend` может записать `flashinfer` (SM100+ и `--mamba-ssm-dtype bfloat16`) либо `triton` (при унаследованном `flashkda`); обе подстановки печатают info-строку
+- Эффективное значение: шаг резолва `handle_linear_attn_backend` (`arg_groups/attention_hook.py`) может задекларировать `flashinfer` (SM100+ и `--mamba-ssm-dtype bfloat16`) либо `triton` (при унаследованном `flashkda`); обе подстановки печатают info-строку. Поле `server_args.linear_attn_decode_backend` при этом хранит ввод оператора, итог виден в дампе `server_args=`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.linear_attn_decode_backend`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_linear_attn_backend`) → создание backend'а внимания → каждый decode-шаг линейных слоев
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_linear_attn_backend` → создание backend'а внимания → каждый decode-шаг линейных слоев
 
 ## Что меняет в движке
 
@@ -49,14 +49,15 @@ Override the kernel backend for linear attention decode. If not set, uses --line
 ### Автоподстановка FlashInfer
 
 ```python
-if (self.linear_attn_decode_backend is None
-        and self.linear_attn_backend != "helion"
-        and is_sm100_supported()
-        and self.mamba_ssm_dtype == "bfloat16"):
-    self.linear_attn_decode_backend = "flashinfer"
+if (cfg.linear_attn_decode_backend is None
+        and cfg.linear_attn_backend != "helion"
+        and get_platform().is_sm100
+        and cfg.mamba_ssm_dtype == "bfloat16"):
+    declare_resolution(server_args, "_handle_linear_attn_backend",
+                       linear_attn_decode_backend="flashinfer")
 ```
 
-Проверяется поле `ServerArgs`, то есть **явно заданный** `--mamba-ssm-dtype bfloat16`. Тот же bf16, унаследованный из конфига модели, автоподстановку не включает. База `helion` отдельно исключена, чтобы KDA Helion не был перезаписан FlashInfer. В логе: `SM100+ detected with mamba-ssm-dtype=bfloat16, defaulting --linear-attn-decode-backend to flashinfer.`
+Проверяется значение аргумента в резолве (`cfg = resolving_view(server_args)`), а не конфиг модели, то есть **явно заданный** `--mamba-ssm-dtype bfloat16`. Тот же bf16, унаследованный из конфига модели, автоподстановку не включает. База `helion` отдельно исключена, чтобы KDA Helion не был перезаписан FlashInfer. В логе: `SM100+ detected with mamba-ssm-dtype=bfloat16, defaulting --linear-attn-decode-backend to flashinfer.`
 
 ### Замена FlashKDA
 
@@ -136,6 +137,7 @@ python -m sglang.launch_server --model-path /models/Kimi-Linear-48B-A3B-Instruct
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/layers/attention/linear/utils.py`
 - `sglang/python/sglang/srt/layers/attention/linear/gdn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/linear/kda_backend.py`

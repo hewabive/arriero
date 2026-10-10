@@ -33,7 +33,7 @@ The custom labels for metrics. e.g. '{"label1": "value1", "label2": "value2"}'
 - Тип значения: одна строка, разбираемая `json.loads` (`type_parser` в объявлении `Arg`), ожидается объект `Dict[str, str]`
 - Допустимые значения: `choices` нет. То, что результат разбора действительно словарь, argparse не проверяет — проверки нет нигде, ошибка вылезет позже, при `labels.update(...)`
 - Значение по умолчанию: `null` — дополнительных меток нет
-- Эффективное значение: совпадает с заданным; ни один `_handle_*` его не переписывает
+- Эффективное значение: совпадает с заданным; ни один шаг резолва (`ServerArgs.resolve_once`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.extra_metric_labels`
 - Статус: обычный
 - Этап применения: разбор CLI (`json.loads`) → конструкторы коллекторов в tokenizer- и scheduler-процессах → инициализация коллектора radix-кеша

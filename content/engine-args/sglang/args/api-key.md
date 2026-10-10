@@ -41,10 +41,10 @@ Set API key of the server. It is also used in the OpenAI API compatible server.
 - Тип значения: str (один ключ, не список)
 - Допустимые значения: не ограничены argparse. Практически — только ASCII: сравнение идет через `secrets.compare_digest` по строкам, а он на не-ASCII `str` бросает `TypeError`
 - Значение по умолчанию: `None` — аутентификации нет
-- Эффективное значение: совпадает с заданным; переменной окружения-дублера у этого аргумента нет. Косвенный эффект: при `--grpc-port` вместе с `--api-key` `__post_init__` бросает `ValueError`, а при `--tokenizer-worker-num > 1` ключ приводит к `AssertionError` в каждом HTTP-worker'е
+- Эффективное значение: совпадает с заданным; переменной окружения-дублера у этого аргумента нет. Косвенный эффект: при `--grpc-port` вместе с `--api-key` шаг резолва `handle_deprecated_args` (`arg_groups/serving_hook.py`) бросает `ValueError`, а при `--tokenizer-worker-num > 1` ключ приводит к `AssertionError` в каждом HTTP-worker'е
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.api_key`
 - Статус: обычный
-- Этап применения: `__post_init__` (проверки совместимости с gRPC) → HTTP-слой, `_setup_and_run_http_server` подключает middleware до старта uvicorn/Granian
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_deprecated_args` (`arg_groups/serving_hook.py`, проверки совместимости с gRPC) → HTTP-слой, `_setup_and_run_http_server` подключает middleware до старта uvicorn/Granian
 
 ## Что меняет в движке
 
@@ -105,7 +105,7 @@ Warmup-поток самого сервера добавляет `Authorization:
 
 - `--admin-api-key`: при одновременной установке admin-ключ **вытесняет** обычный на всех ADMIN_OPTIONAL-маршрутах — запрос с `--api-key` туда получит 401.
 - `--tokenizer-worker-num`: значение больше 1 несовместимо. Каждый worker-процесс выполняет `assert server_args.api_key is None, "API key is not supported in multi-tokenizer mode"` и падает на старте.
-- `--grpc-port`: `__post_init__` бросает `ValueError: --grpc-port is incompatible with --api-key/--admin-api-key` — нативный gRPC-слушатель обходит HTTP-middleware.
+- `--grpc-port`: `handle_deprecated_args` бросает `ValueError: --grpc-port is incompatible with --api-key/--admin-api-key` — нативный gRPC-слушатель обходит HTTP-middleware.
 - `--enable-metrics`: `/metrics` остается открытым независимо от ключа, это осознанное исключение в `decide_request_auth`.
 - `--host`, `--port`: реальная граница доступа; ключ ее не заменяет.
 - `--ssl-certfile` / `--ssl-keyfile`: без TLS ключ передается открытым текстом.
@@ -144,6 +144,7 @@ curl -sS -i -H "Authorization: Bearer 3f2a9c7e1b4d8065" http://127.0.0.1:30000/v
 - `sglang/python/sglang/srt/utils/auth.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/KTRANSFORMERS_OPERATIONS.md`

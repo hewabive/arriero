@@ -38,10 +38,10 @@ If set, skip init tokenizer and pass input_ids in generate request.
 - Тип значения: bool; поле объявлено как `bool`, argparse получает `action="store_true"`, парного `--no-*` нет
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
-- Эффективное значение: совпадает с заданным, но **переписывает три соседних аргумента** в `_handle_tokenizer_batching` (при незаданной переменной `SGLANG_RUST_SERVER`): `detokenizer_worker_num` принудительно становится `1` с предупреждением, `enable_tokenizer_batch_encode` и `enable_dynamic_batch_tokenizer` принудительно выключаются, каждый со своим предупреждением
+- Эффективное значение: совпадает с заданным, но **переписывает три соседних аргумента** в шаге резолва `handle_tokenizer_batching` (`arg_groups/serving_hook.py`; при незаданной переменной `SGLANG_RUST_SERVER`; новые значения декларируются через `declare_resolution`, итог виден в дампе `server_args=`): `detokenizer_worker_num` принудительно становится `1` с предупреждением, `enable_tokenizer_batch_encode` и `enable_dynamic_batch_tokenizer` принудительно выключаются, каждый со своим предупреждением
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.skip_tokenizer_init`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_tokenizer_batching`, проверка `--preferred-sampling-params`) → запуск процессов tokenizer/detokenizer/scheduler → HTTP-слой (валидация каждого запроса)
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_tokenizer_batching` и `handle_other_validations` (проверка `--preferred-sampling-params`) → запуск процессов tokenizer/detokenizer/scheduler → HTTP-слой (валидация каждого запроса)
 
 ## Что меняет в движке
 
@@ -63,7 +63,7 @@ The engine initialized with skip_tokenizer_init=True cannot accept text prompts.
 
 ### Что перестает работать в параметрах сэмплирования
 
-`SamplingParams.normalize(None)` (`sampling/sampling_params.py`) отвергает три вещи, о чем `__post_init__` заранее пишет информационную строку `skip_tokenizer_init=True: string-based stop conditions (stop, stop_regex) and min_new_tokens are unavailable.`:
+`SamplingParams.normalize(None)` (`sampling/sampling_params.py`) отвергает три вещи, о чем шаг `handle_tokenizer_batching` заранее пишет информационную строку `skip_tokenizer_init=True: string-based stop conditions (stop, stop_regex) and min_new_tokens are unavailable.`:
 
 - `stop` — строковые стоп-последовательности (нужен токенизатор, чтобы их найти в тексте);
 - `stop_regex`;
@@ -71,7 +71,7 @@ The engine initialized with skip_tokenizer_init=True cannot accept text prompts.
 
 Останавливать генерацию остается через `stop_token_ids` и `max_new_tokens`.
 
-Дополнительно: если задан `--preferred-sampling-params`, `__post_init__` прогоняет его через `SamplingParams(**...).normalize(None)` и падает на старте, если там есть что-то из перечисленного, — это единственная проверка, которая ловит несовместимость до запуска.
+Дополнительно: если задан `--preferred-sampling-params`, шаг резолва `handle_other_validations` прогоняет его через `SamplingParams(**...).normalize(None)` и падает на старте, если там есть что-то из перечисленного, — это единственная проверка, которая ловит несовместимость до запуска.
 
 ### Прогрев
 
@@ -80,7 +80,7 @@ The engine initialized with skip_tokenizer_init=True cannot accept text prompts.
 ## Значения и формат
 
 - Флаг без значения.
-- Токенизатор не загружается вовсе, поэтому `--tokenizer-path`, `--tokenizer-mode` и `--tokenizer-backend` становятся неактуальными (пути они по-прежнему резолвят в `__post_init__`, но загрузки не происходит).
+- Токенизатор не загружается вовсе, поэтому `--tokenizer-path`, `--tokenizer-mode` и `--tokenizer-backend` становятся неактуальными (пути по-прежнему разрешаются в шагах резолва, но загрузки не происходит).
 - Отменить принудительный сброс `--detokenizer-worker-num`, `--enable-tokenizer-batch-encode` и `--enable-dynamic-batch-tokenizer` нельзя.
 
 ## Когда использовать
@@ -139,6 +139,7 @@ curl -sS http://127.0.0.1:30000/generate -H 'Content-Type: application/json' -d 
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/detokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`

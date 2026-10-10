@@ -38,7 +38,7 @@ Global rank offset of an elastic EP joining group. Scale joiners must set this t
 - Эффективное значение: совпадает с заданным; автоподбора нет. Обратите внимание на расхождение имен: CLI-флаг `--elastic-ep-join-rank-offset`, а поле датакласса — `ep_join_rank_offset`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_join_rank_offset`
 - Статус: обычный, часть экспериментального контура elastic EP
-- Этап применения: `_handle_elastic_ep` (валидация) → `init_torch_distributed` (`world_size`/`rank`) → `initialize_model_parallel` (`rank_offset`) → DP-attention, EPLB, раскладка экспертов, префиксы лога
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_elastic_ep` (`python/sglang/srt/arg_groups/parallel_hook.py`, валидация) → `init_torch_distributed` (`world_size`/`rank`) → `initialize_model_parallel` (`rank_offset`) → DP-attention, EPLB, раскладка экспертов, префиксы лога
 
 ## Что меняет в движке
 
@@ -67,7 +67,7 @@ rank = rank_offset + tp_size * pp_rank + tp_rank
 
 ### Порты
 
-При `is_ep_scale_joiner` присоединитель не проверяет доступность `dist_init_port` (рандеву принадлежит первичному развертыванию) и выводит собственную базу портов от своего `--port`, а выходы возвращает через tokenizer первичного развертывания (`PortArgs.init_new`).
+Для scale-присоединителя (`ep_scale_joiner_of` в `python/sglang/srt/arg_groups/model_override_base.py`, то есть `--elastic-ep-join-mode scale`; в runtime — производное поле `get_exec().moe.is_ep_scale_joiner`) присоединитель не проверяет доступность `dist_init_port` (рандеву принадлежит первичному развертыванию) и выводит собственную базу портов от своего `--port`, а выходы возвращает через tokenizer первичного развертывания (`PortArgs.init_new`).
 
 ## Значения и формат
 
@@ -123,6 +123,8 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tensor-par
 
 - `sglang/python/sglang/srt/arg_groups/fields/parallel.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
 - `sglang/python/sglang/srt/distributed/bootstrap.py`
 - `sglang/python/sglang/srt/elastic_ep/elastic_ep.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`

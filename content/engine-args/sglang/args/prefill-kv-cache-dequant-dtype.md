@@ -37,7 +37,7 @@ Online dequantization dtype used by prefill attention when --kv-cache-dtype=nvfp
 - Эффективное значение: `handle_nvfp4_prefill_kv_dequant_dtype` (`arg_groups/kv_cache_hook.py`) при `--kv-cache-dtype nvfp4` разрешает `auto` в конкретный dtype и одновременно назначает `prefill_attention_backend` (`trtllm_mha` для `nvfp4`, `flashinfer` для `fp8_e4m3`) и `decode_attention_backend = trtllm_mha`. При другом `--kv-cache-dtype` значение остается `auto`, а любое другое — ошибка
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.prefill_kv_cache_dequant_dtype`
 - Статус: обычный, поле `resolvable=True`
-- Этап применения: `__post_init__` (выбор dtype и backend'ов, до общей проверки совместимости attention-backend'ов) → расчет `cell_size` и выделение KV-пула (наличие workspace и вторая раскладка scale'ов) → prefill-forward
+- Этап применения: `ServerArgs.resolve_once` → шаг `handle_nvfp4_prefill_kv_dequant_dtype` (выбор dtype и backend'ов, до шага `handle_attention_backend_compatibility`) → расчет `cell_size` и выделение KV-пула (наличие workspace и вторая раскладка scale'ов) → prefill-forward
 
 ## Что меняет в движке
 

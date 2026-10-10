@@ -39,7 +39,7 @@ The ratio of SWA layer KV tokens / full layer KV tokens, regardless of the numbe
 - Эффективное значение: если флаг не задан, модельные переопределения выбирают DeepSeek V4 → `0.1` (кроме DeepSeek-V4.1, где коэффициент остается незаданным ради cap-режима), Inkling → `0.1`; для остальных моделей применяется fallback `0.8`. Для `Step3p5ForCausalLM` вместе с `--enable-hierarchical-cache` значение безусловно сбрасывается в `1.0` и одновременно включается `disable_hybrid_swa_memory`. Кроме того, коэффициент полностью игнорируется двумя конфигураторами пулов — см. ниже
 - Где объявлен: `python/sglang/srt/arg_groups/fields/schedule.py:Schedule.swa_full_tokens_ratio`
 - Статус: обычный; поле помечено `resolvable=True`
-- Этап применения: `__post_init__` (переопределения и валидация) → расчет размеров KV-пулов при инициализации model runner
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаг `handle_model_specific_adjustments` (модельные переопределения) → шаг `handle_cache_compatibility` (`arg_groups/kv_cache_hook.py`, валидация разрешенного значения через `resolution_result`) → расчет размеров KV-пулов при инициализации model runner
 
 ## Что меняет в движке
 
@@ -129,5 +129,6 @@ python -m sglang.launch_server --model-path /models/gpt-oss-120b --swa-full-toke
 - `sglang/python/sglang/srt/arg_groups/model_overrides/inkling.py`
 - `sglang/python/sglang/srt/model_executor/pool_configurator.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

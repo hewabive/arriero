@@ -34,10 +34,10 @@ Limit the number of multimodal inputs per request. e.g. '{"image": 1, "video": 1
 - Тип значения: JSON-объект; поле объявлено как `Optional[Union[str, Dict[str, int]]]` с `type_parser=json.loads`, то есть argparse разбирает строку как JSON прямо на этапе парсинга
 - Допустимые значения: объект, ключи которого — только `image`, `video`, `audio`; значения — целые числа
 - Значение по умолчанию: `null` — лимитов нет
-- Эффективное значение: не переопределяется; `__post_init__` только валидирует набор ключей
+- Эффективное значение: не переопределяется; шаг резолва `handle_other_validations` (`arg_groups/serving_hook.py`) только разбирает строковое значение и валидирует набор ключей
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.limit_mm_data_per_request`
 - Статус: обычный
-- Этап применения: разбор CLI (`json.loads`) → валидация ключей в `__post_init__` → проверка каждого входящего запроса в `TokenizerManager._validate_mm_limits`
+- Этап применения: разбор CLI (`json.loads`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, валидация ключей в шаге `handle_other_validations` → проверка каждого входящего запроса в `TokenizerManager._validate_mm_limits`
 
 ## Что меняет в движке
 
@@ -45,9 +45,9 @@ Limit the number of multimodal inputs per request. e.g. '{"image": 1, "video": 1
 
 ```python
 def _validate_mm_limits(self, obj):
-    if not self.server_args.limit_mm_data_per_request:
+    if not get_mm().limit_mm_data_per_request:
         return
-    for modality, limit in self.server_args.limit_mm_data_per_request.items():
+    for modality, limit in get_mm().limit_mm_data_per_request.items():
         data = getattr(obj, f"{modality}_data", None)
         if data:
             count = len(data) if isinstance(data, list) else 1
@@ -61,7 +61,7 @@ def _validate_mm_limits(self, obj):
 
 Считаются **элементы верхнего уровня**, а не кадры и не пиксели. Для видео `{"video": 1}` означает «один видеофайл», а не «один кадр» — сколько кадров вытащить из этого файла, решают `--mm-process-config` и модель.
 
-В `__post_init__` (`sglang/python/sglang/srt/server_args.py`) выполняется только структурная проверка: если значение пришло строкой (Python-API), оно разбирается `json.loads`; затем каждый ключ сверяется с `{"image", "video", "audio"}`, и неизвестный ключ приводит к `ValueError: Invalid modality '<key>' in --limit-mm-data-per-request. Allowed modalities are: ['image', 'video', 'audio']`. Числа не проверяются вообще.
+В шаге резолва `handle_other_validations` (`sglang/python/sglang/srt/arg_groups/serving_hook.py`) выполняется только структурная проверка: если значение пришло строкой (Python-API), результат `json.loads` декларируется как разрешенное значение (сырое поле остается строкой, а `get_mm()` в рантайме отдает словарь); затем каждый ключ сверяется с `{"image", "video", "audio"}`, и неизвестный ключ приводит к `ValueError: Invalid modality '<key>' in --limit-mm-data-per-request. Allowed modalities are: ['image', 'video', 'audio']`. Числа не проверяются вообще.
 
 ## Значения и формат
 
@@ -70,7 +70,7 @@ def _validate_mm_limits(self, obj):
 - `0` работает как «эта модальность запрещена»: любое непустое `image_data` даст `count >= 1 > 0`. Это единственный способ закрыть модальность через данный аргумент.
 - Отрицательные и нулевые значения argparse принимает — семантической проверки на них нет.
 - Невалидный JSON отклоняется парсером аргументов с ошибкой `json.decoder.JSONDecodeError`, а не аккуратным сообщением.
-- Ключ вне тройки допустимых валится не в argparse, а позже, в `__post_init__`.
+- Ключ вне тройки допустимых валится не в argparse, а позже, на резолве (`handle_other_validations`).
 
 ## Когда использовать
 
@@ -115,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --limit
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/io_struct.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`

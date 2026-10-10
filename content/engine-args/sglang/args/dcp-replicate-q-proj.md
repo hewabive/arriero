@@ -32,10 +32,10 @@ For MLA decode context parallelism with the a2a/fi_a2a backend: replicate the Q 
 - Тип значения: bool (`Optional[bool]` — три состояния)
 - Допустимые значения: флаг без значения либо его отрицающая половина
 - Значение по умолчанию: `null` — «не задано»
-- Эффективное значение: поле `resolvable=True`. Для Kimi-K3 с DCP `arg_groups/overrides.py` при `null` подставляет `True` со строкой `Kimi-K3 DCP enables replicated Q projection by default.` Явно заданный `--no-dcp-replicate-q-proj` эту подстановку отменяет — ради этого и существует отрицающая половина. Для прочих моделей `null` означает «выключено»
+- Эффективное значение: поле `resolvable=True`. Для Kimi-K3 с DCP (`--dcp-size > 1`) модельный провайдер `_kimi_k3_overrides` (`python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`, собирается шагом резолва `handle_model_specific_adjustments`) при `null` и `--dcp-comm-backend` `a2a`/`fi_a2a` декларирует `True` со строкой `Kimi-K3 DCP enables replicated Q projection by default.` Явно заданный `--no-dcp-replicate-q-proj` эту подстановку отменяет — ради этого и существует отрицающая половина. Для прочих моделей `null` означает «выключено»
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.dcp_replicate_q_proj`
 - Статус: обычный
-- Этап применения: валидация в `_handle_dcp_validation` → подготовка полноголовых весов в model runner до захвата CUDA graph (`_prepare_replicated_q_proj`) → forward на decode
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`: проверка в шаге `handle_decode_context_parallelism` (`python/sglang/srt/arg_groups/parallel_hook.py`; перед ней пасс `_dcp_comm_backend_default` из `arg_groups/overrides.py` разрешает `--dcp-comm-backend`), позже — подстановка Kimi-K3 в `handle_model_specific_adjustments` → подготовка полноголовых весов в model runner до захвата CUDA graph (`_prepare_replicated_q_proj`) → forward на decode
 
 ## Что меняет в движке
 
@@ -123,4 +123,6 @@ python -m sglang.launch_server --model-path moonshotai/Kimi-K2-Instruct --tensor
 - `sglang/python/sglang/srt/models/deepseek_common/attention_forward_methods/forward_mla.py`
 - `sglang/python/sglang/srt/models/deepseek_common/attention_forward_methods/forward_mla_rocm.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`
 - `sglang/python/sglang/srt/layers/dcp/comm.py`

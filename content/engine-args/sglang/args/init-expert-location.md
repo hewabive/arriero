@@ -37,7 +37,7 @@ Initial location of EP experts.
 - Эффективное значение: не переопределяется, но само меняет умолчание `--ep-dispatch-algorithm`: любое значение, кроме `trivial`, включает ту же подстановку, что и `--enable-eplb` (`dynamic` при `--moe-a2a-backend none`, иначе `static`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMoe.init_expert_location`
 - Статус: обычный
-- Этап применения: `__post_init__` (подстановка dispatch-алгоритма) → инициализация model runner (`maybe_init_expert_location_metadata`), до загрузки весов экспертов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_eplb_and_dispatch` (`python/sglang/srt/arg_groups/parallel_hook.py`: подстановка dispatch-алгоритма) → инициализация model runner (`maybe_init_expert_location_metadata`), до загрузки весов экспертов
 
 ## Что меняет в движке
 
@@ -122,6 +122,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3 --tp-size 8 
 
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/eplb/expert_location.py`
 - `sglang/python/sglang/srt/eplb/expert_distribution.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

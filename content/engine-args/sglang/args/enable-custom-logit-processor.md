@@ -33,7 +33,7 @@ Enable users to pass custom logit processors to the server (disabled by default 
 - Тип значения: bool (флаг без значения, `store_true`)
 - Допустимые значения: `choices` нет
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным — ни один `_handle_*` и ни одно правило `arg_groups/overrides.py` его не переписывают
+- Эффективное значение: совпадает с заданным — ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`: шаги `arg_groups/*_hook.py`, проходы `arg_groups/overrides.py`, `arg_groups/model_overrides/`) его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecFeatures.enable_custom_logit_processor`
 - Статус: обычный
 - Этап применения: разбор CLI → валидация запроса в `TokenizerManager` → сборка `SamplingBatchInfo` в scheduler'е → каждый шаг сэмплинга

@@ -33,10 +33,10 @@ Enable asynchronous LoRA weight loading in order to overlap H2D transfers with G
 - Тип значения: `Optional[bool]`; в argparse — `action="store_true"` с `default=None`
 - Допустимые значения: значения не принимает — флаг присутствия
 - Значение по умолчанию: `null`
-- Эффективное значение: при включенной LoRA `check_lora_server_args` фиксирует `None` в `False`
+- Эффективное значение: при включенной LoRA `check_lora_server_args` (`python/sglang/srt/arg_groups/lora_hook.py`) декларирует вместо `None` значение `False`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/lora.py:Lora.enable_lora_overlap_loading`
 - Статус: обычный
-- Этап применения: `__post_init__` (валидация) → `Scheduler.init_lora_overlap_loader` → отбор заявок в батч и загрузка весов
+- Этап применения: `ServerArgs.resolve_once` → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, вызывается после пайплайна резолва и вызывает `check_lora_server_args`: валидация) → `Scheduler.init_lora_overlap_loader` → отбор заявок в батч и загрузка весов
 
 ## Что меняет в движке
 
@@ -137,6 +137,8 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 
 - `sglang/python/sglang/srt/arg_groups/fields/lora.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/lora/lora_overlap_loader.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`

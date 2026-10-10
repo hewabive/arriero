@@ -37,10 +37,10 @@ For VLM, load weights for the language model only.
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным; движок его не переписывает, но оно отключает VLM-надбавку к `--mem-fraction-static` и меняет ветку прогрева
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует, но оно отключает VLM-надбавку к `--mem-fraction-static` и меняет ветку прогрева
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.language_only`
 - Статус: обычный
-- Этап применения: разбор CLI → авто-подбор `--mem-fraction-static` (VLM-надбавка пропускается) → `_handle_encoder_disaggregation` (проверки, разрешение `--encoder-transfer-backend auto`) → `ModelConfig` (`hf_config.language_only`) → загрузка весов без визуальной башни → `TokenizerManager.init_disaggregation` (запуск `EncoderBootstrapServer` и MM-receiver'а) → обработка каждого мультимодального запроса
+- Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаг `handle_gpu_memory_settings` (`arg_groups/memory_hook.py`, авто-подбор `--mem-fraction-static`, VLM-надбавка пропускается) → шаг `handle_encoder_disaggregation` (`arg_groups/pd_disaggregation_hook.py`; проверки, разрешение `--encoder-transfer-backend auto`) → `ModelConfig` (`hf_config.language_only`) → загрузка весов без визуальной башни → `TokenizerManager.init_disaggregation` (запуск `EncoderBootstrapServer` и MM-receiver'а) → обработка каждого мультимодального запроса
 
 ## Что меняет в движке
 
@@ -72,7 +72,7 @@ For VLM, load weights for the language model only.
 
 ### Память и прогрев
 
-- Авто-подбор `--mem-fraction-static` пропускает `adjust_mem_fraction_for_vlm` при `--language-only`: энкодера здесь нет, надбавка под обработку изображений не нужна.
+- Авто-подбор `--mem-fraction-static` в `handle_gpu_memory_settings` пропускает `adjust_mem_fraction_for_vlm` (`arg_groups/memory_hook.py`) при `--language-only`: энкодера здесь нет, надбавка под обработку изображений не нужна.
 - Стартовый прогрев остается текстовым, даже если модель рекламирует поддержку изображений: `is_vlm` в `_wait_and_warmup` явно занулен для `--language-only`.
 
 ## Значения и формат
@@ -135,6 +135,8 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/memory_hook.py`
+- `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/request_receiver.py`

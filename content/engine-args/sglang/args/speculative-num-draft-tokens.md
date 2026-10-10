@@ -40,7 +40,7 @@ The number of tokens sampled from the draft model in Speculative Decoding.
 - Эффективное значение: переопределяется почти всегда. При `--speculative-eagle-topk 1` жёстко становится `num_steps + 1`; EAGLE/EAGLE3/STANDALONE без явных значений получают `4` или `8` из `_auto_choose_speculative_params`; NGRAM — `12`; DFLASH — `--speculative-dflash-block-size` либо `block_size` из конфига черновика, иначе `16`; DSPARK — `gamma + 1`; `--speculative-adaptive` — `num_steps + 1`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.speculative_num_draft_tokens`
 - Статус: обычный
-- Этап применения: `__post_init__` → `handle_speculative_decoding` → выделение KV-пула и `req_to_token` → захват CUDA graph target-verify и draft-extend → forward
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_speculative_decoding` → выделение KV-пула и `req_to_token` → захват CUDA graph target-verify и draft-extend → forward
 
 ## Что меняет в движке
 
@@ -49,7 +49,7 @@ The number of tokens sampled from the draft model in Speculative Decoding.
 - **Отбор кандидатов.** `organize_draft_results` (`sglang/python/sglang/srt/speculative/eagle_utils.py`) делает `torch.topk(score_list, num_draft_tokens − 1)` по всему множеству кандидатов, накопленному за `num_steps` шагов черновика. Дерево строится из победителей глобально, а не по уровням: при `topk > 1` длинная маловероятная ветка проигрывает короткой уверенной.
 - **Маска дерева.** `build_tree_kernel_efficient` в режиме `FULL_MASK` (по умолчанию на GPU) выделяет булев тензор длиной `seq_lens_sum · num_draft_tokens + num_draft_tokens² · bs`. Первое слагаемое линейно и по длине контекста, и по ширине окна.
 - **Резерв KV.** `get_alloc_len_per_decode` возвращает `max(num_steps · topk, num_draft_tokens)`, а `get_alloc_reserve_per_decode` удваивает его; `get_req_to_token_extra_context_len` добавляет каждой строке `req_to_token` запас `4 + num_draft_tokens` сверх длины контекста.
-- **CUDA graph.** Verify-граф захватывается на `max_bs · num_draft_tokens` токенов; при `--disaggregation-mode decode` эта же величина попадает в автоподбор `--mem-fraction-static` (`activation_tokens = max_running_requests · num_draft_tokens`). Через `cutedsl_moe_max_num_tokens` она же задаёт бюджет CuteDSL-MoE.
+- **CUDA graph.** Verify-граф захватывается на `max_bs · num_draft_tokens` токенов; при `--disaggregation-mode decode` эта же величина попадает в автоподбор `--mem-fraction-static` (`activation_tokens = max_running_requests · num_draft_tokens`). Через `cutedsl_moe_max_num_tokens` (функция в `arg_groups/overrides.py`) она же задаёт бюджет CuteDSL-MoE.
 
 Автоподбор при незаданном значении делает `_handle_eagle_family`, и только вместе с двумя другими числами: если `speculative_num_steps` не задан, а `num_draft_tokens` задан — срабатывает `assert` и старт падает.
 
@@ -116,6 +116,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen2.5-7B-Instruct --speculati
 - `sglang/python/sglang/srt/arg_groups/fields/spec.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/speculative/eagle_utils.py`
 - `sglang/python/sglang/srt/speculative/spec_utils.py`
 - `sglang/python/sglang/srt/speculative/ngram_worker.py`

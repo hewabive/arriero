@@ -36,7 +36,7 @@ The service port of the seed instance for loading weights from remote instance.
 - Эффективное значение: не переопределяется; его отсутствие при `--load-format remote_instance` переводит `load_format` в `auto`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.remote_instance_weight_loader_seed_instance_service_port`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_load_format` — проверка полноты) → HTTP-запросы к seed'у при загрузке весов
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_load_format` (`arg_groups/model_path_hook.py`, проверка полноты) → HTTP-запросы к seed'у при загрузке весов
 
 ## Что меняет в движке
 
@@ -48,7 +48,7 @@ The service port of the seed instance for loading weights from remote instance.
 
 Все три эндпоинта живут на обычном HTTP-сервере SGLang (`sglang/python/sglang/srt/entrypoints/http_server.py`), поэтому нужное значение — это `--port` seed-инстанса.
 
-Проверка полноты в `_handle_load_format` объединена с проверкой ip: если backend не `modelexpress` и не задан ip **или** порт — `Fallback load_format to 'auto' due to incomplete remote instance weight loader settings.`
+Проверка полноты в `handle_load_format` объединена с проверкой ip: если backend не `modelexpress` и не задан ip **или** порт — `Fallback load_format to 'auto' due to incomplete remote instance weight loader settings.`
 
 ## Значения и формат
 
@@ -98,6 +98,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --tp-size 2 --load-
 
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
 - `sglang/python/sglang/srt/model_loader/remote_instance_weight_loader_utils.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/load_model_utils.py`

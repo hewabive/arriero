@@ -19,7 +19,7 @@ related:
 
 Исторически `--grpc-mode` означал «поднять gRPC-сервер вместо HTTP». Затем в SGLang появилось два разных gRPC-сервера — legacy SMG и нативный Rust'овый, — и флаг переименовали: legacy теперь `--smg-grpc-mode`, нативный включается портом `--grpc-port`.
 
-`--grpc-mode` остался как совместимость: он ничего не делает сам, а переписывается в `smg_grpc_mode` на этапе `__post_init__`. Важно понимать, что включение любого из этих двух флагов **отключает HTTP-сервер целиком** — вместе с `/health`, `/v1/models` и всеми OpenAI-эндпоинтами.
+`--grpc-mode` остался как совместимость: он ничего не делает сам, а при резолве аргументов (`ServerArgs.resolve_once`, шаг `handle_deprecated_args`) превращается в эффективное `smg_grpc_mode=True`. Важно понимать, что включение любого из этих двух флагов **отключает HTTP-сервер целиком** — вместе с `/health`, `/v1/models` и всеми OpenAI-эндпоинтами.
 
 ## Оригинальная справка
 
@@ -34,30 +34,36 @@ related:
 - Тип значения: bool (флаг без значения)
 - Допустимые значения: флаг присутствует / отсутствует
 - Значение по умолчанию: `false`
-- Эффективное значение: `_handle_deprecated_args` переносит `True` в `smg_grpc_mode` и печатает предупреждение. Само поле `grpc_mode` при этом **не сбрасывается** и продолжает участвовать в проверках вида `legacy_grpc = self.smg_grpc_mode or self.grpc_mode`
+- Эффективное значение: шаг резолва `handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`) декларирует `smg_grpc_mode=True` и печатает предупреждение. Само поле `grpc_mode` при этом **не сбрасывается** и продолжает участвовать в проверках вида `legacy_grpc = cfg.smg_grpc_mode or cfg.grpc_mode`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.grpc_mode`
-- Статус: устаревший. Обратите внимание: в extract у него `action: null` — это обычное поле датакласса, а не `Deprecated*Action`; предупреждение печатает `__post_init__`, а не argparse. Замена — `--smg-grpc-mode`
-- Этап применения: `__post_init__` (перенос значения) → выбор точки входа в `run_server`
+- Статус: устаревший. Обратите внимание: в extract у него `action: null` — это обычное поле датакласса, а не `Deprecated*Action`; предупреждение печатает шаг резолва `handle_deprecated_args`, а не argparse. Замена — `--smg-grpc-mode`
+- Этап применения: `ServerArgs.resolve_once` (из `launch_server.run_server`) → `run_resolution_pipeline`, шаг `handle_deprecated_args` (перенос значения) → выбор точки входа в `run_server`
 
 ## Что меняет в движке
 
-`_handle_deprecated_args` (`sglang/python/sglang/srt/server_args.py`):
+`handle_deprecated_args` (`python/sglang/srt/arg_groups/serving_hook.py`):
 
 ```python
-if self.grpc_mode and not self.smg_grpc_mode:
+if cfg.grpc_mode and not cfg.smg_grpc_mode:
     logger.warning(
         "--grpc-mode is deprecated and will be removed in a future "
         "version. Use --smg-grpc-mode for the legacy SMG gRPC server, "
         "or --grpc-port for the native gRPC server."
     )
-    self.smg_grpc_mode = True
+    declare_resolution(
+        server_args,
+        "_handle_deprecated_args",
+        smg_grpc_mode=True,
+    )
 ```
+
+Сырое `server_args.smg_grpc_mode` остается `False`; `True` — это эффективное значение, которое видно через `resolving_view()` / `resolved_dict()`.
 
 Дальше значение участвует в трех местах:
 
-1. `legacy_grpc = self.smg_grpc_mode or self.grpc_mode` — если legacy-режим активен и `--grpc-port` не задан, порт выводится как `--port + 10000`.
-2. `native_grpc = self.grpc_port is not None and not legacy_grpc` — legacy имеет приоритет над нативным сервером, поэтому повторные прогоны `__post_init__` идемпотентны.
-3. `run_server` (`sglang/python/sglang/launch_server.py`) выбирает точку входа: при `smg_grpc_mode` — `serve_grpc` из `sglang.srt.entrypoints.grpc_server`; при `encoder_only` вместе с любым из двух флагов — `serve_grpc_encoder`.
+1. `legacy_grpc = cfg.smg_grpc_mode or cfg.grpc_mode` — если legacy-режим активен и `--grpc-port` не задан, порт выводится как `--port + 10000`.
+2. `native_grpc = cfg.grpc_port is not None and not legacy_grpc` — legacy имеет приоритет над нативным сервером, поэтому выведенный в пункте 1 порт не включает нативный путь.
+3. `run_server` (`sglang/python/sglang/launch_server.py`) после `resolve_once` выбирает точку входа по эффективным значениям (`resolving_view`): при `smg_grpc_mode` — `serve_grpc` из `sglang.srt.entrypoints.grpc_server`; при `encoder_only` вместе с любым из двух флагов — `serve_grpc_encoder`.
 
 Вся семантика самого режима описана в документе по `--smg-grpc-mode`; здесь она не дублируется.
 
@@ -65,7 +71,7 @@ if self.grpc_mode and not self.smg_grpc_mode:
 
 - Флаг булев, значения не принимает.
 - «Не задан» — обычный HTTP-режим.
-- Комбинация `--grpc-mode --smg-grpc-mode` допустима: предупреждение тогда не печатается (условие `and not self.smg_grpc_mode`), поведение то же.
+- Комбинация `--grpc-mode --smg-grpc-mode` допустима: предупреждение тогда не печатается (условие `and not cfg.smg_grpc_mode`), поведение то же.
 - Отменить режим после включения нельзя: парного `--no-grpc-mode` нет.
 
 ## Когда использовать
@@ -109,6 +115,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --grpc-port 40
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/launch_server.py`
 - `sglang/python/sglang/srt/entrypoints/grpc_server.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`

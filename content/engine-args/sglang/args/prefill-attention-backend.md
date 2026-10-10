@@ -35,21 +35,21 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - Флаги: `--prefill-attention-backend`
 - Группа: `exec.kernel`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices`
+- Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices` (`arg_groups/choices.py`)
 - Значение по умолчанию: `null` — фаза prefill наследует разрешенный `--attention-backend`
-- Эффективное значение: `attention_backends_of` (`sglang/python/sglang/srt/arg_groups/overrides.py`) возвращает `prefill_attention_backend or attention_backend`. Само поле дописывается движком в двух случаях: `--device npu` пишет в него `ascend`, а `_cutedsl_prefill_backend_fill` подставляет `trtllm_mla`, если decode-backend — `cutedsl_mla`, а prefill не задан. Для DeepSeek V4 на NPU `_deepseek_v4_overrides` пишет `dsv4` в оба split-поля
+- Эффективное значение: `attention_backends_of` (`sglang/python/sglang/srt/arg_groups/overrides.py`) возвращает `prefill_attention_backend or attention_backend`. Само поле движок декларирует (`declare_resolution`; `server_args.prefill_attention_backend` хранит ввод оператора, итог — в `resolved_dict()`) в двух случаях: `--device npu` пишет в него `ascend`, а `_cutedsl_prefill_backend_fill` подставляет `trtllm_mla`, если decode-backend — `cutedsl_mla`, а prefill не задан. Для DeepSeek V4 на NPU `_deepseek_v4_overrides` пишет `dsv4` в оба split-поля
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.prefill_attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`
-- Этап применения: разбор CLI → `__post_init__` (`_attention_backend_default` и вся цепочка проверок совместимости) → создание backend'а в model runner → forward фазы extend
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_attention_backend_compatibility` (pass `_attention_backend_default` и вся цепочка проверок совместимости) → создание backend'а в model runner → forward фазы extend
 
 ## Что меняет в движке
 
 Новые значения `minicpm_flashattn` и `minicpm_flashinfer` создают `MiniCPMSparseBackend` с `use_flashinfer=False` и `True` соответственно. Это специализированный sparse attention MiniCPM, а не общая замена FlashAttention/FlashInfer для произвольной архитектуры. Наличие этих значений проверяйте в `--help` установленного окружения.
 
-Пара `(prefill, decode)` вычисляется в одном месте — `attention_backends_of`, и оттуда расходится по всем проверкам `__post_init__` (`_resolved_attention_backends`) и по `attention_backend_setup.py`.
+Пара `(prefill, decode)` вычисляется в одном месте — `attention_backends_of`, и оттуда расходится по всем проверкам шагов резолва (`attention_backends_of(resolved_view(server_args))`) и по `attention_backend_setup.py`.
 
-- Если `prefill == decode` и prefill задан, `_attention_backend_default` записывает это значение в `attention_backend` — то есть два split-флага с одинаковым значением эквивалентны одному `--attention-backend`.
-- Если задан только prefill, поле `attention_backend` все равно заполняется автоподбором `_get_default_attn_backend`, и decode получает именно его. То есть один split-флаг почти всегда означает гибридный режим, даже если вы этого не планировали.
+- Если `prefill == decode` и prefill задан, `_attention_backend_default` декларирует это значение для `attention_backend` — то есть два split-флага с одинаковым значением эквивалентны одному `--attention-backend`.
+- Если задан только prefill, поле `attention_backend` все равно заполняется автоподбором `get_default_attn_backend` (`arg_groups/model_override_base.py`), и decode получает именно его. То есть один split-флаг почти всегда означает гибридный режим, даже если вы этого не планировали.
 - При разных значениях создается `HybridAttnBackend` (`sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`): два полноценных backend'а конструируются отдельно, модельные обертки (гибридные GDN/Mamba/линейные слои) применяются один раз поверх пары. Лог: `Using hybrid attention backend for decode and prefill: decode_backend=…, prefill_backend=…` плюс `Warning: Attention backend specified by --attention-backend or default backend might be overridden. The feature of hybrid attention backend is experimental and unstable.`
 
 ### Проверки, которые смотрят именно на prefill-сторону
@@ -86,7 +86,7 @@ Choose the kernels for prefill attention layers (have priority over --attention-
 - `--attention-backend`: перекрывается этим флагом для prefill; при совпадении с decode получает его значение.
 - `--decode-attention-backend`: вторая половина пары; равенство значений отменяет гибридный режим.
 - `--page-size`: привязки backend'ов проверяют и prefill-поле (`cutedsl_mla`, `trtllm_mha`, `hpc_ops`, `fa4`).
-- `--kv-cache-dtype`: FP4-ветка `_handle_kv4_compatibility` разбирает пару prefill/decode отдельно.
+- `--kv-cache-dtype`: FP4-ветка шага `handle_kv4_compatibility` разбирает пару prefill/decode отдельно.
 - `--flashinfer-mla-disable-ragged`: влияет только на prefill-путь FlashInfer MLA.
 - `--disable-chunked-prefix-cache`: гейт по общему backend'у.
 - `--speculative-draft-attention-backend`: у draft-воркера split-полей нет, его backend один на все фазы.
@@ -114,6 +114,10 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --prefill-atte
 - `sglang/python/sglang/srt/arg_groups/fields/exec_.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/attention_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_override_base.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/attention_backend_setup.py`
 - `sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`

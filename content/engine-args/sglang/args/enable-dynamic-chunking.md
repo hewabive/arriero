@@ -51,7 +51,7 @@ calculated_chunk_size = max(int(smoothed), base_chunk_size // 4)
 
 `smooth_coeff` — переменная окружения `SGLANG_DYNAMIC_CHUNKING_SMOOTH_FACTOR` (по умолчанию `0.75`; `0` полностью отключает динамику, `1` следует модели буквально). Дальше размер выравнивается вниз по `max(page_size, 64)`, ограничивается `--max-prefill-tokens` и остатком контекста (с запасом в 100 токенов) и выравнивается еще раз. Полученное число подменяет `chunked_prefill_size` только для этого batch'а; `PrefillAdder` получает его как `rem_chunk_tokens`.
 
-Отдельный эффект — на резервирование памяти: `max_prefill_buffer_tokens()` при включенном флаге и `pp_size > 1` считает потолок prefill-буфера как `max(chunked_prefill_size, max_prefill_tokens, ceil(chunked_prefill_size * 1.25))`, потому что куски могут вырасти.
+Отдельный эффект — на резервирование памяти: `max_prefill_buffer_tokens(server_args)` (`arg_groups/overrides.py`) при включенном флаге и `pp_size > 1` считает потолок prefill-буфера как `max(chunked_prefill_size, max_prefill_tokens, ceil(chunked_prefill_size * 1.25))`, потому что куски могут вырасти.
 
 Если модель подогнать не удалось (`a <= 0`) или дискриминант отрицателен, предсказатель возвращает `None`, и используется обычный `--chunked-prefill-size`.
 
@@ -111,6 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --pp-size 4 --
 
 - `sglang/python/sglang/srt/arg_groups/fields/schedule.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/scheduler_pp_mixin.py`
 - `sglang/python/sglang/srt/managers/schedule_policy.py`

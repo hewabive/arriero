@@ -37,10 +37,10 @@ The pipeline parallelism size.
 - Тип значения: int
 - Допустимые значения: `choices` нет; осмысленный диапазон — от 1 до числа узлов (или числа групп GPU)
 - Значение по умолчанию: `1`
-- Эффективное значение: совпадает с заданным, кроме `_handle_dllm_inference`, где при `pp_size > 1` печатается `Pipeline parallelism is disabled because of using diffusion LLM inference` и значение принудительно становится `1`
+- Эффективное значение: совпадает с заданным, кроме шага резолва `handle_dllm_inference` (`python/sglang/srt/arg_groups/dllm_hook.py`), где при `pp_size > 1` печатается `Pipeline parallelism is disabled because of using diffusion LLM inference` и декларируется `pp_size=1` (сырое `server_args.pp_size` хранит ввод оператора, итог — в `resolved_dict()` / `get_parallel()`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.pp_size`
 - Статус: обычный
-- Этап применения: разбор CLI → `_handle_pipeline_parallelism` (предупреждение о несовместимости с overlap) → `check_server_args` (проверки делимости и совместимости) → запуск `pp_size * tp_size` процессов → `initialize_model_parallel` (PP-группы) → разбиение слоев в `get_pp_indices` → выделение KV-пула только под локальные слои
+- Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`: проход `_pipeline_parallel_overlap_disable` (`python/sglang/srt/arg_groups/overrides.py`, прямо перед `handle_speculative_decoding`; предупреждение о несовместимости с overlap) → `check_server_args` (`python/sglang/srt/arg_groups/validation_hook.py`, проверки делимости и совместимости; вызывается из `Engine._launch_subprocesses` до `publish`) → запуск `pp_size * tp_size` процессов → `initialize_model_parallel` (PP-группы) → разбиение слоев в `get_pp_indices` → выделение KV-пула только под локальные слои
 
 ## Что меняет в движке
 
@@ -78,11 +78,11 @@ KV-пул выделяется только под слои своей стад�
 ## Взаимодействие с другими аргументами
 
 - `--tp-size`: перемножаются в world size; на каждом узле поднимается `pp_size_per_node * tp_size_per_node` процессов.
-- `--disable-overlap-schedule`: при `pp_size > 1` в лог идет `Pipeline parallelism is incompatible with overlap schedule.`, а `check_server_args` требует `disable_overlap_schedule == True`.
+- `--disable-overlap-schedule`: при `pp_size > 1` проход `_pipeline_parallel_overlap_disable` пишет в лог `Pipeline parallelism is incompatible with overlap schedule.` и сам декларирует `disable_overlap_schedule=True`; `check_server_args` затем требует `disable_overlap_schedule == True`.
 - `--speculative-algorithm`: должен быть не задан — то же требование `check_server_args`.
 - `--min-free-slots-delay`: должен быть не задан (порог свободных слотов при микробатчах может никогда не сработать).
 - `--pp-max-micro-batch-size` / `--pp-async-batch-depth`: настройка конвейера; `pp_max_micro_batch_size` — либо `None` (авто), либо ≥ 1.
-- `--enable-dynamic-chunking`: рекомендованный спутник PP; связка `enable_dynamic_chunking && pp_size > 1` поднимает потолок prefill-буфера до `max(chunked_prefill_size, max_prefill_tokens, ceil(chunked_prefill_size * 1.25))` (`max_prefill_buffer_tokens`), то есть чанк может расти выше заданного значения.
+- `--enable-dynamic-chunking`: рекомендованный спутник PP; связка `enable_dynamic_chunking && pp_size > 1` поднимает потолок prefill-буфера до `max(chunked_prefill_size, max_prefill_tokens, ceil(chunked_prefill_size * 1.25))` (`max_prefill_buffer_tokens` в `python/sglang/srt/arg_groups/overrides.py`), то есть чанк может расти выше заданного значения.
 - `--nnodes`: делимость `tp_size * pp_size` на число узлов.
 - Несовместимо: `--enable-prefill-cp`/`--moe-dp-size > 1` (`PP is not supported with context parallelism`), elastic EP (`PP size should be set to 1 under elastic EP`), DWDP (`DWDP requires pp_size == 1`), PD-Multiplexing, `--enable-unified-memory` в PD-режиме, `--enable-dsa-cache-layer-split`. `--optimistic-prefill-attempts` при `pp_size > 1` в PD-prefill молча обнуляется с предупреждением.
 
@@ -113,4 +113,6 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.1 --tensor-p
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
 - `sglang/docs/docs/advanced_features/pipeline_parallelism.mdx`

@@ -40,10 +40,10 @@ Enable batch tokenization for improved performance when processing multiple text
 - Тип значения: bool; поле объявлено как `bool`, argparse получает `action="store_true"`, парного `--no-*` нет
 - Допустимые значения: флаг без значения
 - Значение по умолчанию: `False`
-- Эффективное значение: переопределяется в двух местах `__post_init__`. **Принудительно `True`** для моделей embedding-gemma в `_handle_model_specific_adjustments` — там же выключается radix cache и chunked prefill, а в комментарии сказано, что список эмбеддингов должен уходить атомарно, иначе BCG начнет обрабатывать нулевой элемент, пока остальные еще токенизируются. **Принудительно `False`** при `--skip-tokenizer-init` (предупреждение `skip_tokenizer_init=True ignores --enable-tokenizer-batch-encode; disabling it.`)
+- Эффективное значение: его декларируют два шага резолва (`ServerArgs.resolve_once`), поле `server_args` при этом хранит ввод оператора. **Принудительно `True`** для моделей embedding-gemma в `handle_model_capability_adjustments` (`arg_groups/model_hook.py`) — там же выключается radix cache и chunked prefill, а в комментарии сказано, что список эмбеддингов должен уходить атомарно, иначе BCG начнет обрабатывать нулевой элемент, пока остальные еще токенизируются. **Принудительно `False`** при `--skip-tokenizer-init` в `handle_tokenizer_batching` (`arg_groups/serving_hook.py`; предупреждение `skip_tokenizer_init=True ignores --enable-tokenizer-batch-encode; disabling it.`)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/serving.py:Serving.enable_tokenizer_batch_encode`
 - Статус: обычный
-- Этап применения: `__post_init__` (`_handle_model_specific_adjustments`, `_handle_tokenizer_batching`) → HTTP-слой, обработка каждого batch-запроса в `TokenizerManager._handle_batch_request`
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_tokenizer_batching`, `handle_model_capability_adjustments`) → HTTP-слой, обработка каждого batch-запроса в `TokenizerManager._handle_batch_request`
 
 ## Что меняет в движке
 
@@ -74,7 +74,7 @@ return batch_size > 0 and (
 
 - Флаг без значения.
 - Действует только на запросы с `batch_size > 1` и только когда `parallel_sample_num == 1`: путь `_handle_batch_request` с батчевой токенизацией выбирается именно в этой ветке.
-- Взаимно исключающий с `--enable-dynamic-batch-tokenizer`: `_handle_tokenizer_batching` бросает `ValueError: Cannot enable both --enable-tokenizer-batch-encode and --enable-dynamic-batch-tokenizer. Please choose one tokenizer batching approach.`
+- Взаимно исключающий с `--enable-dynamic-batch-tokenizer`: шаг резолва `handle_tokenizer_batching` бросает `ValueError: Cannot enable both --enable-tokenizer-batch-encode and --enable-dynamic-batch-tokenizer. Please choose one tokenizer batching approach.`
 - Отменить принудительное включение для embedding-gemma нельзя.
 
 ## Когда использовать
@@ -132,6 +132,8 @@ curl -sS http://127.0.0.1:30000/v1/embeddings -H 'Content-Type: application/json
 
 - `sglang/python/sglang/srt/arg_groups/fields/serving.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/docs/docs/advanced_features/server_arguments.mdx`
 - arriero: `docs/API_PROXY_FOUNDATION.md`, `docs/KTRANSFORMERS_OPERATIONS.md`
