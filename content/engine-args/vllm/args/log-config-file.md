@@ -24,10 +24,10 @@ related:
 ## Оригинальная справка
 
 ```text
-
+--log-config-file is deprecated and will be removed in v0.33.0. Use --logging-config.pylogging_config_file instead.
 ```
 
-Справка в extract пуста: текст `help` задан модульной константой `_LOG_CONFIG_FILE_DEPRECATION_MESSAGE`, которую статический разбор не раскрывает. В `vllm serve --help` выводится её значение: `--log-config-file is deprecated and will be removed in v0.33.0. Use --logging-config.pylogging_config_file instead.`
+Текст задан модульной константой `_LOG_CONFIG_FILE_DEPRECATION_MESSAGE` в `vllm/engine/arg_utils.py`; то же сообщение `DeprecatedLogConfigFileAction` выдает предупреждением при каждом использовании флага.
 
 ## Паспорт аргумента
 

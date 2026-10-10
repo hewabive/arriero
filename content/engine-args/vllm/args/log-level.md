@@ -33,7 +33,7 @@ Shortcut for --logging-config.log_level. Overrides that field if both are specif
 - Флаги: `--log-level`
 - Группа argparse: `LoggingConfig`
 - Тип значения: строка
-- Допустимые значения: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`, `NOTSET` — настоящие `choices` argparse из `get_args(LogLevel)` (`vllm/config/logging.py`); в extract они не видны, потому что статический разбор не вычисляет `get_args(...)`. Регистр важен
+- Допустимые значения: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`, `NOTSET` — настоящие `choices` argparse из `get_args(LogLevel)` (`vllm/config/logging.py`). Регистр важен
 - Значение по умолчанию: `argparse.SUPPRESS` — без флага атрибута в namespace нет, и уровень берётся из `--logging-config`, а при его отсутствии из `VLLM_LOGGING_LEVEL` (по умолчанию `INFO`)
 - Эффективное значение: перекрывает `log_level` из `--logging-config` (`dataclasses.replace` в `EngineArgs.create_logging_config()` и `replace` в `configure_logging_from_args`)
 - Где объявлен: `vllm/engine/arg_utils.py:add_cli_args`

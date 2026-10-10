@@ -25,10 +25,10 @@ related:
 ## Оригинальная справка
 
 ```text
-
+Logging configuration.
 ```
 
-Справка в extract пуста: аргумент объявлен как `logging_group.add_argument("--logging-config", **logging_config_kwargs)`, где `logging_config_kwargs` — локальная копия `get_kwargs(VllmConfig)["logging_config"]` с подменённым `default`, и статический разбор её не прослеживает. В `vllm serve --help` выводятся docstring поля (`Logging configuration.`), ссылка на API-документацию `LoggingConfig` и подсказка `Should either be a valid JSON string or JSON keys passed individually.`; описание группы `LoggingConfig` берётся из docstring класса.
+Это docstring поля `VllmConfig.logging_config`: аргумент объявлен как `logging_group.add_argument("--logging-config", **logging_config_kwargs)`, где `logging_config_kwargs` — локальная копия `get_kwargs(VllmConfig)["logging_config"]` с подменённым на `argparse.SUPPRESS` `default`. В `vllm serve --help` к нему добавляются ссылка на API-документацию `LoggingConfig` и подсказка `Should either be a valid JSON string or JSON keys passed individually.`; описание группы `LoggingConfig` берется из docstring класса.
 
 ## Паспорт аргумента
 

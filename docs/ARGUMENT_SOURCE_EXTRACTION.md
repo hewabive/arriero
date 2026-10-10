@@ -90,8 +90,10 @@ vLLM (`scripts/extract-args/vllm.py`): `vllm/config/*.py` for config dataclasses
 docstrings (the same docstrings vLLM's own `get_attr_docs` parses with `ast`), then
 `EngineArgs.add_cli_args`, `AsyncEngineArgs.add_cli_args` and `make_arg_parser`, resolving
 `get_kwargs(SomeConfig)` bindings, `**kwargs["field"]` unpacking (including the
-`**{**kwargs["field"], "default": …}` override form), argument-group titles, and `FrontendArgs`
-including its base-class fields.
+`**{**kwargs["field"], "default": …}` override form and a local
+`x = get_kwargs(SomeConfig)["field"]` copy whose `x["default"]` is reassigned before
+registration), help texts held in module-level string constants, `choices=get_args(SomeLiteral)`,
+argument-group titles, and `FrontendArgs` including its base-class fields.
 
 SGLang (`scripts/extract-args/sglang.py`): `python/sglang/srt/server_args.py` names the
 `_INPUT_NAMESPACES` classes and declares the literal `parser.add_argument` calls in `add_cli_args`.

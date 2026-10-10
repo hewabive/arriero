@@ -2924,7 +2924,7 @@
     "--log-config-file"
    ],
    "group": "LoggingConfig",
-   "help": "",
+   "help": "--log-config-file is deprecated and will be removed in v0.33.0. Use --logging-config.pylogging_config_file instead.",
    "choices": null,
    "type": null,
    "optional": false,
@@ -2960,7 +2960,14 @@
    ],
    "group": "LoggingConfig",
    "help": "Shortcut for --logging-config.log_level. Overrides that field if both are specified.",
-   "choices": null,
+   "choices": [
+    "CRITICAL",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "DEBUG",
+    "NOTSET"
+   ],
    "type": null,
    "optional": false,
    "default": {
@@ -2976,14 +2983,17 @@
     "--logging-config"
    ],
    "group": "LoggingConfig",
-   "help": "",
+   "help": "Logging configuration.",
    "choices": null,
-   "type": null,
+   "type": "json",
    "optional": false,
-   "default": null,
+   "default": {
+    "kind": "expression",
+    "text": "argparse.SUPPRESS"
+   },
    "action": null,
    "hidden": false,
-   "origin": "vllm/engine/arg_utils.py:add_cli_args"
+   "origin": "vllm/config/vllm.py:VllmConfig.logging_config"
   },
   {
    "flags": [

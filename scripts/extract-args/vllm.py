@@ -99,7 +99,7 @@ def imported_modules(tree, relative_path):
     return {module for module in modules if module.startswith("vllm")}
 
 
-def imported_literal_aliases(repo, trees, aliases, constants):
+def imported_literal_aliases(repo, trees, aliases, constants, strings):
     visited = set()
     for relative_path, tree in trees.items():
         for module in imported_modules(tree, relative_path):
@@ -111,20 +111,21 @@ def imported_literal_aliases(repo, trees, aliases, constants):
                 imported = parse_file(path)
             except (SyntaxError, UnicodeDecodeError):
                 continue
-            merge_module_symbols(imported, aliases, constants)
-    return aliases, constants
+            merge_module_symbols(imported, aliases, constants, strings)
+    return aliases, constants, strings
 
 
 def index_sources(repo):
     classes = {}
     aliases = {}
     constants = {}
+    strings = {}
     trees = {}
     for path in source_files(repo):
         tree = parse_file(path)
         relative = str(path.relative_to(Path(repo)))
         trees[relative] = tree
-        merge_module_symbols(tree, aliases, constants)
+        merge_module_symbols(tree, aliases, constants, strings)
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -137,8 +138,10 @@ def index_sources(repo):
                     "docs": attribute_docs(node),
                 },
             )
-    aliases, constants = imported_literal_aliases(repo, trees, aliases, constants)
-    return classes, aliases, constants, trees
+    aliases, constants, strings = imported_literal_aliases(
+        repo, trees, aliases, constants, strings
+    )
+    return classes, aliases, constants, strings, trees
 
 
 def resolve_field(classes, class_name, field, seen=None):
@@ -193,23 +196,46 @@ def wants_boolean_optional(annotation, classes):
     return "bool" in names
 
 
+def get_kwargs_class(node):
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "get_kwargs"
+        and node.args
+        and isinstance(node.args[0], ast.Name)
+    ):
+        return node.args[0].id
+    return None
+
+
 def collect_bindings(function_node, diagnostics):
     groups = {}
     kwargs_sources = {}
     field_aliases = {}
+    alias_overrides = {}
     for node in ast.walk(function_node):
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
             continue
         target = node.targets[0]
         if isinstance(target, ast.Subscript):
             adjusted_key = string_value(target.slice)
-            if adjusted_key in {"help", "choices", "metavar", "type"}:
+            if (
+                adjusted_key == "default"
+                and isinstance(target.value, ast.Name)
+                and target.value.id in field_aliases
+            ):
+                alias_overrides.setdefault(target.value.id, {})["default"] = node.value
+            elif adjusted_key in {"help", "choices", "metavar", "type"}:
                 diagnostics["runtimeAdjustedKwargs"].append(unparse(target))
             continue
         if not isinstance(target, ast.Name):
             continue
-        if isinstance(node.value, ast.Subscript) and isinstance(node.value.value, ast.Name):
-            source = kwargs_sources.get(node.value.value.id)
+        if isinstance(node.value, ast.Subscript):
+            source = (
+                kwargs_sources.get(node.value.value.id)
+                if isinstance(node.value.value, ast.Name)
+                else get_kwargs_class(node.value.value)
+            )
             field = string_value(node.value.slice)
             if source and field:
                 field_aliases[target.id] = (source, field)
@@ -227,19 +253,19 @@ def collect_bindings(function_node, diagnostics):
                 None,
             )
             groups[target.id] = title
-        elif isinstance(call.func, ast.Name) and call.func.id == "get_kwargs":
-            if call.args and isinstance(call.args[0], ast.Name):
-                kwargs_sources[target.id] = call.args[0].id
-    return groups, kwargs_sources, field_aliases
+        elif get_kwargs_class(call):
+            kwargs_sources[target.id] = get_kwargs_class(call)
+    return groups, kwargs_sources, field_aliases, alias_overrides
 
 
-def resolve_kwargs(keywords_node, kwargs_sources, field_aliases):
+def resolve_kwargs(keywords_node, kwargs_sources, field_aliases, alias_overrides):
     reference = {"class": None, "field": None}
     explicit = {}
 
     def visit_unpacked(value):
         if isinstance(value, ast.Name) and value.id in field_aliases:
             reference["class"], reference["field"] = field_aliases[value.id]
+            explicit.update(alias_overrides.get(value.id, {}))
             return
         if isinstance(value, ast.Subscript) and isinstance(value.value, ast.Name):
             source = kwargs_sources.get(value.value.id)
@@ -280,6 +306,8 @@ def build_option(input):
         help_text = ""
     elif "help" in explicit:
         help_text = string_value(explicit["help"])
+        if help_text is None and isinstance(explicit["help"], ast.Name):
+            help_text = input["strings"].get(explicit["help"].id)
     if help_text is None and field:
         help_text = field.get("doc")
 
@@ -321,7 +349,9 @@ def build_option(input):
 
 
 def parser_function_options(function_node, context, diagnostics):
-    groups, kwargs_sources, field_aliases = collect_bindings(function_node, diagnostics)
+    groups, kwargs_sources, field_aliases, alias_overrides = collect_bindings(
+        function_node, diagnostics
+    )
     options = []
     for node in ast.walk(function_node):
         if not isinstance(node, ast.Call):
@@ -342,7 +372,7 @@ def parser_function_options(function_node, context, diagnostics):
             continue
 
         class_name, field_name, explicit = resolve_kwargs(
-            node.keywords, kwargs_sources, field_aliases
+            node.keywords, kwargs_sources, field_aliases, alias_overrides
         )
         field = (
             resolve_field(context["classes"], class_name, field_name)
@@ -371,6 +401,7 @@ def parser_function_options(function_node, context, diagnostics):
                     "classes": context["classes"],
                     "aliases": context["aliases"],
                     "constants": context["constants"],
+                    "strings": context["strings"],
                     "origin": origin,
                 }
             )
@@ -396,6 +427,7 @@ def frontend_options(context, diagnostics):
                     "classes": classes,
                     "aliases": context["aliases"],
                     "constants": context["constants"],
+                    "strings": context["strings"],
                     "origin": f"{field['path']}:{field['class']}.{field_name}",
                 }
             )
@@ -417,7 +449,7 @@ def find_function(tree, class_name, function_name):
 
 
 def extract(repo):
-    classes, aliases, constants, trees = index_sources(repo)
+    classes, aliases, constants, strings, trees = index_sources(repo)
     arg_utils = trees.get(ARG_UTILS_RELATIVE_PATH)
     cli_args = trees.get(CLI_ARGS_RELATIVE_PATH)
     if arg_utils is None or cli_args is None:
@@ -431,7 +463,12 @@ def extract(repo):
         "optionsWithoutHelp": [],
         "optionsWithoutType": [],
     }
-    context = {"classes": classes, "aliases": aliases, "constants": constants}
+    context = {
+        "classes": classes,
+        "aliases": aliases,
+        "constants": constants,
+        "strings": strings,
+    }
 
     targets = [
         (cli_args, None, "make_arg_parser", CLI_ARGS_RELATIVE_PATH),

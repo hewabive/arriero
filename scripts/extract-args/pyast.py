@@ -195,11 +195,23 @@ def constant_sequences(tree):
     return sequences
 
 
-def merge_module_symbols(tree, aliases, constants):
+def constant_strings(tree):
+    strings = {}
+    for name, value in named_assignments(tree):
+        text = string_value(value)
+        if text is not None:
+            strings[name] = text
+    return strings
+
+
+def merge_module_symbols(tree, aliases, constants, strings=None):
     for name, node in literal_aliases(tree).items():
         aliases.setdefault(name, node)
     for name, values in constant_sequences(tree).items():
         constants.setdefault(name, values)
+    if strings is not None:
+        for name, text in constant_strings(tree).items():
+            strings.setdefault(name, text)
 
 
 def module_path(repo, module, package_root=""):
@@ -218,6 +230,13 @@ def choices_of(node, aliases, constants):
         return values
     if isinstance(node, ast.Name) and node.id in constants:
         return constants[node.id]
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "get_args"
+        and len(node.args) == 1
+    ):
+        return literal_choices(node.args[0], aliases)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left = choices_of(node.left, aliases, constants)
         right = choices_of(node.right, aliases, constants)

@@ -7,7 +7,7 @@
     "vllm/entrypoints/launchers/cli_args.py",
     "vllm/config"
   ],
-  "hash": "c99bb058a1948d093eb41b823abe3f16751b569ce6d45d250cc65d4be5df00a7",
+  "hash": "1456da132ee3f1d3316a3df66ab2a26fdde7c3a40c94636b122421d33bbd89be",
   "commit": "db9527a46873454610df6dbedf79a36d6bf1a7f6",
-  "updatedAt": "2026-10-09T22:37:19.777Z"
+  "updatedAt": "2026-10-10T05:47:26.263Z"
 }
