@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--speculative-algorithm"
 title: "--speculative-algorithm"
-summary: Включает спекулятивное декодирование и выбирает алгоритм (EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO и зарегистрированные плагины). Один этот флаг переписывает `--max-running-requests`, гасит `--enable-mixed-chunk`, уменьшает KV-пул и определяет, какие из остальных `--speculative-*` вообще что-то значат.
+summary: Включает спекулятивное декодирование и выбирает алгоритм (EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO и зарегистрированные плагины). Один этот флаг переписывает `--max-running-requests` (кроме UNO), гасит `--enable-mixed-chunk` у всех алгоритмов, кроме EAGLE, EAGLE3, DFLASH и DSPARK, уменьшает KV-пул и определяет, какие из остальных `--speculative-*` вообще что-то значат.
 group: spec
 related:
   - --speculative-draft-model-path
@@ -62,7 +62,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 4. `SpeculativeAlgorithm.from_string` даёт объект алгоритма; неизвестное имя — `ValueError: Unknown speculative algorithm name: <x>`;
 5. проверяются `--speculative-draft-window-size` (положительность, предупреждение для всех алгоритмов кроме `EAGLE`, `EAGLE3` и `DFLASH`) и `--speculative-draft-sink-size` (неотрицательность, только вместе с окном);
 6. если включён `--speculative-adaptive`, он либо отключается с причиной, либо инициализирует лестницу шагов;
-7. `algo.handle_server_args(server_args)` — один из `_handle_dflash` / `_handle_dspark` / `_handle_frozen_kv_mtp` / `_handle_eagle_family` / `_handle_ngram`.
+7. `algo.handle_server_args(server_args)` — один из `_handle_dflash` / `_handle_uno` / `_handle_dspark` / `_handle_frozen_kv_mtp` / `_handle_eagle_family` / `_handle_ngram`.
 
 Плагин, зарегистрированный через `SpeculativeAlgorithm.register`, получает только собственный `validate_server_args`; базовый `CustomSpecAlgo.handle_server_args` — пустой, то есть ни `--max-running-requests`, ни `--enable-mixed-chunk` он не трогает (а `check_server_args` в `arg_groups/validation_hook.py` требует, чтобы mixed chunk был выключен, раз плагин не объявляет `supports_mixed_chunk()`).
 
@@ -72,13 +72,13 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 - **EAGLE3.** Нужен EAGLE-3-чекпоинт в `--speculative-draft-model-path`. `--speculative-token-map` (FR-Spec) для него игнорируется. `--speculative-draft-window-size` учитывается Llama-EAGLE3-драфтером (окно в каждом слое) и, как у `EAGLE`/`NEXTN`, на draft-decode шагах при draft-внимании через Triton или FlashInfer; MLA-драфтеры его игнорируют.
 - **STANDALONE.** Отдельная маленькая LLM как draft. Несовместим с `--enable-dp-attention` (явный `ValueError`).
 - **NGRAM.** Модель не нужна вообще: кандидаты берутся из n-граммного кеша по уже сгенерированному тексту. Только `--device cuda` или `cpu`. `--speculative-eagle-topk` принудительно становится равным `--speculative-ngram-max-bfs-breadth`, `--speculative-num-draft-tokens` по умолчанию 12, `--speculative-num-steps` = `num_draft_tokens // topk`. `--enable-mixed-chunk` гасится безусловно. `--enable-dp-attention` запрещён; `topk > 1` вместе с `--page-size > 1` работает только на backend'е `flashinfer`.
-- **DFLASH.** Нужен DFlash-чекпоинт (`--speculative-draft-model-path` обязателен). Только CUDA и NPU, `--pp-size 1`, без `--enable-dp-attention`. `speculative_num_steps` и `speculative_eagle_topk` принудительно равны 1 (с предупреждением, если заданы иначе), размер блока берётся из `--speculative-dflash-block-size`, иначе из конфига draft'а, иначе 16. Backend внимания draft'а доводится до поддерживаемого списка (`flashinfer`, `fa3`, `fa4`, `triton`, `trtllm_mha`, `ascend`).
-- **DSPARK.** Только CUDA, `--pp-size 1`. Draft обязателен, **кроме** случая, когда сам целевой чекпоинт несёт draft-голову (ключи `dspark_block_size`, `dspark_markov_rank`, `dspark_noise_token_id`, `dspark_target_layer_ids` в hf-конфиге) — тогда путь и ревизия draft'а берутся у target'а. steps/topk принудительно 1, `speculative_num_draft_tokens = gamma + 1`. С `--enable-dp-attention` и `--dp-size > 1` требует `--enable-dp-lm-head` и `--moe-a2a-backend none`.
+- **DFLASH.** Нужен DFlash-чекпоинт (`--speculative-draft-model-path` обязателен). Только CUDA, NPU и XPU (out-of-tree платформа решает сама через `supports_speculative_algorithm`), `--pp-size 1`, `--enable-dp-attention` — только на NPU. `speculative_num_steps` и `speculative_eagle_topk` принудительно равны 1 (с предупреждением, если заданы иначе), размер блока берётся из `--speculative-dflash-block-size`, иначе из конфига draft'а, иначе 16. Backend внимания draft'а доводится до поддерживаемого списка (`flashinfer`, `fa3`, `fa4`, `triton`, `trtllm_mha`, `ascend`).
+- **DSPARK.** Только CUDA и NPU; `--pp-size > 1` допустим лишь на PD-prefill узле (`--disaggregation-mode prefill`). Draft обязателен, **кроме** случая, когда сам целевой чекпоинт несёт draft-голову (ключи `dspark_block_size`, `dspark_markov_rank`, `dspark_noise_token_id`, `dspark_target_layer_ids` в hf-конфиге) — тогда путь и ревизия draft'а берутся у target'а. steps/topk принудительно 1, `speculative_num_draft_tokens = gamma + 1`. С `--enable-dp-attention` и `--dp-size > 1` требует `--enable-dp-lm-head`, а вне NPU — `--moe-a2a-backend` из `none`/`megamoe`/`mori` (для двух последних еще и `SGLANG_RAGGED_VERIFY_MODE=static`).
 - **FROZEN_KV_MTP.** Напрямую не выбирается — это результат повышения `NEXTN`/`EAGLE` на Gemma4-ассистент-драфте.
 
 ### Что переписывается независимо от алгоритма
 
-- **`--max-running-requests` становится 48**, если не задан явно: одинаковая строка `Max running requests is reset to 48 for speculative decoding` есть в `_handle_dflash`, `_handle_dspark`, `_handle_frozen_kv_mtp`, `_handle_eagle_family` и `_handle_ngram`. Это тот же лимит, что описан в `--max-running-requests`, и он сильно ниже обычной авто-оценки (2048…4096).
+- **`--max-running-requests` становится 48**, если не задан явно, — у всех встроенных алгоритмов, кроме `UNO`: одинаковая строка `Max running requests is reset to 48 for speculative decoding` есть в `_handle_dflash`, `_handle_dspark`, `_handle_frozen_kv_mtp`, `_handle_eagle_family` и `_handle_ngram`, а `_handle_uno` (как и плагины) лимит не трогает. Это тот же лимит, что описан в `--max-running-requests`, и он сильно ниже обычной авто-оценки (2048…4096).
 - **`--enable-mixed-chunk` выключается**, кроме алгоритмов с `supports_mixed_chunk()` (`EAGLE`, `EAGLE3`, `DFLASH`, `DSPARK`): остальные per-algorithm хуки гасят его с предупреждением «Mixed chunked prefill is disabled …»; `check_server_args` дополнительно ассертит `enable_mixed_chunk is not supported with speculative_algorithm=…` для алгоритма без такой поддержки.
 - На `--device cpu` принудительно включается `--disable-overlap-schedule`.
 - **Размер KV-ячейки растёт**: для EAGLE/STANDALONE `cell_size` умножается на `1 + draft_layers / target_layers`, для DFLASH/DSPARK добавляется собственная ячейка draft'а. Тот же бюджет `--mem-fraction-static` делится на большее число байт на токен, то есть `max_total_num_tokens` падает.
@@ -88,7 +88,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 
 ### Жёсткие несовместимости
 
-`--pp-size > 1`; LoRA (`--lora-paths`) со всем, кроме `NGRAM`; `--weight-cache-mode` ≠ `off`; `--enable-hierarchical-cache` при `--dcp-size > 1`; `--dwdp-size > 1`; backend внимания `flex_attention`; `--enable-unified-memory` (разрешён только `DSPARK` и только с линейной цепочкой topk=1).
+`--pp-size > 1` со всем, кроме `EAGLE`/`NEXTN` без многослойного режима и `DSPARK` (оба — по умолчанию только на PD-prefill узле; EAGLE в обычном режиме — с экспериментальной `SGLANG_ENABLE_PP_SPEC=1`, см. `check_pipeline_parallel_compat` в `arg_groups/validation_hook.py`); LoRA (`--lora-paths` / `--enable-lora`) со всем, кроме `NGRAM`, `EAGLE`/`NEXTN`, `EAGLE3`, `DFLASH` и `DSPARK` (`check_lora_speculative_compatibility` в `arg_groups/lora_hook.py`; у допущенных — без `--speculative-adaptive`; `UNO` отвергает LoRA еще при резолве); `--weight-cache-mode` ≠ `off`; `--enable-hierarchical-cache` при `--dcp-size > 1`; `--dwdp-size > 1`; backend внимания `flex_attention`; `--enable-unified-memory` (разрешён только `DSPARK` и только с линейной цепочкой topk=1).
 
 ## Значения и формат
 
@@ -117,14 +117,14 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 
 ## Взаимодействие с другими аргументами
 
-- `--max-running-requests`: при незаданном значении подменяется на 48. Если нужна другая конкурентность — задавайте явно, подмена срабатывает только для `None`.
+- `--max-running-requests`: при незаданном значении подменяется на 48 (у `UNO` и плагинов — нет). Если нужна другая конкурентность — задавайте явно, подмена срабатывает только для `None`.
 - `--enable-mixed-chunk`: принудительно выключается у всех алгоритмов, кроме `EAGLE`, `EAGLE3`, `DFLASH` и `DSPARK`; обратной силы у флага нет.
 - `--speculative-num-steps` / `--speculative-eagle-topk` / `--speculative-num-draft-tokens`: для EAGLE-семейства задаются все три или ни одного; DFLASH и DSPARK насильно ставят steps=topk=1, NGRAM выводит их из ngram-параметров.
 - `--speculative-draft-model-path` (+ `--speculative-draft-model-revision`, `--speculative-draft-model-quantization`, `--speculative-draft-load-format`): что именно грузится как draft.
 - `--speculative-token-map`: FR-Spec, только EAGLE-2; для EAGLE3 игнорируется.
 - `--speculative-attention-mode` и `--speculative-draft-attention-backend`: какими backend'ами считаются verify и draft.
 - `--speculative-adaptive`: работает только с `EAGLE`/`EAGLE3` и topk=1, иначе отключается с предупреждением.
-- `--enable-multi-layer-eagle`: меняет реализацию EAGLE на многослойную (для MiMoV2 и Step3p5/3p7 включается автоматически).
+- `--enable-multi-layer-eagle`: меняет реализацию EAGLE на многослойную (для MiMoV2, Step3p5/3p7 и GigaChat 3.5 включается автоматически).
 - `--mem-fraction-static`: тот же бюджет теперь кормит и draft; при OOM после включения спекуляции опускать его надо в первую очередь.
 - `--page-size`: `topk > 1` при `page_size > 1` поддержан только backend'ами `flashinfer`, `fa3`, `triton` (для NGRAM — только `flashinfer`).
 - `--pp-size`, `--lora-paths`, `--dwdp-size`, `--weight-cache-mode`, `--enable-unified-memory`: перечисленные выше жёсткие конфликты.
@@ -137,7 +137,7 @@ Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, NGRAM, DFLASH
 - `torch.OutOfMemoryError` на старте сразу после включения флага — draft-веса и его графы не поместились. Понижайте `--mem-fraction-static` шагами по 0.02–0.05 либо `--cuda-graph-max-bs-decode`.
 - Скорость упала, а не выросла: смотрите `Decode batch, #running-req: …, accept len: X.XX, accept rate: Y.YY`. `accept len` около 1.0 означает, что почти все draft-токены отвергаются — draft не подходит модели/нагрузке. Совокупное значение можно снять через `POST /set_internal_state` (в лог печатается `avg_spec_accept_length=`) или из `GET /server_info` (`internal_states[0].avg_spec_accept_length`).
 - `Currently ... speculative decoding does not support dp attention` / `only supports pp_size == 1` — конфликт конфигурации, читайте текст ошибки: там названы и алгоритм, и флаг.
-- Итоговое значение всегда видно в дампе `server_args=` при старте: там уже подставлены `EAGLE` вместо `NEXTN`, подобранные steps/topk/num_draft_tokens и `max_running_requests=48`.
+- Итоговое значение всегда видно в дампе `server_args=` при старте: там уже подставлены `EAGLE` вместо `NEXTN`, подобранные steps/topk/num_draft_tokens и `max_running_requests=48` (кроме `UNO`).
 
 ## Примеры
 
@@ -159,6 +159,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --speculative-
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
 - `sglang/python/sglang/srt/arg_groups/validation_hook.py`
+- `sglang/python/sglang/srt/arg_groups/lora_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/gigachat35.py`
 - `sglang/python/sglang/srt/speculative/spec_info.py`
 - `sglang/python/sglang/srt/speculative/spec_registry.py`
 - `sglang/python/sglang/srt/mem_cache/allocation_sizing.py`

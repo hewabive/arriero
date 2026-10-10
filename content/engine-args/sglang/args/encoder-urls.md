@@ -65,7 +65,7 @@ List of encoder server urls.
 
 - Несколько значений через пробел: `--encoder-urls http://enc0:30000 http://enc1:30001`. Запятая **не** разделитель — она станет частью адреса.
 - Схема обязательна: приемник строит из адреса `"{encoder_url}/encode"`, `"{encoder_url}/send"`, `"{encoder_url}/scheduler_receive_url"` без нормализации.
-- Для gRPC-энкодеров (`--encoder-only --grpc-mode`) адрес пишется как `grpc://host:port`, а получателю дополнительно нужна переменная окружения `SGLANG_ENCODER_MM_RECEIVER_MODE=grpc`.
+- Для gRPC-энкодеров (`--encoder-only --grpc-mode`) адрес пишется как `grpc://host:port`, а получателю дополнительно нужна переменная окружения `SGLANG_ENCODER_MM_RECEIVER_MODE=grpc` (по умолчанию `http`). Смешение схемы и режима `create_mm_receiver` отвергает на старте, но проверяет только статический список из CLI: адреса, пришедшие через регистрацию, не проверяются.
 - Завершающий слэш не нужен: он даст двойной слэш в пути.
 - Порядок значений не важен: перед раскладкой индексы энкодеров перемешиваются.
 - Пустой список — валидное состояние: это режим чисто динамической регистрации.
@@ -76,14 +76,14 @@ List of encoder server urls.
 - Смешанный режим: часть энкодеров статическая (постоянные), часть регистрируется динамически при масштабировании.
 - Не задавайте на сервере без `--language-only` — значение не читается.
 - Не задавайте адреса энкодеров, поднятых с другой моделью или другим `--encoder-transfer-backend`: несоответствие вылезет как невалидные эмбеддинги или таймаут, а не как ошибка конфигурации.
-- Не полагайтесь только на статический список, если энкодеры перезапускаются: у реестра есть health-check и авто-эвикция, а у CLI-списка — нет.
+- Статические адреса живут в том же реестре и проходят тот же health-check, что и зарегистрированные. Энкодер, который перезапускается дольше `SGLANG_ENCODER_BOOTSTRAP_EVICTED_TTL` (600 с), выпадает из реестра насовсем. Если такое возможно, поднимайте энкодеры с `--encoder-register-urls`, а не полагайтесь только на CLI-список.
 
 ## Влияние на производительность и память
 
 - **Пропускная способность.** Число энкодеров в списке напрямую задает степень параллелизма обработки элементов одного запроса: восемь картинок на четыре энкодера — это по две на каждый.
 - **Latency.** Раскладка снижает время обработки многоэлементного запроса; для одноэлементного она бесполезна (см. `--enable-adaptive-dispatch-to-encoder`).
 - **VRAM/RAM.** На языковой стороне не влияет: список адресов.
-- **Устойчивость.** Мертвый адрес в статическом списке остается в реестре, пока health-check `EncoderBootstrapServer` его не выселит (три подряд неудачных пробы; интервал и таймаут — `SGLANG_ENCODER_BOOTSTRAP_HEALTH_CHECK_INTERVAL` / `..._TIMEOUT`, `0` в интервале отключает проверку).
+- **Устойчивость.** Мертвый адрес в статическом списке остается в реестре, пока health-check `EncoderBootstrapServer` его не выселит (три подряд неудачных пробы `GET <url>/health`; интервал и таймаут — `SGLANG_ENCODER_BOOTSTRAP_HEALTH_CHECK_INTERVAL` / `..._TIMEOUT`, по умолчанию 10 с и 2 с, `0` в интервале отключает проверку). Выселенный адрес продолжает опрашиваться и возвращается в реестр сам, как только энкодер снова ответит. Если ответа нет дольше `SGLANG_ENCODER_BOOTSTRAP_EVICTED_TTL` (600 с; `0` — опрашивать бесконечно), адрес удаляется насовсем. Явный `DELETE /unregister_encoder_url` удаляет адрес сразу и без возврата.
 
 ## Взаимодействие с другими аргументами
 
@@ -101,6 +101,8 @@ List of encoder server urls.
 - Запрос идет медленно и в логе только одна пара строк `[<rid>] Sending encode request to E ...` — в списке один адрес; добавьте энкодеров.
 - `[<rid>] Embedding recv timeout after <t>s` — один из адресов не отвечает. Смотрите, что реестр про него думает: `GET http://<language-host>:<encoder-bootstrap-port>/list_encoder_urls`.
 - 404 на стороне энкодера — вероятно, в URL есть завершающий слэш или лишний путь; адрес должен быть корнем сервера.
+- `ValueError: EPD MMReceiver: grpc mode requires grpc:// encoder URLs. …` (или зеркальное `http mode requires http:// …`) на старте — схема адресов в `--encoder-urls` не совпадает с `SGLANG_ENCODER_MM_RECEIVER_MODE`.
+- `Health check evicted N encoder(s) after 3 consecutive failures (will re-add when healthy)`, `Health check revived …`, `Health check permanently dropped … after 600.0s unhealthy` — так реестр сообщает о выселении, возврате и окончательном удалении адресов.
 - Принятое значение — в дампе `server_args=` при старте; **текущий** набор адресов (с учетом регистраций) виден только через `/list_encoder_urls`.
 
 ## Примеры
@@ -119,7 +121,8 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
-- `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/http_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/grpc_server.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`

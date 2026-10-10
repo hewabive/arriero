@@ -32,7 +32,7 @@ Choose the kernel backend for Mamba SSM operations. Default is 'triton'. Options
 - Флаги: `--mamba-backend`
 - Группа: `exec.mamba`
 - Тип значения: строка с фиксированным списком
-- Допустимые значения: `triton`, `flashinfer` (константа `MAMBA_BACKEND_CHOICES` в `server_args.py`; расширения извне для нее не предусмотрено, в отличие от списка linear-attn backend'ов)
+- Допустимые значения: `triton`, `flashinfer` (список задан прямо в объявлении поля — `choices=["triton", "flashinfer"]` в `arg_groups/fields/exec_.py`; точки расширения вроде `add_linear_attn_kernel_backend_choices` из `arg_groups/choices.py` у него нет)
 - Значение по умолчанию: `triton`
 - Эффективное значение: совпадает с заданным. Автоподбора нет, ни один шаг резолва его не декларирует; шаг `handle_mamba_backend` (`arg_groups/mamba_hook.py`) только проверяет выполнимость выбора
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecMamba.mamba_backend`
@@ -111,3 +111,5 @@ python -m sglang.launch_server --model-path /models/Nemotron-H-8B --mamba-backen
 - `sglang/python/sglang/srt/layers/attention/mamba/mamba.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/configs/hybrid_arch.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`

@@ -34,11 +34,11 @@ Storage backend for the multimodal global embedding cache. Used when --enable-mm
 - Допустимые значения: `mooncake`
 - Значение по умолчанию: `mooncake`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.mm_global_cache_backend`
-- Этап применения: инициализация multimodal encode server → `EmbeddingStoreFactory.create_backend` → lookup/prefetch/insert для каждого embedding
+- Этап применения: инициализация multimodal encode server (`MMEncoder.__init__` в `disaggregation/encoder/server.py`) → `EmbeddingStoreFactory.create_backend` → lookup/prefetch/insert для каждого embedding
 
 ## Что меняет в движке
 
-При включённом глобальном кеше `EncodeWorker` вызывает factory с выбранным именем. `mooncake` лениво импортирует `MooncakeEmbeddingStore`, настраивает distributed store и передаёт его `EmbeddingCacheController`. Rank 0 проверяет ключи `emb_<hash>`, prefetch'ит найденные embeddings в локальный pool, а misses вычисляет encoder и асинхронно записывает обратно.
+При включённом глобальном кеше конструктор `MMEncoder` (`disaggregation/encoder/server.py`) вызывает factory с выбранным именем. `mooncake` лениво импортирует `MooncakeEmbeddingStore`, настраивает distributed store и передаёт его `EmbeddingCacheController`. Rank 0 проверяет ключи `emb_<hash>`, prefetch'ит найденные embeddings в локальный pool, а misses вычисляет encoder и асинхронно записывает обратно.
 
 Разделение на `EmbeddingStore` и registry позволяет добавлять реализации без изменения controller, но наличие registry API не расширяет текущий argparse choices: установленная версия принимает только `mooncake`.
 
@@ -81,7 +81,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encod
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/server.py`
 - `sglang/python/sglang/srt/mem_cache/embedding_store.py`
 - `sglang/python/sglang/srt/mem_cache/embedding_cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/storage/mooncake_store/mooncake_embedding_store.py`

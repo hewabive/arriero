@@ -80,7 +80,7 @@ For VLM, load weights for the language model only.
 - Флаг без значения.
 - Взаимоисключающ с `--encoder-only` (`Cannot set --encoder-only and --language-only together`).
 - Совместим с `--disaggregation-mode prefill` — это штатная конфигурация EPD; на decode-сервере в примерах апстрима флаг не ставят, потому что decode с изображениями не работает.
-- Архитектура модели должна входить в белый список EPD (Qwen2VL/Qwen2.5VL/Qwen3VL/Qwen3VL-MoE/Qwen3.5, Qwen2Audio, Qwen2.5Omni, Qwen3OmniMoe, InternS2Preview, KimiVL/KimiK2.5/KimiK3, MiMoV2), иначе `Model type <arch> is not supported for encoder disaggregation.`
+- Архитектура модели должна входить в белый список EPD (Qwen2VL/Qwen2.5VL/Qwen3VL/Qwen3VL-MoE/Qwen3.5/Qwen3.5-MoE, Qwen2Audio, Qwen2.5Omni, Qwen3OmniMoe, InternS2Preview, Dots3-Note, KimiVL/KimiK2.5/KimiK3, MiMoV2, GLM5Next), иначе `Model type <arch> is not supported for encoder disaggregation. Supported architectures: …`
 - `--encoder-urls` не обязателен: энкодеры могут зарегистрироваться сами через `EncoderBootstrapServer`.
 
 ## Когда использовать
@@ -140,7 +140,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/python/sglang/srt/managers/scheduler_components/request_receiver.py`
-- `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/entrypoints/http_server.py`
 - `sglang/python/sglang/srt/models/qwen3_vl.py`

@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--enable-multi-layer-eagle"
 title: "--enable-multi-layer-eagle"
-summary: Переводит EAGLE на многослойный драфтер: вместо одной MTP-головы, прогоняемой N раз, поднимается N отдельных model runner'ов — по одному на каждый спекулятивный шаг, каждый со своими весами из чекпоинта. Для MiMoV2 и Step3p5/3p7 включается автоматически.
+summary: Переводит EAGLE на многослойный драфтер: вместо одной MTP-головы, прогоняемой N раз, поднимается N отдельных model runner'ов — по одному на каждый спекулятивный шаг, каждый со своими весами из чекпоинта. Для MiMoV2, Step3p5/3p7 и GigaChat 3.5 при `--speculative-algorithm EAGLE` включается автоматически.
 group: spec
 related:
   - --speculative-algorithm
@@ -14,6 +14,8 @@ related:
   - --speculative-use-rejection-sampling
   - --speculative-draft-model-path
   - --mem-fraction-static
+  - --pp-size
+  - --disable-shared-experts-fusion
 ---
 
 # --enable-multi-layer-eagle
@@ -35,7 +37,7 @@ Enable multi-layer Eagle speculative decoding.
 - Тип значения: bool (`action="store_true"`, парного `--no-…` нет)
 - Допустимые значения: флаг присутствует — включено, отсутствует — выключено
 - Значение по умолчанию: `false`
-- Эффективное значение: поле помечено `resolvable=True` и **включается реестром модельных override'ов**: для `MiMoV2ForCausalLM` / `MiMoV2FlashForCausalLM` и для `Step3p5ForCausalLM` / `Step3p7ForConditionalGeneration` при `--speculative-algorithm EAGLE` (в логе `Enable multi-layer EAGLE speculative decoding for … model.`)
+- Эффективное значение: поле помечено `resolvable=True` и **включается реестром модельных override'ов**: для `MiMoV2ForCausalLM` / `MiMoV2FlashForCausalLM`, `Step3p5ForCausalLM` / `Step3p7ForConditionalGeneration` и `GigaChat35ForCausalLM` / `GigaChat35ForCausalLMNextN` (`arg_groups/model_overrides/gigachat35.py`, там же безусловно выставляется `--disable-shared-experts-fusion`) при `--speculative-algorithm EAGLE` (в логе `Enable multi-layer EAGLE speculative decoding for … model.`, для GigaChat — `for GigaChat 3.5 model.`). Override'ы сравнивают с точной строкой `EAGLE` до нормализации имени в шаге `handle_speculative_decoding`, поэтому `NEXTN` или `eagle` в нижнем регистре автовключение не запускают
 - Где объявлен: `python/sglang/srt/arg_groups/fields/spec.py:Spec.enable_multi_layer_eagle`
 - Статус: обычный
 - Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_model_specific_adjustments` (`python/sglang/srt/arg_groups/model_hook.py`; собирает модельные override'ы из `arg_groups/model_overrides/` через `collect_model_override_declarations`) → выбор класса воркера в `SpeculativeAlgorithm.create_worker` → создание `speculative_num_steps` model runner'ов → захват CUDA graph → forward
@@ -54,7 +56,7 @@ Enable multi-layer Eagle speculative decoding.
 ## Значения и формат
 
 - Булев флаг без значения.
-- «Не задан» не означает «выключено» на MiMoV2/Step3p5/Step3p7 + EAGLE: там его включает реестр override'ов, и увидеть это можно только по логу и по дампу `server_args=`.
+- «Не задан» не означает «выключено» на MiMoV2/Step3p5/Step3p7/GigaChat 3.5 + EAGLE: там его включает реестр override'ов, и увидеть это можно только по логу и по дампу `server_args=`.
 - Для алгоритмов вне EAGLE-семейства (`NGRAM`, `DFLASH`, `DSPARK`, `STANDALONE`) флаг не читается при выборе воркера, но продолжает влиять на `ModelConfig.is_multi_layer_eagle` и на проверки adaptive-режима — задавать его там незачем.
 - Явно выключить автоматическое включение через CLI нельзя: парного `--no-enable-multi-layer-eagle` нет.
 
@@ -80,6 +82,7 @@ Enable multi-layer Eagle speculative decoding.
 - `--speculative-num-draft-tokens`: обязан быть равен `steps + 1` (ассерт воркера).
 - `--speculative-eagle-topk`: с `--speculative-use-rejection-sampling` многослойный режим требует `topk = 1` (rejection sampling реализован только для линейной цепочки).
 - `--speculative-adaptive`: взаимно исключающие (adaptive отключается сам).
+- `--pp-size`: при `pp_size > 1` многослойный режим запрещен — `check_pipeline_parallel_compat` (`arg_groups/validation_hook.py`) пропускает только не-многослойный `EAGLE` и падает с `Pipeline parallelism currently only supports EAGLE (non-multi-layer) speculative decoding`; автовключение для MiMoV2/Step3p5/GigaChat 3.5 тоже под это попадает.
 - `--speculative-draft-model-path`: для MTP-чекпоинтов подставляется `--model-path`; фильтрация по `draft_model_idx` идёт по весам того же файла.
 - `--mem-fraction-static`: под N наборов весов и графов резерв нужно пересчитывать.
 
@@ -108,6 +111,10 @@ python -m sglang.launch_server --model-path /models/MiMo-V2-Base --trust-remote-
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/mimo_v2.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/gigachat35.py`
+- `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/speculative/spec_info.py`
 - `sglang/python/sglang/srt/speculative/multi_layer_eagle_worker_v2.py`
 - `sglang/python/sglang/srt/speculative/spec_utils.py`

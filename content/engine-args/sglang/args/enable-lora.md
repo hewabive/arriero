@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--enable-lora"
 title: "--enable-lora"
-summary: Главный выключатель multi-LoRA. Включается автоматически, если задан `--lora-paths`; при включении требует либо стартовых адаптеров, либо явных `--max-lora-rank` и `--lora-target-modules`, и запрещает спекулятивное декодирование кроме NGRAM.
+summary: Главный выключатель multi-LoRA. Включается автоматически, если задан `--lora-paths`; при включении требует либо стартовых адаптеров, либо явных `--max-lora-rank` и `--lora-target-modules`, а из спекулятивных алгоритмов допускает только `NGRAM`, `EAGLE`/`NEXTN`, `EAGLE3`, `DFLASH` и `DSPARK`.
 group: lora
 related:
   - --lora-paths
@@ -56,7 +56,7 @@ Enable LoRA support for the model. This argument is automatically set to True if
 ### Проверки, которые включаются вместе с флагом
 
 - `assert self.max_loras_per_batch > 0`;
-- спекулятивное декодирование: `if self.speculative_algorithm not in ["NGRAM", None]: raise ValueError("Currently LoRA is only compatible with NGRAM speculative decoding.")`;
+- спекулятивное декодирование — `check_lora_speculative_compatibility` (там же): алгоритм сверяется уже после резолва (`NEXTN` к этому моменту стал `EAGLE`). Без ограничений проходят отсутствие спекуляции и `NGRAM`; `EAGLE`, `EAGLE3`, `DFLASH` и `DSPARK` допускаются (адаптер применяется только к target, draft работает без него), любое другое имя — `ValueError: LoRA is only compatible with NGRAM, EAGLE, NEXTN, EAGLE3, DFLASH, or DSPARK speculative decoding, not <algo>.` (для `FROZEN_KV_MTP` с пояснением, что `NEXTN`/`EAGLE` с Gemma4-драфтом повышен до него). Для допущенных алгоритмов дополнительно запрещены: `DSPARK` при `SGLANG_RAGGED_VERIFY_MODE` ≠ `static` (по умолчанию `static`), `--speculative-adaptive`, MoE-раннер `experimental_sgl_trtllm` у target или draft (`--moe-runner-backend` / `--speculative-moe-runner-backend`) и `SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1` — все с текстом `LoRA with EAGLE/NEXTN/EAGLE3 speculative decoding does not support …`. `UNO` отвергает LoRA еще раньше, в шаге резолва `handle_speculative_decoding` (`_handle_uno` в `python/sglang/srt/arg_groups/speculative_hook.py`): `UNO does not support public Multi-LoRA serving.`;
 - разбор `--lora-paths` в объекты `LoRARef` (формат `<PATH>`, `<NAME>=<PATH>` или JSON);
 - нормализация `--lora-target-modules` в множество, с требованием, чтобы `all` был единственным элементом;
 - ключевое требование к динамическому режиму: `assert self.lora_paths or (self.max_lora_rank and self.lora_target_modules)` с текстом *When no initial --lora-paths is provided, you need to specify both --max-lora-rank and --lora-target-modules for LoRA initialization.*;
@@ -98,7 +98,7 @@ Enable LoRA support for the model. This argument is automatically set to True if
 - `--max-lora-rank`, `--lora-target-modules`: обязательная пара при пустом `--lora-paths`.
 - `--max-loras-per-batch`: число слотов GPU-пула; `--max-loaded-loras` — потолок числа адаптеров, кешированных в RAM.
 - `--lora-backend`, `--max-lora-chunk-size`: реализация ядер.
-- `--speculative-algorithm`: совместимо только `NGRAM`, всё остальное — `ValueError`.
+- `--speculative-algorithm`: совместимы `NGRAM`, `EAGLE`/`NEXTN`, `EAGLE3`, `DFLASH` и `DSPARK` (у последних четырех — без `--speculative-adaptive` и `experimental_sgl_trtllm`, а у `DSPARK` еще и только при `SGLANG_RAGGED_VERIFY_MODE=static`); `FROZEN_KV_MTP`, `STANDALONE`, `UNO` и плагины — `ValueError`.
 - `--cuda-graph-backend-prefill`: piecewise-захват prefill при LoRA отключается автоматически.
 - `--dp-size`, `--enable-dp-attention`: динамическая загрузка требует `dp_size == 1` или DP-attention.
 - В arriero объявленный memory draw инстанса должен включать LoRA-пул — иначе планировщик прокси будет считать, что VRAM больше, чем есть (`docs/RESOURCE_MANAGEMENT.md`).
@@ -106,7 +106,9 @@ Enable LoRA support for the model. This argument is automatically set to True if
 ## Типовые проблемы и диагностика
 
 - `AssertionError: When no initial --lora-paths is provided, you need to specify both --max-lora-rank and --lora-target-modules for LoRA initialization.` — самая частая ошибка запуска в динамическом режиме.
-- `ValueError: Currently LoRA is only compatible with NGRAM speculative decoding.` — включены LoRA и EAGLE/MTP одновременно.
+- `ValueError: LoRA is only compatible with NGRAM, EAGLE, NEXTN, EAGLE3, DFLASH, or DSPARK speculative decoding, not STANDALONE.` — алгоритм вне допустимого набора; для `FROZEN_KV_MTP` текст добавляет, что `NEXTN`/`EAGLE` повышен до него из-за Gemma4-драфта.
+- `ValueError: LoRA with EAGLE/NEXTN/EAGLE3 speculative decoding does not support --speculative-adaptive: …` (и аналогичные строки про `SGLANG_RAGGED_VERIFY_MODE`, `experimental_sgl_trtllm`, `SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1`) — алгоритм допустим, но рядом включена несовместимая с LoRA опция.
+- `ValueError: UNO does not support public Multi-LoRA serving.` — LoRA вместе с `--speculative-algorithm UNO`.
 - Запрос с `lora_path` получает `... but LoRA is not enabled` — сервер поднят без флага и без путей.
 - `AssertionError: dp_size must be 1 or dp attention must be enabled for dynamic lora loading` — попытка загрузить адаптер по HTTP при DP > 1.
 - KV-пул неожиданно меньше ожидаемого — это пул адаптеров; сравните `max_total_num_tokens` в стартовой строке планировщика с прогоном без LoRA.
@@ -129,6 +131,8 @@ python -m sglang.launch_server --model-path /models/Meta-Llama-3.1-8B-Instruct -
 - `sglang/python/sglang/srt/arg_groups/lora_hook.py`
 - `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
+- `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/environ.py`
 - `sglang/python/sglang/srt/entrypoints/engine.py`
 - `sglang/python/sglang/srt/lora/lora_manager.py`
 - `sglang/python/sglang/srt/lora/mem_pool.py`

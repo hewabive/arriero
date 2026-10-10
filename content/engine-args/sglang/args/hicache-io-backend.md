@@ -10,6 +10,9 @@ related:
   - --hicache-mem-layout
   - --hicache-storage-backend
   - --disaggregation-decode-enable-offload-kvcache
+  - --disaggregation-mode
+  - --disaggregation-decode-retraction-backup
+  - --enable-unified-cache-external-linker
 ---
 
 # --hicache-io-backend
@@ -43,7 +46,7 @@ The IO backend for KV cache transfer between CPU and GPU
 - `HiCacheController.move_indices` (`sglang/python/sglang/srt/managers/cache_controller.py`) — где именно должны лежать индексные тензоры. Для `kernel` индексы уходят на GPU, для `direct` они остаются на CPU (и при `layer_first` дополнительно сортируются), для `kernel_ascend` — device-индексы переводятся на CPU;
 - пулы хоста (`mem_cache/pool_host/mha.py`, `mla.py`, `memory_pool_host.py`) — какой примитив переноса вызвать: `transfer_kv_*` (GPU-ядра) для `kernel`, `transfer_kv_*_direct` для `direct`, `transfer_kv_dim_exchange` и родственные для `kernel_ascend`.
 
-Нормализация пары layout/IO происходит до этого, в `handle_hicache`:
+Нормализация пары layout/IO происходит до этого, в `handle_hicache`. Шаг работает, если включен `--enable-hierarchical-cache` или `--disaggregation-decode-enable-offload-kvcache`, а также на PD decode-сервере (`--disaggregation-mode decode`), у которого `--disaggregation-decode-retraction-backup` не задан или равен `host_pool`. При `--enable-unified-cache-external-linker` шаг завершается раньше, без нормализации. При `--disaggregation-decode-host-receive-threshold` больше нуля layout сначала принудительно становится `layer_first`; IO это не меняет, так как `layer_first` совместим с обоими backend'ами. Дальше действуют правила:
 
 - `page_first_direct` + `kernel` → IO переключается на `direct` («Kernel io backend does not support page first direct layout, switching to direct io backend»);
 - `page_first` + `direct` → меняется **layout**, а не IO: он становится `page_first_direct` («Page first layout is not supported with direct IO backend, switching to page first direct layout»).
@@ -72,15 +75,18 @@ The IO backend for KV cache transfer between CPU and GPU
 
 ## Взаимодействие с другими аргументами
 
-- `--enable-hierarchical-cache`: без него (и без `--disaggregation-decode-enable-offload-kvcache`) нормализация `handle_hicache` не выполняется и значение не читается.
+- `--enable-hierarchical-cache`: без него нормализация `handle_hicache` выполняется только на PD decode-сервере (см. ниже) или при `--disaggregation-decode-enable-offload-kvcache`.
 - `--hicache-mem-layout`: связаны жестко, см. правила нормализации выше. Изменение одного часто меняет второе.
-- `--hicache-storage-backend mooncake`: при `layer_first` layout переписывается на `page_first` для `kernel` и на `page_first_direct` для `direct` (`resolve_storage_layout_compatibility`); при `kernel_ascend` layout остается как есть.
+- `--hicache-storage-backend mooncake` или `npu_memcache`: при `layer_first` layout переписывается на `page_first` для `kernel` и на `page_first_direct` для `direct` (`resolve_storage_layout_compatibility`); при `kernel_ascend` layout остается как есть. Если одновременно задан `--disaggregation-decode-host-receive-threshold` больше нуля, такая перезапись кончается `ValueError`: общий decode host pool обязан оставаться `layer_first`.
 - `--disaggregation-decode-enable-offload-kvcache`: активирует ту же нормализацию, даже если сам HiCache не включен.
+- `--disaggregation-mode decode` + `--disaggregation-decode-retraction-backup`: decode-сервер с незаданным backup или `host_pool` тоже проходит нормализацию. Backup `host_pool` хранит KV вытесненных запросов в HiCache host pool при `UnifiedRadixCache` и переносит его через тот же `--hicache-io-backend`. Незаданный backup выбирается позже, при сборке KV-пула (`resolve_decode_retraction_backup` в `mem_cache/kv_cache_builder.py`), — `host_pool` или `cpu_tensor`, — поэтому пара layout/IO нормализуется заранее. При явном `cpu_tensor` или `none` на decode-сервере без HiCache нормализация не выполняется.
+- `--enable-unified-cache-external-linker`: несовместим с `--enable-hierarchical-cache` и с `--hicache-storage-backend` (`ValueError` на старте); с ним нормализация layout/IO пропускается.
 
 ## Типовые проблемы и диагностика
 
 - В логе «Kernel io backend does not support page first direct layout, switching to direct io backend» — ваш `kernel` заменен на `direct`. Это не ошибка, но если вы рассчитывали на GPU-ядра, поменяйте layout.
 - В логе «Page first layout is not supported with direct IO backend, switching to page first direct layout» — заменен layout, IO остался вашим.
+- В логе «Mooncake/Ascend MemCache storage backend does not support layer_first layout, switching to … layout for … io backend» — layout переписан под L3-backend `mooncake`/`npu_memcache` с учетом выбранного IO.
 - `ValueError: Unsupported io_backend: kernel_ascend` или `Unsupported layout … for io backend 'direct'` в рантайме при первой передаче — выбрана комбинация, для которой нет пути переноса.
 - Итоговую пару layout/IO показывает дамп `server_args=` при старте: он строится из `resolved_dict()`, то есть с учетом всех автозамен, тогда как сам `server_args.hicache_io_backend` хранит исходный ввод.
 - Пропускную способность L2↔L1 удобно сравнивать по TTFT на запросах, целиком попадающих в L2, при `--enable-cache-report`.
@@ -101,6 +107,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3.2 --page-size 64
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/hicache_hook.py`
 - `sglang/python/sglang/srt/managers/cache_controller.py`
+- `sglang/python/sglang/srt/mem_cache/kv_cache_builder.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mha.py`
 - `sglang/python/sglang/srt/mem_cache/pool_host/mla.py`
 - `sglang/python/sglang/srt/mem_cache/memory_pool_host.py`

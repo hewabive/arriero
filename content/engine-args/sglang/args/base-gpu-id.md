@@ -57,7 +57,7 @@ gpu_id = server_args.base_gpu_id
 
 При `--dp-size > 1` контроллер добавляет второй, автоматический сдвиг: `DataParallelController.launch_dp_schedulers` наращивает внутренний `base_gpu_id` на `tp_size * pp_size * gpu_id_step` на каждую DP-реплику, и итоговый индекс равен `server_args.base_gpu_id + <сдвиг реплики> + …`. То есть при `--dp-size 2 --tp-size 2` реплики займут `{0,1}` и `{2,3}` от заданного основания.
 
-Тот же расчет продублирован для вспомогательных процессов: `weight_cache/protocol.py:compute_local_gpu_id` (демоны кеша весов) и `disaggregation/encode_server.py` (`base_gpu_id + rank`).
+Тот же расчет продублирован для вспомогательных процессов: `weight_cache/protocol.py:compute_local_gpu_id` (демоны кеша весов) и encoder-сервер EPD. У энкодера формула упрощенная, без `--gpu-id-step`: TP-ранги получают `base_gpu_id + rank` (`MMEncoder` в `disaggregation/encoder/server.py`), DP-воркеры — `base_gpu_id + dp_rank` (`launch_dp_runtime` в `disaggregation/encoder/runtime.py`).
 
 ### Взаимодействие с `CUDA_VISIBLE_DEVICES`
 
@@ -122,6 +122,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-8B --port 30001 --base
 - `sglang/python/sglang/srt/managers/data_parallel_controller.py`
 - `sglang/python/sglang/srt/utils/common.py`
 - `sglang/python/sglang/srt/weight_cache/protocol.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/runtime.py`
 - `sglang/docs/docs/advanced_features/pd_disaggregation.mdx`
 - `sglang/docs/docs/hardware-platforms/ascend-npus/faq.mdx`
 - arriero: `docs/RESOURCE_MANAGEMENT.md`

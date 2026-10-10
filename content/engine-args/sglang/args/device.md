@@ -62,7 +62,7 @@ The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu', 'musa'). Defaults to auto
 - `cpu` (`handle_cpu_backends`): `attention_backend` при незаданном значении становится `torch_native` на ARM64 и `intel_amx` в остальных случаях; `sampling_backend` принудительно `pytorch`. Кроме того, при `device == "cpu"` пропускается генерация списка batch-размеров decode-графа, а `init_torch_distributed` вызывает `_init_cpu_threads_env` — привязку OpenMP-потоков по `SGLANG_CPU_OMP_THREADS_BIND` (по умолчанию — один TP-ранг на NUMA-узел).
 - `hpu`: `attention_backend = torch_native`, `sampling_backend = pytorch`.
 - `npu`: применяется `set_default_server_args` из `hardware_backend/npu/utils.py`; prefill-компилятор графа принудительно `eager` с предупреждением. Только на `npu` разрешен `--enable-quant-communications`.
-- `xpu`: decode-граф выключается по умолчанию, если `--cuda-graph-backend-decode` не задан явно; из явных значений принимается только `full`.
+- `xpu` (`handle_xpu_backends`): незаданный `sampling_backend` становится `intel_xpu` (явное значение не трогается); decode-граф выключается по умолчанию, если `--cuda-graph-backend-decode` не задан явно; из явных значений принимается только `full`.
 - `mps`: без MLX включается `disable_overlap_schedule`.
 - `cuda`: специальной ветки нет — это опорный путь, для которого написано все остальное.
 
@@ -96,7 +96,7 @@ The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu', 'musa'). Defaults to auto
 
 ## Взаимодействие с другими аргументами
 
-- `--attention-backend` / `--sampling-backend`: на `cpu` и `hpu` значения подставляются принудительно, явное значение backend'а сэмплирования на этих устройствах переписывается.
+- `--attention-backend` / `--sampling-backend`: на `cpu` и `hpu` значения подставляются принудительно, явное значение backend'а сэмплирования на этих устройствах переписывается. На `xpu` незаданный `--sampling-backend` получает `intel_xpu`, а не общий default `flashinfer`/`pytorch` (pass `_sampling_backend_default` в `arg_groups/overrides.py` видит уже заполненное поле).
 - `--mem-fraction-static`: устройство выбирает способ измерения емкости (см. выше).
 - `--enable-quant-communications`: работает только при `--device npu`, иначе `ValueError: Communications quantization is only supported for NPU device`.
 - `--disable-overlap-schedule`: включается автоматически на `mps` без MLX.

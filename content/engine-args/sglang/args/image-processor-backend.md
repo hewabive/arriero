@@ -40,6 +40,8 @@ Image processor backend. 'auto' lets Transformers select the best available back
 
 `BaseMultimodalProcessor` считает только `pil` медленным backend'ом. Для него не выбирается `_fast_image_processor_device`; для `auto`/`torchvision` compatible fast processor может выполнять операции на `cuda:<base_gpu_id>`, XPU или NPU. Выбранный backend входит в fingerprint preprocessing cache, поэтому результаты разных backend'ов не смешиваются.
 
+На encoder-сервере EPD (`--encoder-only`) путь другой: `EncoderPreprocessor` (`disaggregation/encoder/preprocessor.py`) грузит `AutoImageProcessor.from_pretrained(..., backend=...)` напрямую, без `get_processor`. Препроцессинг изображений там идет на GPU, только если задан `SGLANG_ENCODER_IMAGE_PROCESSOR_USE_GPU=1` (по умолчанию выключено) и backend не `pil`. Если processor с выбранным backend не загрузился, энкодер не падает: печатается `Failed to load image processor: …`, и изображения он обработать не сможет, если у модели нет собственного препроцессора. Языковая сторона (`--language-only`) создает processor через `get_processor` с тем же backend (`disaggregation/encoder/receiver.py`).
+
 ## Значения и формат
 
 - `auto` — не заменять image processor после `AutoProcessor`; выбор делает Transformers.
@@ -65,7 +67,7 @@ Image processor backend. 'auto' lets Transformers select the best available back
 ## Типовые проблемы и диагностика
 
 - Conflict с `--disable-fast-image-processor` и `torchvision` — удалите legacy-флаг.
-- Явный backend не поддержан установленной версией Transformers/processor'ом — ошибка возникает при `AutoImageProcessor.from_pretrained`.
+- Явный backend не поддержан установленной версией Transformers/processor'ом — ошибка возникает при `AutoImageProcessor.from_pretrained`. На encoder-сервере это только предупреждение `Failed to load image processor: …` при старте, а запросы с изображениями потом падают с `No image processor available` (если у модели нет собственного препроцессора).
 - Итоговое значение видно в `server_args=` и в preprocessing fingerprint; рост CPU и TTFT после `pil` ожидаем.
 
 ## Примеры
@@ -84,5 +86,7 @@ python -m sglang.launch_server --model-path /models/Qwen-VL --image-processor-ba
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/utils/hf_transformers/processor.py`
 - `sglang/python/sglang/srt/multimodal/processors/base_processor.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/preprocessor.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
+- `sglang/python/sglang/srt/environ.py`
 

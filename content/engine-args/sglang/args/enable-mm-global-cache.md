@@ -19,7 +19,7 @@ related:
 
 ## Кратко
 
-`--enable-mm-global-cache` включает L2-кеш **готовых эмбеддингов** визуального/аудио энкодера, разделяемый между процессами и узлами через Mooncake. Ключ — контентный хеш мультимодального элемента, значение — уже посчитанный ViT-выход. При попадании ViT не запускается вообще. Флаг читается ровно в одном месте — в `encode_server.py`, то есть **только на encoder-сервере** EPD/энкодер-дезагрегированного развертывания. На обычном моносервере он не делает ничего.
+`--enable-mm-global-cache` включает L2-кеш **готовых эмбеддингов** визуального/аудио энкодера, разделяемый между процессами и узлами через Mooncake. Ключ — контентный хеш мультимодального элемента, значение — уже посчитанный ViT-выход. При попадании ViT не запускается вообще. Флаг читается ровно в одном месте — в конструкторе `MMEncoder` (`disaggregation/encoder/server.py`), то есть **только на encoder-сервере** EPD/энкодер-дезагрегированного развертывания. На обычном моносервере он не делает ничего.
 
 ## Оригинальная справка
 
@@ -37,7 +37,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 - Эффективное значение: не переопределяется; ни один шаг резолва (`ServerArgs.resolve_once` → `run_resolution_pipeline`) это поле не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/mm.py:Mm.enable_mm_global_cache`
 - Статус: обычный
-- Этап применения: инициализация encoder-воркера (`sglang/python/sglang/srt/disaggregation/encode_server.py`), затем каждый вызов энкодера
+- Этап применения: инициализация encoder-воркера (`MMEncoder.__init__` в `sglang/python/sglang/srt/disaggregation/encoder/server.py`), затем каждый вызов энкодера
 
 ## Что меняет в движке
 
@@ -48,7 +48,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 - поднимает фоновый IO-поток, очереди prefetch/insert и LRU-вытеснение внутри пула;
 - при `--tp-size > 1` создает отдельную gloo-группу для согласования prefetch между рангами.
 
-Путь запроса на энкодере: ранг 0 считает контентные хеши элементов и приводит их к строкам (`str_mm_hashes`) → `batch_is_exist` спрашивает Mooncake, какие из них уже есть → попадания префетчатся в host-пул и грузятся на устройство асинхронно (`load_to_device_async`) → промахи считаются ViT'ом обычным путем и в фоне укладываются в пул и в Mooncake (`store_to_pool_async`, `insert_batch`). Ключ в хранилище формируется как `emb_<hash>` (`EmbeddingStore.get_key`).
+Путь запроса на энкодере: ранг 0 считает контентные хеши элементов и приводит их к строкам (`str_mm_hashes`) → `batch_is_exist` спрашивает Mooncake, какие из них уже есть → попадания префетчатся в host-пул и грузятся на устройство асинхронно (`load_to_device_async`) → промахи считаются ViT'ом обычным путем и в фоне укладываются в пул и в Mooncake (`store_to_pool_async`, `insert_batch`). Ключ в хранилище формируется как `emb_<hash>` (`EmbeddingStore.get_key`). Health-check запросы кеш обходят. Сбой `batch_is_exist` или prefetch запрос не валит: такие элементы считаются ViT'ом, как промахи.
 
 Важно понимать соседей:
 
@@ -67,7 +67,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 
 - EPD-развертывание с несколькими encoder-серверами, где один и тот же контент (страницы документов, кадры, логотипы, системная картинка в шаблоне) приходит в разные запросы и на разные экземпляры. ViT-прогон — самая дорогая часть мультимодального prefill, и попадание его убирает целиком.
 - Mooncake уже развернут для других задач (HiCache), метаданные и мастер доступны.
-- **Не включайте** на одиночном моносервере: флаг читается только в `encode_server.py` и там ничего не изменит.
+- **Не включайте** на одиночном моносервере: флаг читается только в encoder-сервере (`disaggregation/encoder/server.py`), и на моносервере ничего не изменит.
 - **Не включайте**, если контент почти всегда уникален: попаданий не будет, а 4 ГиБ pinned RAM на ранг и фоновый IO-поток останутся.
 
 ## Влияние на производительность и память
@@ -94,6 +94,7 @@ Enable global multimodal embedding cache to skip redundant ViT inference.
 - Ошибки подключения при старте энкодера — не выставлены `MOONCAKE_TE_META_DATA_SERVER` / `MOONCAKE_MASTER` / `MOONCAKE_PROTOCOL` / `MOONCAKE_GLOBAL_SEGMENT_SIZE`.
 - Флаг задан, а поведение не изменилось — сервер поднят без `--encoder-only`: код чтения флага живет только в encode-сервере.
 - Хост неожиданно потерял несколько гигабайт «навсегда» — это pinned-пул контроллера.
+- `Global multimodal cache lookup failed for req … ; falling back to ViT` или `… prefetch failed …` — Mooncake недоступен или ответил ошибкой. Запрос обслуживается, но без выигрыша от кеша.
 - Подтверждение инициализации хранилища в логе: `Mooncake Embedding Store initialized successfully.` и строки `Registered <modality> embedding pool: ...` по каждому пулу. Значение аргумента видно в дампе `server_args=`.
 
 ## Примеры
@@ -110,7 +111,7 @@ python -m sglang.launch_server --model-path /models/Qwen3-VL-8B-Instruct --encod
 
 - `sglang/python/sglang/srt/arg_groups/fields/mm.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/server.py`
 - `sglang/python/sglang/srt/mem_cache/embedding_cache_controller.py`
 - `sglang/python/sglang/srt/mem_cache/storage/mooncake_store/mooncake_embedding_store.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`

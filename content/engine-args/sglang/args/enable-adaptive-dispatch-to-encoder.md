@@ -52,7 +52,7 @@ return total_mm_items >= envs.SGLANG_ENCODER_DISPATCH_MIN_ITEMS.get()
 
 ### MM-пул процессора
 
-Флаг пробрасывается в `get_mm_processor(..., skip_mm_pool=not enable_adaptive_dispatch_to_encoder)`. То есть без флага пул мультимодального процессора пропускается, а с флагом — создается: локальный путь должен быть полноценно работоспособен.
+MM-receiver языкового сервера (`MMReceiverBase` в `disaggregation/encoder/receiver.py`) пробрасывает флаг в `get_mm_processor(..., skip_mm_pool=not enable_adaptive_dispatch_to_encoder)`. То есть без флага пул мультимодального процессора пропускается, а с флагом — создается: локальный путь должен быть полноценно работоспособен.
 
 ### Сборка эмбеддингов на форварде
 
@@ -114,6 +114,6 @@ SGLANG_ENCODER_DISPATCH_MIN_ITEMS=4 python -m sglang.launch_server --model-path 
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/managers/mm_utils.py`
-- `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`

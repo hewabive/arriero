@@ -36,15 +36,16 @@ Model download directory for huggingface.
 - Эффективное значение: не переопределяется движком — ни один шаг резолва его не декларирует
 - Где объявлен: `python/sglang/srt/arg_groups/fields/model.py:Model.download_dir`
 - Статус: обычный
-- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_missing_default_values` (только для ModelScope) и загрузка весов в каждом воркере
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаги `handle_missing_default_values` (только для ModelScope) и `handle_model_specific_adjustments` (только DeepSeek-V4 на ROCm), затем загрузка весов в каждом воркере
 
 ## Что меняет в движке
 
-Значение копируется в `LoadConfig.download_dir` и используется в трех местах:
+Значение копируется в `LoadConfig.download_dir` и используется в четырех местах:
 
 1. `DefaultModelLoader._prepare_weights` → `download_weights_from_hf(model_name_or_path, cache_dir=self.load_config.download_dir, …)`. Если `--model-path` — существующий локальный каталог, функция возвращает его сразу и `--download-dir` не участвует вообще.
 2. `RunaiModelStreamerLoader._prepare_weights` — то же самое для safetensors-паттерна.
 3. `handle_modelscope_paths` (`python/sglang/srt/arg_groups/model_path_hook.py`), который шаг резолва `handle_missing_default_values` вызывает только при `SGLANG_USE_MODELSCOPE=1`: сначала ищет модель в кеше ModelScope по умолчанию, затем в `os.path.join(download_dir, path)`, и при промахе передает `cache_dir=download_dir` в `snapshot_download`. Найденный путь декларируется через `declare_resolution`: `server_args.model_path` хранит исходный repo id, итоговый путь виден в дампе `server_args=`.
+4. Проба dtype `wo_a` для DeepSeek-V4 на ROCm (`_configure_rocm_fp8_wo_a_gemm` → `_probe_wo_a_weight_dtype` в `python/sglang/srt/arg_groups/model_hook.py`, шаг резолва `handle_model_specific_adjustments`). Срабатывает только для `DeepseekV4ForCausalLM` на HIP, когда gfx950 + aiter поддерживают fp8-GEMM для `wo_a`, а `SGLANG_OPT_FP8_WO_A_GEMM` не задан явно. Проба берет `model.safetensors.index.json` через `transformers` `cached_file(..., cache_dir=download_dir)` — для repo ID файл индекса скачивается в этот каталог уже на этапе резолва, до загрузки весов. Затем она читает заголовок шарда с `.wo_a.weight`: локально, если шард уже лежит рядом с индексом, иначе удаленно через `parse_safetensors_file_metadata`, не скачивая шард. Если dtype не `F8_E4M3`, `SGLANG_OPT_FP8_WO_A_GEMM` выключается (`Disabled ROCm fp8 wo_a GEMM for checkpoint dtype ...`). Любая ошибка пробы уходит в debug-лог и оставляет флаг как был.
 
 Кроме того, `np_cache_weights_iterator` при `--load-format npcache` кладет свой numpy-кеш относительно того же каталога.
 
@@ -101,6 +102,7 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-30B-A3B --download-dir /d
 - `sglang/python/sglang/srt/arg_groups/fields/model.py`
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/model_path_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
 - `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/configs/load_config.py`
 - `sglang/python/sglang/srt/model_loader/loader.py`

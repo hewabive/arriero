@@ -58,11 +58,11 @@ Enable deterministic inference mode with batch invariant ops.
 | Что | Как | Где |
 | --- | --- | --- |
 | `--sampling-backend` | становится `pytorch` (кроме `ascend`), warning `Sampling backend is set to pytorch for deterministic inference.` | `_deterministic_sampling_backend` |
-| `--attention-backend` | если не задан — `triton` (Blackwell + DeepSeek), `flashinfer` (Blackwell, не DeepSeek) или `fa3` (SM90 и старше), с warning'ом; если задан вне `["ascend", "fa3", "fa4", "flashinfer", "triton"]` — `ValueError` | `_deterministic_attention_backend` |
+| `--attention-backend` | если не задан — `triton` (Blackwell + DeepSeek), `flashinfer` (Blackwell, не DeepSeek) или `fa3` (SM90 и старше), с warning'ом; если задан вне `["ascend", "fa3", "fa4", "flashinfer", "intel_xpu", "triton"]` — `ValueError` | `_deterministic_attention_backend` |
 | размер split-тайла Triton | `--triton-attention-split-tile-size` **игнорируется**: берется `SGLANG_TRITON_DECODE_SPLIT_TILE_SIZE` (256) и выключается `static_kv_splits` | `TritonAttnBackend.__init__` |
 | размеры тайлов FlashInfer | `SGLANG_FLASHINFER_PREFILL_SPLIT_TILE_SIZE` (4096) и `SGLANG_FLASHINFER_DECODE_SPLIT_TILE_SIZE` (2048), decode переводится на tensor cores, KV-split в CUDA graph отключается, workspace принудительно 2 ГиБ | `FlashInferAttnBackend.__init__` |
 | выравнивание усечения prefill | `truncation_align_size` = 4096 для `flashinfer` и `triton` | `Scheduler.init_deterministic_inference_config` |
-| `--disable-radix-cache` | включается принудительно, если backend внимания вне `["ascend", "fa3", "fa4", "triton"]` — то есть при `flashinfer` radix-кеш выключается с warning'ом | `handle_deterministic_inference` |
+| `--disable-radix-cache` | включается принудительно, если backend внимания вне `["ascend", "fa3", "fa4", "triton"]` — то есть при `flashinfer` и `intel_xpu` radix-кеш выключается с warning'ом | `handle_deterministic_inference` |
 | `--enable-aiter-allreduce-fusion` | выключается | `handle_deterministic_inference` |
 | `--flashinfer-allreduce-fusion-backend` | сбрасывается в `null`; дополнительно ставится `enforce_disable_flashinfer_allreduce_fusion = True` | `_deterministic_allreduce_fusion_disable`, `handle_model_specific_adjustments` |
 | автотюнинг FlashInfer | не запускается: подобранные конфиги зависят от формы задачи, а значит и порядок редукции следовал бы за размером батча | `should_run_flashinfer_autotune` |
@@ -75,7 +75,7 @@ Enable deterministic inference mode with batch invariant ops.
 
 ### Дополнительные проверки для DeepSeek
 
-Для `DeepseekV2/V3/V32ForCausalLM`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration`, `GlmMoeDsaForCausalLM` backend внимания обязан входить в `["ascend", "fa3", "fa4", "triton"]` (FlashInfer для них пока не детерминирован), а `fa4` дополнительно требует SM100/SM110.
+Для `DeepseekV2/V3/V32ForCausalLM`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration`, `GlmMoeDsaForCausalLM`, `Glm4MoeLiteForCausalLM`, `Glm5NextForConditionalGeneration` (в коде — «absorbed-MLA models») backend внимания обязан входить в `["ascend", "fa3", "fa4", "triton"]` (FlashInfer для них пока не детерминирован), а `fa4` дополнительно требует SM100/SM110. Список для автоподбора `triton` на Blackwell (`_deterministic_is_deepseek_model` в `arg_groups/overrides.py`) короче: `Glm5NextForConditionalGeneration` в него не входит. К тому же автоподбор срабатывает, только если backend еще пуст, а модельные override'ы (шаг `handle_model_specific_adjustments`) идут раньше `handle_deterministic_inference`: `_deepseek_family_overrides` (`arg_groups/model_overrides/deepseek_v2.py`) ставит DSA-моделям `dsa`, а DeepSeek V3/R1 на SM100 — `trtllm_mla`, и запуск падает с `… but you explicitly specified 'dsa'` (или `'trtllm_mla'`). Для этих моделей задавайте `--attention-backend` явно.
 
 ### Сэмплирование
 
@@ -94,7 +94,7 @@ Enable deterministic inference mode with batch invariant ops.
 
 - независимость выхода от размера и состава батча — один и тот же запрос дает один и тот же ответ, попал он в батч из 1 или из 64;
 - воспроизводимость при `temperature > 0` — через `sampling_seed` (по умолчанию 42);
-- совместимость с chunked prefill и CUDA graph на всех трех поддерживаемых backend'ах; radix-кеш — на `fa3`, `fa4`, `triton`, `ascend`, но не на `flashinfer`.
+- совместимость с chunked prefill и CUDA graph на всех трех поддерживаемых backend'ах; radix-кеш — на `fa3`, `fa4`, `triton`, `ascend`, но не на `flashinfer` и `intel_xpu`.
 
 Не гарантирует:
 
@@ -124,7 +124,7 @@ Enable deterministic inference mode with batch invariant ops.
 ## Взаимодействие с другими аргументами
 
 - `--rl-on-policy-target`: включает этот флаг автоматически и добавляет свои требования к вычислениям.
-- `--attention-backend`: сужается до `ascend`/`fa3`/`fa4`/`flashinfer`/`triton`, для DeepSeek — до первых четырех без `flashinfer`.
+- `--attention-backend`: сужается до `ascend`/`fa3`/`fa4`/`flashinfer`/`intel_xpu`/`triton`, для DeepSeek-подобных MLA-моделей — до `ascend`/`fa3`/`fa4`/`triton`.
 - `--sampling-backend`: переписывается на `pytorch`.
 - `--triton-attention-split-tile-size` / `--triton-attention-num-kv-splits`: игнорируются в пользу фиксированного тайла из переменной окружения.
 - `--disable-radix-cache`: включается принудительно на неподдерживающих backend'ах.
@@ -138,9 +138,9 @@ Enable deterministic inference mode with batch invariant ops.
 
 ## Типовые проблемы и диагностика
 
-- `ValueError: Currently only ['ascend', 'fa3', 'fa4', 'flashinfer', 'triton'] attention backends are supported for deterministic inference, but you explicitly specified 'trtllm_mla'.`
-- `ValueError: Currently only ['ascend', 'fa3', 'fa4', 'triton'] attention backends are supported for deterministic inference with DeepSeek models. But you're using flashinfer.`
-- `ValueError: Deterministic inference with DeepSeek models on the fa4 attention backend requires SM100/SM110 …`
+- `ValueError: Currently only ['ascend', 'fa3', 'fa4', 'flashinfer', 'intel_xpu', 'triton'] attention backends are supported for deterministic inference, but you explicitly specified 'trtllm_mla'.`
+- `ValueError: Currently only ['ascend', 'fa3', 'fa4', 'triton'] attention backends are supported for deterministic inference with absorbed-MLA models. But you're using flashinfer.`
+- `ValueError: Deterministic inference with absorbed-MLA models on the fa4 attention backend requires SM100/SM110 …`
 - `ValueError: --speculative-use-rejection-sampling is incompatible with --enable-deterministic-inference …`
 - Warning `Currently radix cache is not compatible with flashinfer attention backend for deterministic inference.` — кеш префиксов выключен, TTFT на повторяющихся промптах вырос.
 - Тест `sglang.test.test_deterministic` показывает `Unique samples: 2` — режим не применился полностью; сверьте по логу, что все переписывания произошли.
@@ -163,6 +163,8 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --attention-ba
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/attention_hook.py`
 - `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/arg_groups/choices.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
 - `sglang/python/sglang/srt/arg_groups/serving_hook.py`
 - `sglang/python/sglang/srt/arg_groups/cuda_graph_hook.py`
 - `sglang/python/sglang/srt/batch_invariant_ops/batch_invariant_ops.py`

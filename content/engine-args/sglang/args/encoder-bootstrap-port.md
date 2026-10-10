@@ -43,7 +43,7 @@ Port for the EncoderBootstrapServer that runs in the language-only tokenizer man
 
 ## Что меняет в движке
 
-`EncoderBootstrapServer` (`disaggregation/encode_receiver.py`) — FastAPI-приложение на uvicorn с четырьмя маршрутами:
+`EncoderBootstrapServer` (`disaggregation/encoder/receiver.py`) — FastAPI-приложение на uvicorn с четырьмя маршрутами:
 
 ```
 GET    /health                  проверка живости самого реестра
@@ -90,7 +90,7 @@ GET    /list_encoder_urls       {"encoder_urls": [...]}
 ## Типовые проблемы и диагностика
 
 - Подтверждение старта: `EncoderBootstrapServer starting on <host>:<port> ...`. Отсутствие строки при наличии `EncoderBootstrapServer error: ...` — порт занят или недоступен для bind'а.
-- Энкодеры пишут `Giving up on bootstrap <url> after 30 attempts` — порт в их `--encoder-register-urls` не тот или реестр не поднялся.
+- Энкодеры пишут `Giving up on bootstrap <url> after 30 attempts` (`disaggregation/encoder/http_server.py`: 30 попыток с интервалом 5 с, примерно 2.5 минуты) — порт в их `--encoder-register-urls` не тот или реестр не поднялся.
 - Текущий набор адресов проверяется напрямую: `curl http://<language-host>:<encoder-bootstrap-port>/list_encoder_urls`.
 - Энкодер зарегистрировался и пропал из списка сам — сработал health-check (три неудачные пробы). Смотрите доступность `GET /health` энкодера с языкового хоста и при необходимости поднимайте `SGLANG_ENCODER_BOOTSTRAP_HEALTH_CHECK_TIMEOUT`.
 - **Безопасность.** `POST /register_encoder_url` позволяет любому, кто дотянулся до порта, подсунуть языковому серверу произвольный адрес «энкодера» и получать его мультимодальные данные. Порт обязан быть закрыт от всего, кроме собственных энкодеров.
@@ -110,8 +110,8 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --language
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/http_server.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`

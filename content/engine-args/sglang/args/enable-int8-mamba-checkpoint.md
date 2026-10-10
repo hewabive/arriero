@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--enable-int8-mamba-checkpoint"
 title: "--enable-int8-mamba-checkpoint"
-summary: Выносит закешированные radix-кешем рекуррентные состояния в отдельный int8-пул: примерно вчетверо дешевле fp32-слота, живые запросы при этом остаются в полной точности. Несовместим с `--enable-hierarchical-cache` и с внешним `--radix-cache-backend`.
+summary: Выносит закешированные radix-кешем рекуррентные состояния в отдельный int8-пул: примерно вчетверо дешевле fp32-слота, живые запросы при этом остаются в полной точности. Несовместим с `--enable-hierarchical-cache`, `--enable-lmcache` и с внешним `--radix-cache-backend`.
 group: exec.mamba
 related:
   - --int8-mamba-ckpt-size
@@ -13,6 +13,7 @@ related:
   - --mamba-max-states-per-path
   - --enable-hierarchical-cache
   - --radix-cache-backend
+  - --enable-lmcache
   - --disable-radix-cache
   - --mem-fraction-static
   - --enable-unified-memory
@@ -73,6 +74,7 @@ int8 mamba checkpoint pool needs ~X GB but only Y GB HBM is free. Lower --int8-m
 - Размер пула задается отдельным `--int8-mamba-ckpt-size`; по умолчанию — удвоенный размер активного пула плюс один служебный слот.
 - Работает только со встроенным mamba-путем radix-кеша: любой `--radix-cache-backend` отвергается.
 - Не работает вместе с host-выгрузкой: `--enable-hierarchical-cache` отвергается.
+- Не работает вместе с LMCache: `--enable-lmcache` отвергается — LMCache тоже не умеет читать int8-слоты.
 - При `--enable-unified-memory` пул не создается (`mamba_ckpt_pool = None` в unified-пуле) — флаг молча не действует.
 - При `--disable-radix-cache` кешировать нечего, и пул бесполезен.
 
@@ -98,6 +100,7 @@ int8 mamba checkpoint pool needs ~X GB but only Y GB HBM is free. Lower --int8-m
 - `--mamba-ssm-dtype`: определяет тип масштабов (и, косвенно, цену активного слота, с которой сравнивается выигрыш).
 - `--enable-hierarchical-cache`: взаимно исключающая пара, отказ на старте.
 - `--radix-cache-backend`: любой внешний backend отвергается.
+- `--enable-lmcache`: взаимно исключающая пара, отказ на старте.
 - `--enable-unified-memory`: пул не создается.
 - `--mem-fraction-static`: пул выделяется из остатка после статики, поэтому при тесном бюджете статику придется понизить.
 - `--mamba-max-states-per-path`: работает поверх — ограничивает число закешированных состояний на путь независимо от того, где они лежат.
@@ -106,6 +109,7 @@ int8 mamba checkpoint pool needs ~X GB but only Y GB HBM is free. Lower --int8-m
 
 - `ValueError: --enable-int8-mamba-checkpoint is not supported together with --enable-hierarchical-cache: the host-offload path is not int8-aware. Disable one of them.`
 - `ValueError: --enable-int8-mamba-checkpoint only supports the built-in mamba radix cache; --radix-cache-backend='…' is not int8-aware. Omit --radix-cache-backend.`
+- `ValueError: --enable-int8-mamba-checkpoint is not supported together with --enable-lmcache: LMCache is not int8-aware. Disable one of them.`
 - `RuntimeError: int8 mamba checkpoint pool needs ~X GB but only Y GB HBM is free …` — уменьшайте `--int8-mamba-ckpt-size` или `--mem-fraction-static`.
 - Флаг задан, а памяти не прибавилось и лога о пуле нет — проверьте, не включен ли `--enable-unified-memory` и не отключен ли radix-кеш.
 - Что смотреть в логе: строку `int8 mamba checkpoint pool: N slots, X.XXGB (qdata … + scale … + conv …); active mamba pool M slots; free HBM … GB` и принятое значение в дампе `server_args=`.

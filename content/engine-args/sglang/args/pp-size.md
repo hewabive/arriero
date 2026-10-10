@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--pp-size"
 title: "--pp-size"
-summary: Делит слои модели на последовательные стадии, каждая на своей группе GPU. Инструмент для длинного контекста на нескольких узлах, несовместимый с overlap-планировщиком и спекулятивным декодированием.
+summary: Делит слои модели на последовательные стадии, каждая на своей группе GPU. Инструмент для длинного контекста на нескольких узлах: требует выключенного overlap-планировщика, а из спекуляции допускает только EAGLE (не многослойный) и DSPARK, по умолчанию лишь на PD-prefill узлах.
 group: parallel
 related:
   - --tp-size
@@ -14,6 +14,8 @@ related:
   - --chunked-prefill-size
   - --nnodes
   - --speculative-algorithm
+  - --enable-multi-layer-eagle
+  - --disaggregation-mode
   - --min-free-slots-delay
   - --mem-fraction-static
 ---
@@ -22,7 +24,7 @@ related:
 
 ## Кратко
 
-`--pp-size` разрезает модель по слоям: стадия `k` держит только диапазон `[start_layer, end_layer)` и передает активации следующей стадии по P2P. В отличие от `--tp-size`, обмен идет один раз на границе стадии, а не на каждом слое, поэтому pipeline лучше переживает межузловые линки. Плата — пузыри в конвейере, отказ от overlap-планировщика и от спекулятивного декодирования. Значение по умолчанию `1`; движок переписывает его только в одном месте — принудительно ставит `1` для диффузионных LLM.
+`--pp-size` разрезает модель по слоям: стадия `k` держит только диапазон `[start_layer, end_layer)` и передает активации следующей стадии по P2P. В отличие от `--tp-size`, обмен идет один раз на границе стадии, а не на каждом слое, поэтому pipeline лучше переживает межузловые линки. Плата — пузыри в конвейере, отказ от overlap-планировщика и сильно суженное спекулятивное декодирование. Значение по умолчанию `1`; движок переписывает его только в одном месте — принудительно ставит `1` для диффузионных LLM.
 
 ## Оригинальная справка
 
@@ -64,7 +66,7 @@ KV-пул выделяется только под слои своей стад�
 - Межузловое развертывание, где TP упирается в пропускную способность линка: PP общается только на границах стадий. Апстрим-статья и `pipeline_parallelism.mdx` описывают это как основной сценарий — снижение TTFT на ультрадлинных входах.
 - Ультрадлинный контекст: разные чанки одного запроса обрабатываются разными стадиями одновременно; в связке с `--enable-dynamic-chunking` это заметно режет TTFT.
 - Не включайте PP на одном узле с NVLink: там TP почти всегда быстрее, а PP добавляет пузыри и отбирает overlap-планировщик.
-- Не включайте PP, если нужны спекулятивное декодирование или overlap-расписание — это взаимоисключающие вещи, старт упадет.
+- Не включайте PP, если нужно overlap-расписание или спекуляция на decode-узле либо в обычном режиме: overlap с PP несовместим, а спекуляция разрешена только как `EAGLE`/`NEXTN` (не многослойный) или `DSPARK` на PD-prefill узле; обычный режим с EAGLE требует экспериментальной `SGLANG_ENABLE_PP_SPEC=1`.
 
 ## Влияние на производительность и память
 
@@ -79,7 +81,7 @@ KV-пул выделяется только под слои своей стад�
 
 - `--tp-size`: перемножаются в world size; на каждом узле поднимается `pp_size_per_node * tp_size_per_node` процессов.
 - `--disable-overlap-schedule`: при `pp_size > 1` проход `_pipeline_parallel_overlap_disable` пишет в лог `Pipeline parallelism is incompatible with overlap schedule.` и сам декларирует `disable_overlap_schedule=True`; `check_server_args` затем требует `disable_overlap_schedule == True`.
-- `--speculative-algorithm`: должен быть не задан — то же требование `check_server_args`.
+- `--speculative-algorithm`: при `pp_size > 1` `check_pipeline_parallel_compat` (`python/sglang/srt/arg_groups/validation_hook.py`, вызывается из `check_server_args`) пропускает только два варианта. `DSPARK` — только с `--disaggregation-mode prefill` и без `SGLANG_ENABLE_PP_SPEC` (то же требование PD-prefill ставит и `_handle_dspark` в `python/sglang/srt/arg_groups/speculative_hook.py`). Любой другой алгоритм обязан после резолва быть `EAGLE` (значит, годится и `NEXTN`) без `--enable-multi-layer-eagle`; дальше по умолчанию нужен `--disaggregation-mode prefill`, а в обычном (не PD) режиме — переменная `SGLANG_ENABLE_PP_SPEC=1` (по умолчанию выключена), с которой запрещены `--disaggregation-mode`, `--speculative-adaptive` и `--enable-dp-attention`; draft-воркер тогда поднимается только на последней стадии, где лежат финальные hidden states и `lm_head`. `DFLASH` (`Currently DFLASH speculative decoding only supports pp_size == 1.`) и `UNO` (`UNO requires TP=PP=1.`) отвергаются еще при резолве.
 - `--min-free-slots-delay`: должен быть не задан (порог свободных слотов при микробатчах может никогда не сработать).
 - `--pp-max-micro-batch-size` / `--pp-async-batch-depth`: настройка конвейера; `pp_max_micro_batch_size` — либо `None` (авто), либо ≥ 1.
 - `--enable-dynamic-chunking`: рекомендованный спутник PP; связка `enable_dynamic_chunking && pp_size > 1` поднимает потолок prefill-буфера до `max(chunked_prefill_size, max_prefill_tokens, ceil(chunked_prefill_size * 1.25))` (`max_prefill_buffer_tokens` в `python/sglang/srt/arg_groups/overrides.py`), то есть чанк может расти выше заданного значения.
@@ -88,7 +90,10 @@ KV-пул выделяется только под слои своей стад�
 
 ## Типовые проблемы и диагностика
 
-- `AssertionError: Pipeline parallelism is not compatible with overlap schedule, speculative decoding` — добавьте `--disable-overlap-schedule` и уберите `--speculative-algorithm`.
+- `AssertionError: Pipeline parallelism is not compatible with overlap schedule` — overlap не выключился; добавьте `--disable-overlap-schedule`.
+- `AssertionError: Pipeline parallelism currently only supports EAGLE (non-multi-layer) speculative decoding` — выбран другой алгоритм или включен `--enable-multi-layer-eagle`.
+- `AssertionError: PP + speculative decoding (MTP) is only supported on prefill nodes (disaggregation-mode=prefill)` — EAGLE под PP вне PD-prefill без `SGLANG_ENABLE_PP_SPEC=1`; для `DSPARK` то же требование раньше срабатывает при резолве как `ValueError: DSpark pipeline parallelism requires PD prefill; decode and non-disaggregated serving require pp_size == 1.`
+- `AssertionError: SGLANG_ENABLE_PP_SPEC is not compatible with --disaggregation-mode` (`… with --speculative-adaptive`, `… with --enable-dp-attention`, `… does not support DSPARK PD prefill`) — конфликт экспериментального режима PP+spec.
 - `AssertionError: tp_size must be divisible by number of nodes` — нарушено `(tp_size * pp_size) % nnodes == 0`.
 - `ValueError: len(partitions)=3 does not match pp_size=4` или `sum(partitions)=60 does not match num_hidden_layers=61` — ошибка в `SGLANG_PP_LAYER_PARTITION`.
 - Низкая утилизация GPU на старших рангах, TTFT хуже, чем при том же числе карт под TP — классические пузыри конвейера: включите `--enable-dynamic-chunking`, увеличьте начальный `--chunked-prefill-size` в 2–3 раза и сместите остаток слоев на старшие ранги.
@@ -115,4 +120,7 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.1 --tensor-p
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/validation_hook.py`
 - `sglang/python/sglang/srt/arg_groups/dllm_hook.py`
+- `sglang/python/sglang/srt/arg_groups/speculative_hook.py`
+- `sglang/python/sglang/srt/environ.py`
+- `sglang/python/sglang/srt/managers/scheduler.py`
 - `sglang/docs/docs/advanced_features/pipeline_parallelism.mdx`

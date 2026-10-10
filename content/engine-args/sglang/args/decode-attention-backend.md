@@ -15,6 +15,9 @@ related:
   - --enable-deterministic-inference
   - --disable-chunked-prefix-cache
   - --triton-attention-num-kv-splits
+  - --speculative-attention-mode
+  - --dcp-size
+  - --dllm-algorithm
 ---
 
 # --decode-attention-backend
@@ -36,7 +39,7 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - Тип значения: строка с фиксированным списком
 - Допустимые значения: тот же `ATTENTION_BACKEND_CHOICES`, что и у `--attention-backend` (`triton`, `torch_native`, `flex_attention`, `dsa`, `nsa`, `qsa`, `dsv4`, `compressed`, `fa3`, `fa4`, `flashinfer`, `flashmla`, `trtllm_mla`, `cutedsl_mla`, `tokenspeed_mla`, `trtllm_mha`, `hpc_ops`, `minicpm_flashattn`, `minicpm_flashinfer`, `aiter`, `wave`, `intel_amx`, `ascend`, `intel_xpu`), расширяемый out-of-tree платформами через `add_attention_backend_choices` (`python/sglang/srt/arg_groups/choices.py`)
 - Значение по умолчанию: `null` — фаза decode наследует разрешенный `--attention-backend`
-- Эффективное значение: `attention_backends_of` возвращает `decode_attention_backend or attention_backend`. Само поле дописывается движком при `--device npu` (`ascend`) и для DeepSeek V4 на NPU (`dsv4`)
+- Эффективное значение: `attention_backends_of` возвращает `decode_attention_backend or attention_backend`. Само поле дописывают платформенный шаг NPU, model overrides нескольких архитектур, KV-dtype `nvfp4`, `--dllm-algorithm` и переименование устаревшего `compressed` — полный список в разделе «Кто еще пишет это поле»
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.decode_attention_backend`
 - Статус: обычный; поле помечено `resolvable=True`
 - Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_attention_backend_compatibility` (`python/sglang/srt/arg_groups/attention_hook.py`: привязки `--page-size`, проверки KV-dtype и SM через пассы `arg_groups/overrides.py`) → создание backend'а в model runner → захват decode-графа CUDA → каждый шаг декодирования
@@ -54,6 +57,19 @@ Choose the kernels for decode attention layers (have priority over --attention-b
 - `_intel_xpu_page_constraint` читает разрешенный decode-backend: `intel_xpu` требует 64/128 (для MLA-декода 16/32/64/128), иначе принудительно 128.
 - FP4 KV `--kv-cache-dtype nvfp4` закрепляет decode за `trtllm_mha` (другое явное значение — `ValueError: NVFP4 decode requires --decode-attention-backend=trtllm_mha`), prefill-путь выбирает `--prefill-kv-cache-dequant-dtype`.
 - FP4 KV `--kv-cache-dtype fp4_mx_block16` при prefill=`fa4` ограничивает набор decode-backend'ов ассертом `KV4 FA4 MLA/MHA expects decode_attention_backend to be one of […]`.
+
+### Кто еще пишет это поле
+
+Объявления резолва переопределяют сырой ввод, поэтому итог смотрите в дампе `server_args=`, а не в командной строке:
+
+- `--device npu`: `set_default_server_args` (`hardware_backend/npu/utils.py`, шаг `handle_npu_backends`) ставит `ascend` во все три attention-поля; DeepSeek V4 на NPU затем меняет prefill и decode на `dsv4` (`model_overrides/deepseek_v4.py`).
+- Kimi-K3 (`KimiK3ForConditionalGeneration`, `model_overrides/kimi_k3.py`): на SM100/SM103 при трех незаданных attention-флагах — `trtllm_mla` для prefill и decode (с DSPARK дополнительно решается `--speculative-attention-mode`). При `--dcp-size > 1` decode допускается только `cutedsl_mla` (он же по умолчанию; prefill тогда `trtllm_mla`), `tokenspeed_mla` (prefill тоже `tokenspeed_mla`, `--kv-cache-dtype` принудительно `fp8_e4m3`) или `aiter` (prefill `aiter`, если не задан `triton`); иначе `AssertionError: Decode attention backend for Kimi-K3 DCP must be 'cutedsl_mla', 'tokenspeed_mla' or 'aiter' …`.
+- Qwen3-VL и Qwen3-VL-MoE на Hopper с картой от 60 ГиБ (`model_overrides/qwen3_vl.py`): `flashinfer`, если не заданы ни `--attention-backend`, ни этот флаг.
+- IQuest Q1 (`IQuestQ1ForCausalLM`, `IQuestQ1MTP`, `model_overrides/iquest_q1.py`): допустим только `fa3`, любое другое значение — `ValueError`; при незаданном `--attention-backend`, но заданном `--prefill-attention-backend` decode-поле получает `fa3`.
+- MiniCPM (`MiniCPMForCausalLM`, `MiniCPMSALAForCausalLM`) с `SGLANG_MINICPM_FORCE_DENSE=1`: `minicpm_flashattn` заменяется на `fa4` на Blackwell и `fa3` на остальных картах, `minicpm_flashinfer` — на `flashinfer`.
+- `--kv-cache-dtype nvfp4`: decode закрепляется за `trtllm_mha` (`arg_groups/kv_cache_hook.py`).
+- `--dllm-algorithm` с обязательным backend'ом (сейчас `Gemma4Renoise` → `triton`): пасс `_dllm_attention_backend` переписывает все три attention-поля с warning'ом `<algorithm> requires the <backend> attention backend`.
+- Устаревшее значение `compressed` переименовывается в `dsv4` шагом `handle_deprecated_args` с warning'ом `--decode-attention-backend=compressed is deprecated; use 'dsv4' instead.`
 
 ## Значения и формат
 
@@ -112,7 +128,14 @@ python -m sglang.launch_server --model-path /models/Qwen3-30B-A3B --decode-atten
 - `sglang/python/sglang/srt/layers/attention/hybrid_attn_backend.py`
 - `sglang/python/sglang/srt/layers/attention/triton_backend.py`
 - `sglang/docs/docs/advanced_features/attention_backend.mdx`
-
 - `sglang/python/sglang/srt/layers/attention/attention_registry.py`
-
 - `sglang/python/sglang/srt/layers/attention/minicpm/backend.py`
+- `sglang/python/sglang/srt/hardware_backend/npu/utils.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v4.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/kimi_k3.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/qwen3_vl.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/iquest_q1.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/minicpm.py`
+- `sglang/python/sglang/srt/arg_groups/kv_cache_hook.py`
+- `sglang/python/sglang/srt/arg_groups/serving_hook.py`
+- `sglang/python/sglang/srt/arg_groups/dllm_hook.py`

@@ -3,7 +3,7 @@ schema: 1
 engine: sglang
 primaryName: "--enable-mixed-chunk"
 title: "--enable-mixed-chunk"
-summary: Разрешает класть prefill-кусок и decode-шаг работающих запросов в один forward, убирая паузу в генерации на время prefill. Требует включенного chunked prefill и несовместим со спекулятивным декодированием.
+summary: Разрешает класть prefill-кусок и decode-шаг работающих запросов в один forward, убирая паузу в генерации на время prefill. Требует включенного chunked prefill; из встроенных спекулятивных алгоритмов совместим только с `EAGLE`, `EAGLE3`, `DFLASH` и `DSPARK` — остальные его снимают.
 group: schedule
 related:
   - --chunked-prefill-size

@@ -12,6 +12,8 @@ related:
   - --msprobe-dump-config
   - --enable-torch-compile
   - --speculative-algorithm
+  - --elastic-ep-backend
+  - --max-ep-size
 ---
 
 # --forward-hooks
@@ -33,7 +35,7 @@ JSON-formatted forward hook specifications to attach to the model.
 - Тип значения: одна строка, разбираемая `json_list_type` (`orjson.loads`); ожидается JSON-массив объектов (`Optional[List[dict[str, Any]]]`)
 - Допустимые значения: `choices` нет. Что результат разбора — именно список словарей, не проверяется; при другой форме ошибка вылезет позже, при обходе спецификаций
 - Значение по умолчанию: `null` — хуков нет
-- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует
+- Эффективное значение: совпадает с заданным; ни один шаг резолва его не декларирует. Шаг `handle_elastic_ep` (`arg_groups/parallel_hook.py`) только проверяет его: при runtime scale-up Elastic EP с decode-графом `full` непустое значение отвергается
 - Где объявлен: `python/sglang/srt/arg_groups/fields/observability.py:Observability.forward_hooks`
 - Статус: обычный
 - Этап применения: `capture_cuda_graphs` в model runner'е, **после** захвата графов prefill и decode, до предвыделения symmetric memory pool
@@ -93,6 +95,7 @@ JSON-formatted forward hook specifications to attach to the model.
 - `--msprobe-dump-config`: еще один внешний инструментальный путь, который тоже принудительно отключает CUDA graph и warmup.
 - `--enable-torch-compile`: скомпилированные участки могут не давать привычных границ модулей; поведение хуков внутри compiled-региона нужно проверять на своей сборке.
 - `--speculative-algorithm`: у draft-модели свой model runner, и шаблоны будут сопоставляться и с ее модулями.
+- `--elastic-ep-backend` + `--max-ep-size`: при runtime scale-up Elastic EP (backend задан и `--max-ep-size` больше `--tp-size`) и decode-графе `full` шаг резолва `handle_elastic_ep` отвергает непустой `--forward-hooks`: пересъем CUDA graph после масштабирования хуки не поддерживает. С decode-графом `disabled` сочетание допустимо.
 
 ## Типовые проблемы и диагностика
 
@@ -102,6 +105,7 @@ JSON-formatted forward hook specifications to attach to the model.
 - `Hook factory '<path>' for spec '<name>' returned None, not registering any hook` — фабрика вернула `None`.
 - `ValueError: Invalid hook callable path '<path>'. Expected 'module.submodule:factory' or 'module.submodule.factory'` — в пути нет точки и нет двоеточия.
 - `ModuleNotFoundError` при инициализации model runner'а — модуль недоступен в окружении движка.
+- `AssertionError: Elastic EP CUDA graph recapture does not support forward hooks.` на старте — включен runtime scale-up Elastic EP с decode-графом `full`. Уберите `--forward-hooks` или отключите decode-граф через `--cuda-graph-config`.
 - Хук зарегистрирован (`Registered forward hook …` в логе), но не срабатывает — почти всегда включен CUDA graph для decode.
 - **В arriero:** аргумент попадет в `config/instances/<name>.json` как обычная строка со всеми кавычками JSON — редактировать ее в форме неудобно, но она передается в argv без изменений (`argparse-flags`, `apps/api/src/process/argv.ts`). Окружения неизменяемы (`docs/ENVIRONMENTS.md`), поэтому модуль с фабрикой должен быть либо установлен в то же окружение при его создании, либо подложен через `PYTHONPATH` в переменных окружения инстанса. Строки `Registered forward hook …` попадут в лог инстанса.
 
@@ -119,6 +123,7 @@ python -m sglang.launch_server --model-path /models/DeepSeek-V3 --cuda-graph-con
 
 - `sglang/python/sglang/srt/arg_groups/fields/observability.py`
 - `sglang/python/sglang/srt/server_args.py`
+- `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/model_executor/hook_manager.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/cuda_graph_setup.py`
 - `sglang/python/sglang/srt/model_executor/model_runner.py`

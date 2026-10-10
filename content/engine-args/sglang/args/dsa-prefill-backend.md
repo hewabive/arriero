@@ -35,7 +35,7 @@ DSA (DeepSeek Sparse Attention) prefill backend. If not specified, auto-detects 
 - Тип значения: строка с фиксированным списком
 - Допустимые значения (из `choices`): `flashmla_sparse`, `flashmla_sparse_q8`, `flashmla_kv`, `flashmla_auto`, `flashinfer_sparse_mla`, `fa3`, `tilelang`, `triton`, `aiter`, `trtllm`. Список общий для prefill и decode, поэтому argparse примет и то, что применимо только к одной из фаз
 - Значение по умолчанию: `null` — автоподбор
-- Эффективное значение: подбирается в `_dsa_split_backend_resolution` (`sglang/python/sglang/srt/arg_groups/overrides.py`) только для DSA-моделей из списка `_DEEPSEEK_FAMILY_ARCHS` и не на NPU/XPU. Порядок: GLM DSA на SM120 с fp8 → `flashinfer_sparse_mla`; `--enable-hisparse` → выбор HiSparse-ветки; ROCm при обоих незаданных полях → `tilelang`; `--kv-cache-dtype fp8_e4m3` → `trtllm` на Blackwell и `flashmla_kv` на Hopper; иначе → `flashmla_sparse`. Результат печатается warning'ом `Set DSA backends for <dtype> KV Cache: prefill=…, decode=…`
+- Эффективное значение: подбирается в `_dsa_split_backend_resolution` (`sglang/python/sglang/srt/arg_groups/overrides.py`) только для DSA-моделей: архитектура из `_DEEPSEEK_FAMILY_ARCHS` и `index_topk` в конфиге (`is_deepseek_dsa`). Каждое из двух полей заполняется независимо и только если не задано. Порядок веток: NPU — автоподбора нет; XPU → `intel_xpu` (этого значения нет в `choices`, его ставит только резолв; заодно `--dsa-topk-backend sgl-kernel` меняется на `torch`), warning `Set DSA backends for XPU: prefill=…, decode=…, topk=…`; модель с `learnable_sink` в HF-конфиге (например, `HYV4ForCausalLM`) → `flashmla_sparse`, причем другое явное значение — `ValueError`; GLM DSA (`GlmMoeDsaForCausalLM`) на SM12x с `fp8_e4m3` вне ROCm → `flashinfer_sparse_mla`; `--enable-hisparse` → `_hisparse_default_backend` (ROCm — `tilelang`, `fp8_e4m3` — `flashmla_kv`, иначе `flashmla_sparse`); ROCm/HIP → `triton`; `--kv-cache-dtype fp8_e4m3` → `trtllm` на SM100 и новее, `flashmla_kv` на Hopper; иначе → `flashmla_sparse` (decode-половина в этой ветке получает `trtllm` на SM100 и новее и `fa3` ниже). Результат печатается warning'ом `Set DSA backends for <dtype> KV Cache: prefill=…, decode=…` (у веток XPU, learnable sink, GLM SM12x и HiSparse — свой текст)
 - Где объявлен: `python/sglang/srt/arg_groups/fields/exec_.py:ExecKernel.dsa_prefill_backend`
 - Статус: обычный
 - Этап применения: разбор CLI → `ServerArgs.resolve_once` → `run_resolution_pipeline`, шаг `handle_model_specific_adjustments` (`arg_groups/model_hook.py`; пассы `_dsa_kv_cache_dtype_default` и `_dsa_split_backend_resolution` — автоподбор и проверки KV-dtype) → конфигурация KV-пула (`kv_cache_configurator.py`) → конструктор `DeepseekSparseAttnBackend` → каждый extend-forward
@@ -45,6 +45,7 @@ DSA (DeepSeek Sparse Attention) prefill backend. If not specified, auto-detects 
 - Значение попадает в `DeepseekSparseAttnBackend.dsa_prefill_impl` (`sglang/python/sglang/srt/layers/attention/dsa_backend.py`) и определяет, какое ядро считает разреженное внимание на prefill.
 - `flashmla_auto` включает `enable_auto_select_prefill_impl` — backend выбирает реализацию сам, по форме батча.
 - `flashmla_sparse_q8` — нативный FP8-путь SM90. Конструктор проверяет обе предпосылки и падает явно: без `--kv-cache-dtype fp8_e4m3` — `--dsa-prefill-backend flashmla_sparse_q8 is native FP8 and requires --kv-cache-dtype fp8_e4m3 …`; вне SM90 — `--dsa-prefill-backend flashmla_sparse_q8 is SM90-only …`. Это единственный вариант, который существует только как prefill (в decode он отвергается отдельной ошибкой).
+- `triton` — только ROCm/HIP: на CUDA `_check_dsa_backend_constraints` отвергает его (`ValueError: The triton DSA backend is only supported on ROCm/HIP …`). На ROCm это значение по умолчанию для обоих полей.
 - `tilelang` на CUDA работает только с bf16-KV: `_check_dsa_backend_constraints` (`arg_groups/overrides.py`, вызывается из `_dsa_split_backend_resolution`; прежнее имя `_check_tilelang_dsa_fp8_kv` осталось лишь неиспользуемой оберткой) бросает `ValueError` при `fp8_e4m3`, рекомендуя либо `--kv-cache-dtype bfloat16`, либо fp8-совместимый backend (`flashmla_kv` на Hopper, `trtllm` на Blackwell). На ROCm fp8 у tilelang поддержан.
 - `flashinfer_sparse_mla` проверяется отдельной функцией `_validate_flashinfer_sparse_mla_backend` по архитектуре модели, SM-версии и типу KV; при его выборе выделяется workspace FlashInfer.
 - Выбор влияет на **раскладку KV-пула**: `kv_cache_configurator.py` читает `dsa_prefill_backend`/`dsa_decode_backend` и отдельно обрабатывает `trtllm`, `tilelang` и `aiter`.
@@ -56,8 +57,8 @@ DSA (DeepSeek Sparse Attention) prefill backend. If not specified, auto-detects 
 
 - `null` (не задан) — автоподбор, и это правильное значение по умолчанию: он учитывает и dtype KV, и capability карты.
 - Список `choices` общий для prefill и decode. Значение, применимое только к decode, argparse пропустит, а упадет уже backend.
-- `flashmla_sparse` — базовый bf16-путь; `flashmla_sparse_q8` — его FP8-вариант для SM90; `flashmla_kv` — FP8-путь через KV; `trtllm` — Blackwell; `fa3` — Hopper без FP8; `tilelang` — универсальный (на CUDA только bf16); `aiter` — ROCm.
-- Задание значения без явного `--kv-cache-dtype` почти всегда ошибка конфигурации: DSA-ветка сама подставит fp8 на SM100+ и bf16 ниже, и ваш backend может оказаться несовместим с подставленным типом.
+- `flashmla_sparse` — базовый bf16-путь; `flashmla_sparse_q8` — его FP8-вариант для SM90; `flashmla_kv` — FP8-путь через KV; `trtllm` — Blackwell; `fa3` — Hopper без FP8; `tilelang` — универсальный (на CUDA только bf16); `triton` — только ROCm, там это автоподбор; `aiter` — ROCm; `intel_xpu` — XPU, выставляется только автоподбором.
+- Задание значения без явного `--kv-cache-dtype` почти всегда ошибка конфигурации: DSA-ветка сама подставит fp8 на SM100+ и bf16 ниже (на XPU и для моделей с learnable sink — всегда bf16), и ваш backend может оказаться несовместим с подставленным типом.
 
 ## Когда использовать
 
@@ -78,14 +79,16 @@ DSA (DeepSeek Sparse Attention) prefill backend. If not specified, auto-detects 
 - `--dsa-decode-backend`: вторая половина пары, подбирается по тем же правилам и независимо.
 - `--kv-cache-dtype`: главный вход автоподбора и источник жестких проверок.
 - `--attention-backend`: должен быть `dsa` (задается автоматически для DSA-моделей, если ни один из трех attention-флагов не задан).
-- `--page-size`: для DSA-моделей выставляется в 64 (на ROCm без preshuffle-пути — 1).
-- `--dsa-topk-backend`, `--dsa-paged-mqa-logits-backend`: ядра индексера, отдельные от этого выбора.
+- `--page-size`: для DSA-моделей выставляется в 64 (на ROCm без preshuffle-пути — 1, на XPU — 128).
+- `--dsa-topk-backend`, `--dsa-paged-mqa-logits-backend`: ядра индексера, отдельные от этого выбора; на XPU тот же пасс меняет дефолтный `sgl-kernel` в `--dsa-topk-backend` на `torch`.
 - `--enable-hisparse`: своя ветка автоподбора, приоритетнее общей.
 
 ## Типовые проблемы и диагностика
 
 - **Симптом:** `ValueError: The tilelang DSA prefill/decode kernels only support an fp8_e4m3 KV cache on ROCm/HIP …`. **Решение:** `--kv-cache-dtype bfloat16` либо другой backend.
 - **Симптом:** `ValueError: --dsa-prefill-backend flashmla_sparse_q8 is SM90-only …`. **Причина:** конфиг с Hopper на другой карте.
+- **Симптом:** `ValueError: The triton DSA backend is only supported on ROCm/HIP …`. **Причина:** ROCm-конфиг перенесен на CUDA. **Решение:** `flashmla_kv` на Hopper, `trtllm` на Blackwell или не задавать флаг.
+- **Симптом:** `ValueError: <arch> uses learnable attention sinks and requires --dsa-prefill-backend 'flashmla_sparse'; got …` либо `Learnable DSA attention sinks require a bfloat16 KV cache`. **Решение:** убрать флаг или задать `flashmla_sparse`, KV — `bfloat16`/`auto`.
 - **Симптом:** предупреждение про необходимость задать `--kv-cache-dtype` явно. **Причина:** задан DSA split-backend при `--kv-cache-dtype auto`.
 - **Симптом:** значение задано, но в логе другой backend. **Проверка:** warning `Set DSA backends for … KV Cache: prefill=…, decode=…` — он печатается и тогда, когда автоподбор дополнил только одну половину.
 - **Проверка:** дамп `server_args=` при старте показывает оба DSA-поля после автоподбора.
@@ -110,3 +113,5 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --kv-c
 - `sglang/python/sglang/srt/mem_cache/kv_cache_configurator.py`
 - `sglang/python/sglang/srt/speculative/draft_utils.py`
 - `sglang/python/sglang/srt/arg_groups/hisparse_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
+- `sglang/python/sglang/srt/configs/model_config.py`

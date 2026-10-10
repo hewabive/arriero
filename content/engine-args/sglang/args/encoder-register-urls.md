@@ -39,7 +39,7 @@ One or more EncoderBootstrapServer URLs to register this encoder with on startup
 - Эффективное значение: совпадает с заданным; движок его не переписывает
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_register_urls`
 - Статус: обычный
-- Этап применения: `disaggregation/encode_server.py:launch_server` (или `_launch_server_dp`) непосредственно перед `uvicorn.run` — то есть уже после загрузки весов, но до приема трафика; снятие регистрации — через `atexit`
+- Этап применения: `disaggregation/encoder/http_server.py:launch_server` непосредственно перед `uvicorn.run`, после `launch_local_runtime` или `launch_dp_runtime` (`disaggregation/encoder/runtime.py`), но до приема трафика; снятие регистрации — через `atexit`. Только HTTP-энкодер: gRPC-путь (`--grpc-mode`/`--smg-grpc-mode`, `serve_grpc_encoder`) этот список не читает
 
 ## Что меняет в движке
 
@@ -54,7 +54,7 @@ One or more EncoderBootstrapServer URLs to register this encoder with on startup
 
 `atexit`-обработчик `_unregister_encoder_url_from_bootstrap` шлет `DELETE /unregister_encoder_url` с тем же телом и таймаутом 2 с. Он срабатывает при штатном завершении процесса; при `SIGKILL` или падении регистрация останется, и адрес выселит health-check реестра.
 
-Регистрация выполняется в обеих ветках запуска энкодера — и в обычной (`launch_server`), и в data-parallel (`_launch_server_dp`).
+Регистрация выполняется в обеих ветках HTTP-энкодера — и в обычной (`launch_local_runtime`), и в data-parallel (`launch_dp_runtime`), потому что обе идут через один `launch_server`. Разница в моменте: в обычной ветке `MMEncoder` ранга 0 к этому времени уже загрузил веса, а в DP-ветке воркеры только запущены, и регистрация может опередить загрузку весов в них. gRPC-энкодер не регистрируется вообще — его адрес `grpc://host:port` прописывают в `--encoder-urls` языкового сервера.
 
 ## Значения и формат
 
@@ -62,7 +62,7 @@ One or more EncoderBootstrapServer URLs to register this encoder with on startup
 - Адрес — корень реестра со схемой; путь `/register_encoder_url` дописывается движком. Завершающий слэш даст двойной слэш.
 - Порт в адресе — это `--encoder-bootstrap-port` соответствующего языкового сервера (по умолчанию `8997`), а не его `--port`.
 - Пустой список — регистрация не выполняется вообще, ветка полностью пропускается.
-- Значение читается только при `--encoder-only`; на языковом сервере оно бессмысленно (там аналог — `--encoder-urls`).
+- Значение читается только HTTP-энкодером с `--encoder-only`; на языковом сервере и на gRPC-энкодере оно молча игнорируется (на языковой стороне аналог — `--encoder-urls`).
 
 ## Когда использовать
 
@@ -84,7 +84,8 @@ One or more EncoderBootstrapServer URLs to register this encoder with on startup
 - `--encoder-urls`: альтернативный, статический способ наполнить тот же реестр — списки складываются.
 - `--host` / `--port`: из них собирается публикуемый адрес; wildcard-хост заменяется на реальный IP.
 - `--ssl-certfile`: переключает схему публикуемого адреса на `https`.
-- `--dp-size` на энкодере: регистрация работает и в DP-ветке; публикуется один адрес диспетчера, а не адреса воркеров.
+- `--dp-size` на энкодере: регистрация работает и в DP-ветке; публикуется один адрес диспетчера, а не адреса воркеров. Регистрация не ждет готовности DP-воркеров.
+- `--grpc-mode` / `--smg-grpc-mode` на энкодере: самостоятельной регистрации нет, список игнорируется.
 
 ## Типовые проблемы и диагностика
 
@@ -109,8 +110,10 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --encoder-
 
 - `sglang/python/sglang/srt/arg_groups/fields/disagg.py`
 - `sglang/python/sglang/srt/server_args.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
-- `sglang/python/sglang/srt/disaggregation/encode_receiver.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/http_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/runtime.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/grpc_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/receiver.py`
 - `sglang/python/sglang/srt/managers/tokenizer_manager.py`
 - `sglang/python/sglang/srt/environ.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`

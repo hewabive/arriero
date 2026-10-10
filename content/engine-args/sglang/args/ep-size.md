@@ -41,11 +41,11 @@ The expert parallelism size.
 - Эффективное значение: переписывается регулярно. Проход `_a2a_ep_size` (`arg_groups/overrides.py`, запускается в шаге `handle_a2a_moe`) декларирует `ep_size = tp_size` для всех a2a-backend'ов, кроме `none` (в лог идет `… MoE is enabled. The expert parallel size is adjusted from N to the tensor parallel size [M].`); шаг `handle_dwdp` (`arg_groups/parallel_hook.py`) декларирует `ep_size = dwdp_size`; MLA CP и zigzag DSA CP выставляют `ep_size = tp_size` (model override `_deepseek_family_overrides` в `arg_groups/model_overrides/deepseek_v2.py`). Поле помечено `resolvable=True`: сырое `server_args.ep_size` хранит ввод оператора, эффективное значение — последняя запись `declare_resolution`, шаги резолва читают его через `resolved_view()`
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.ep_size`
 - Статус: обычный
-- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_context_parallelism` → `handle_a2a_moe` → `handle_eplb_and_dispatch` → `handle_elastic_ep`) → `initialize_model_parallel(expert_model_parallel_size=…)` → загрузка весов экспертов → каждый forward MoE-слоя
+- Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline` (шаги `handle_context_parallelism` → `handle_a2a_moe` → `handle_eplb_and_dispatch` → `handle_elastic_ep`) → `runtime_context.parallel_widths_of` (`moe_ep_size` из разрешенного `ep_size`) → `initialize_model_parallel`, читающий ширины из `get_parallel()` → загрузка весов экспертов → каждый forward MoE-слоя
 
 ## Что меняет в движке
 
-Значение приходит в `ParallelState.moe_ep_size` (`managers/scheduler.py`: `moe_ep_size=server_args.ep_size`) и дальше в `initialize_model_parallel`, где строятся группы `_MOE_EP`, `_MOE_TP` и `_MOE_DP`:
+Разрешенное значение попадает в опубликованный контекст как `moe_ep_size` (`runtime_context.py:parallel_widths_of`: `moe_ep_size=cfg.ep_size`, где `cfg` — разрешенный вид аргументов), и `initialize_model_parallel` (`distributed/parallel_state.py`) читает его оттуда через `get_parallel()`, строя группы `_MOE_EP`, `_MOE_TP` и `_MOE_DP`:
 
 ```python
 moe_tp_size = tensor_model_parallel_size // moe_ep_size // moe_dp_size
@@ -53,7 +53,7 @@ moe_tp_size = tensor_model_parallel_size // moe_ep_size // moe_dp_size
 
 При `ep_size == tp_size` группа `_MOE_EP` совпадает с TP-группой (на не-NPU это буквально один и тот же коммуникатор), `moe_tp_size == 1`, и каждый ранг держит `num_experts / ep_size` экспертов целиком. При `ep_size == 1` эксперты не распределены, зато каждый эксперт порезан по `moe_tp_size == tp_size` рангам — в MoE-слое стоит `assert intermediate_size % moe_tp_size == 0`.
 
-Ранг эксперта на каждом воркере считается так (`entrypoints/engine.py:_compute_parallelism_ranks`):
+Ранг эксперта на каждом воркере считается так (`runtime_context.py:derive_spawn_ranks`):
 
 ```python
 moe_ep_rank = tp_rank % (tp_size // moe_dp_size) // (tp_size // moe_dp_size // ep_size)
@@ -125,8 +125,7 @@ python -m sglang.launch_server --model-path /models/qwen3-moe --tensor-parallel-
 - `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
 - `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
 - `sglang/python/sglang/srt/distributed/parallel_state.py`
-- `sglang/python/sglang/srt/managers/scheduler.py`
-- `sglang/python/sglang/srt/entrypoints/engine.py`
+- `sglang/python/sglang/srt/runtime_context.py`
 - `sglang/python/sglang/srt/model_executor/model_runner_components/moe_ep_setup.py`
 - `sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py`
 - `sglang/docs/docs/advanced_features/expert_parallelism.mdx`

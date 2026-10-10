@@ -28,7 +28,7 @@ related:
 
 ## Кратко
 
-Это самый «переключающий» флаг во всей группе: он меняет entrypoint. `sglang.launch_server` при `--encoder-only` вызывает не `entrypoints/http_server.py:launch_server`, а `disaggregation/encode_server.py:launch_server` — совершенно другое FastAPI-приложение, у которого нет ни `/generate`, ни `/v1/*`. Такой процесс умеет только считать эмбеддинги изображений/аудио по внутреннему протоколу и отдавать их языковому серверу, запущенному с `--language-only`. Веса языковой модели он не грузит.
+Это самый «переключающий» флаг во всей группе: он меняет entrypoint. `sglang.launch_server` при `--encoder-only` вызывает не `entrypoints/http_server.py:launch_server`, а `disaggregation/encoder/http_server.py:launch_server` — совершенно другое FastAPI-приложение, у которого нет ни `/generate`, ни `/v1/*`. Такой процесс умеет только считать эмбеддинги изображений/аудио по внутреннему протоколу и отдавать их языковому серверу, запущенному с `--language-only`. Веса языковой модели он не грузит.
 
 ## Оригинальная справка
 
@@ -43,7 +43,7 @@ For MLLM with an encoder, launch an encoder-only server
 - Тип значения: bool (`action="store_true"`, парного `--no-*` нет)
 - Допустимые значения: флаг задан / не задан
 - Значение по умолчанию: `false`
-- Эффективное значение: совпадает с заданным. Побочно меняет эффективный `--mm-feature-transport` (декларация в `handle_multimodal_feature_transport`, поле `server_args.mm_feature_transport` хранит ввод): при незаданном транспорте он авто-разрешается в `cpu`, а явный `cuda_ipc` понижается до `cpu` с предупреждением
+- Эффективное значение: совпадает с заданным. Побочно меняет эффективный `--mm-feature-transport` (декларация в `handle_multimodal_feature_transport`, поле `server_args.mm_feature_transport` хранит ввод): при незаданном транспорте он авто-разрешается в `cpu`, а явный `cuda_ipc` или `cuda_vmm` понижается до `cpu` с предупреждением
 - Где объявлен: `python/sglang/srt/arg_groups/fields/disagg.py:Disagg.encoder_only`
 - Статус: обычный
 - Этап применения: разбор CLI (`prepare_server_args`) → `ServerArgs.resolve_once` → шаг `handle_encoder_disaggregation` (`arg_groups/pd_disaggregation_hook.py`: взаимные запреты, проверка архитектуры модели) → шаг `handle_environment_variables` → `handle_multimodal_feature_transport` (`arg_groups/serving_hook.py`: выбор транспорта) → `run_server` в `sglang/launch_server.py` (выбор entrypoint) → загрузка весов (только визуальная башня)
@@ -54,14 +54,16 @@ For MLLM with an encoder, launch an encoder-only server
 
 `sglang/launch_server.py:run_server` первым делом проверяет `server_args.encoder_only`:
 
-- с `--grpc-mode`/`--smg-grpc-mode` → `disaggregation/encode_grpc_server.py:serve_grpc_encoder`;
-- иначе → `disaggregation/encode_server.py:launch_server`.
+- с `--grpc-mode`/`--smg-grpc-mode` → `disaggregation/encoder/grpc_server.py:serve_grpc_encoder`;
+- иначе → `disaggregation/encoder/http_server.py:launch_server`.
 
-HTTP-приложение энкодера объявляет ровно семь маршрутов: `POST /encode`, `POST /send`, `POST /scheduler_receive_url`, `GET /health`, `GET /health_generate`, `/start_profile`, `/stop_profile`. Никакого OpenAI-фасада тут нет — это внутренний сервис EPD, а не публичный endpoint.
+До v0.5.19 оба пути жили в `disaggregation/encode_server.py` и `encode_grpc_server.py`. Рефакторинг EPD разнес их по пакету `disaggregation/encoder/`: HTTP-транспорт (`http_server.py`), gRPC-транспорт (`grpc_server.py`), запуск процессов и DP-диспетчер (`runtime.py`), сам энкодер `MMEncoder` (`server.py`) и препроцессинг медиа (`preprocessor.py`).
+
+HTTP-приложение энкодера объявляет ровно восемь маршрутов: `POST /encode`, `POST /send`, `POST /scheduler_receive_meta_data` (получатель забирает размеры эмбеддингов по частям запроса и ждет, пока энкодер их опубликует), `POST /scheduler_receive_url`, `GET /health`, `GET /health_generate`, `/start_profile`, `/stop_profile`. Никакого OpenAI-фасада тут нет — это внутренний сервис EPD, а не публичный endpoint.
 
 ### Процессы
 
-`launch_server` энкодера при `--tp-size > 1` спавнит по одному процессу `launch_encoder` на ранги `1 … tp_size-1` (связь через ZMQ IPC), а ранг 0 живет в основном процессе как `MMEncoder`; uvicorn слушает `--host`:`--port`. Отдельная ветка `_launch_server_dp` включается при `--dp-size > 1` и требует `--tp-size 1` (`Encoder DP mode requires --dp-size > 1 and --tp-size 1`), поднимая `dp_size` воркеров и диспетчер поверх них.
+`launch_server` энкодера при `--dp-size 1` вызывает `launch_local_runtime` (`disaggregation/encoder/runtime.py`): при `--tp-size > 1` тот спавнит по одному процессу `launch_encoder` на ранги `1 … tp_size-1` (связь через ZMQ IPC), а ранг 0 живет в основном процессе как `MMEncoder` со своим планировщиком батчей `EncoderScheduler`; uvicorn слушает `--host`:`--port`. При `--dp-size > 1` вызывается `launch_dp_runtime` (там же); он требует `--tp-size 1` (`Encoder DP mode requires --dp-size > 1 and --tp-size 1`) и поднимает `dp_size` воркеров и `DPDispatcher` поверх них. gRPC-путь (`serve_grpc_encoder`) DP-ветки не имеет: он всегда спавнит TP-ранги и один `MMEncoder`.
 
 ### Веса
 
@@ -75,7 +77,7 @@ HTTP-приложение энкодера объявляет ровно сем�
   - вместе с `--disaggregation-mode prefill|decode` — `Cannot set --encoder-only and --disaggregation-mode prefill/decode together`. Энкодер не участвует в PD-ролях: в EPD он третий, отдельный ярус;
   - вместе с `--grpc-port` (нативный gRPC) — `--grpc-port is not supported with --encoder-only: encoder disaggregation uses its own server.`
 - `--enable-prefix-mm-cache` требует именно `--encoder-only`: `--enable-prefix-mm-cache requires --encoder-only to be enabled`.
-- Архитектура модели должна входить в белый список EPD (Qwen2VL/Qwen2.5VL/Qwen3VL/Qwen3VL-MoE/Qwen3.5, Qwen2Audio, Qwen2.5Omni, Qwen3OmniMoe, InternS2Preview, KimiVL/KimiK2.5/KimiK3, MiMoV2). Иное — `Model type <arch> is not supported for encoder disaggregation.`
+- Архитектура модели должна входить в белый список EPD (Qwen2VL/Qwen2.5VL/Qwen3VL/Qwen3VL-MoE/Qwen3.5/Qwen3.5-MoE, Qwen2Audio, Qwen2.5Omni, Qwen3OmniMoe, InternS2Preview, Dots3-Note, KimiVL/KimiK2.5/KimiK3, MiMoV2, GLM5Next). Иное — `Model type <arch> is not supported for encoder disaggregation.`
 - Путь модели указывается тот же, что у языкового сервера: конфиг мультимодальный, из него берется только визуальная часть.
 
 ## Когда использовать
@@ -109,11 +111,11 @@ HTTP-приложение энкодера объявляет ровно сем�
 
 - `ValueError: Cannot set --encoder-only and --language-only together` — вы пытаетесь сделать один процесс сразу двумя ярусами.
 - `ValueError: Cannot set --encoder-only and --disaggregation-mode prefill/decode together` — энкодер не бывает prefill'ом; в EPD prefill-сервер запускается отдельно.
-- `ValueError: Model type <arch> is not supported for encoder disaggregation. Supported architectures: Qwen2VL, Qwen3VL, Qwen3.5, InternS2, Qwen2Audio, Qwen2.5Omni, Kimi, MiMoV2.` — модель вне белого списка.
+- `ValueError: Model type <arch> is not supported for encoder disaggregation. Supported architectures: Qwen2VL, Qwen3VL, Qwen3.5, InternS2, Qwen2Audio, Qwen2.5Omni, Dots3-Note, Kimi, MiMoV2, GLM5Next.` — модель вне белого списка.
 - `ValueError: Encoder DP mode requires --dp-size > 1 and --tp-size 1; got dp_size=..., tp_size=...` — конфликт параллелизмов на энкодере.
 - `curl http://encoder:30000/v1/models` дает 404 — так и должно быть: у энкодера нет OpenAI-фасада. Проверяйте `GET /health`.
-- Предупреждение `--mm-feature-transport=cuda_ipc does not control encoder-only output transfer; using cpu for this inactive transport. Select --encoder-transfer-backend for encoder outputs.` — вы настраиваете не тот транспорт.
-- Логи энкодера имеют префикс ` encode_server` (`configure_logger(server_args, prefix=" encode_server")`) — по нему легко отличить процесс в общем потоке логов.
+- Предупреждение `--mm-feature-transport=cuda_ipc does not control encoder-only output transfer; using cpu for this inactive transport. Select --encoder-transfer-backend for encoder outputs.` (то же для `cuda_vmm`) — вы настраиваете не тот транспорт.
+- Логи HTTP-энкодера имеют префикс ` encode_server` (`configure_logger(server_args, prefix=" encode_server")` в `disaggregation/encoder/http_server.py`), DP-воркеры — ` encode_dp_worker[<rank>]`; по ним легко отличить процесс в общем потоке логов.
 - **В arriero:** менеджер супервизирует один процесс на инстанс и ожидает от него OpenAI-совместимый endpoint для proxy-таргета; энкодер такого фасада не имеет, а EPD требует минимум двух процессов и внешнего роутера. Поэтому `--encoder-only`-инстанс менеджером не обслуживается — это отдельный ярус развертывания вне его модели.
 
 ## Примеры
@@ -133,8 +135,10 @@ python -m sglang.launch_server --model-path Qwen/Qwen3-VL-8B-Instruct --encoder-
 - `sglang/python/sglang/srt/server_args.py`
 - `sglang/python/sglang/srt/arg_groups/pd_disaggregation_hook.py`
 - `sglang/python/sglang/srt/arg_groups/serving_hook.py`
-- `sglang/python/sglang/srt/disaggregation/encode_server.py`
-- `sglang/python/sglang/srt/disaggregation/encode_grpc_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/http_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/grpc_server.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/runtime.py`
+- `sglang/python/sglang/srt/disaggregation/encoder/server.py`
 - `sglang/python/sglang/srt/configs/model_config.py`
 - `sglang/python/sglang/srt/models/qwen3_vl.py`
 - `sglang/docs/docs/advanced_features/epd_disaggregation.mdx`

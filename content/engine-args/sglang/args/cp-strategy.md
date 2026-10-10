@@ -11,6 +11,7 @@ related:
   - --enable-dsa-cache-layer-split
   - --dp-size
   - --attention-backend
+  - --language-only
 ---
 
 # --cp-strategy
@@ -32,7 +33,7 @@ Sharding strategy for prefill CP. 'zigzag' assigns each rank one early and one l
 - Тип значения: str (`Optional[str]`)
 - Допустимые значения: `zigzag`, `interleave` (`choices` объявлены, argparse отвергнет остальное)
 - Значение по умолчанию: `null`
-- Эффективное значение: автоподбора «по модели» нет: если `--enable-prefill-cp` задан, а стратегия — нет, запуск отвергается. Старые режимы `in-seq-split` и `round-robin-split` более не принимаются как флаги CLI.
+- Эффективное значение: автоподбора «по модели» нет: если `--enable-prefill-cp` задан, а стратегия — нет, запуск отвергается. У DeepSeek-V4 и MiMo V2 модельная проверка срабатывает раньше общей и отвергает пустую стратегию своим текстом (`… got None` / `MiMo V2 prefill CP only supports --cp-strategy zigzag.`). Старые режимы `in-seq-split` и `round-robin-split` более не принимаются как флаги CLI.
 - Где объявлен: `python/sglang/srt/arg_groups/fields/parallel.py:Parallel.cp_strategy`
 - Статус: обычный; прежние раздельные режимы CP удалены
 - Этап применения: `ServerArgs.resolve_once` → `run_resolution_pipeline`: шаг `validate_prefill_cp_platform` (до проверки dummy-модели) → модельные override'ы в шаге `handle_model_specific_adjustments` → шаг `handle_context_parallelism` (`arg_groups/parallel_hook.py`: отказ без стратегии, затем `init_cp_strategy`) → forward на extend-шагах
@@ -67,10 +68,10 @@ cp1: token1, token5, token9,  …
 
 ### Что зависит от выбора
 
-- **Модельные override'ы DeepSeek** (`_deepseek_family_overrides`): под DSA-моделью `zigzag` дополнительно включает `moe_a2a_backend = deepep` и `ep_size = tp_size` («zigzag DSA CP requires moe_dense_tp_size=1, moe_a2a_backend=deepep, ep_size=tp_size, batch_size=1»), а `interleave` вместо этого требует `dp_size == 1`.
-- **CP-v2 по умолчанию**: для DSA-моделей из `CP_V2_DEFAULT_MODEL_CLASSES` вторая версия реализации включается только при `interleave`; для остальных архитектур из списка — всегда.
+- **Модельные override'ы DeepSeek** (`_deepseek_family_overrides`, `arg_groups/model_overrides/deepseek_v2.py`; ветка для CUDA-GPU, на NPU и XPU не применяется): под DSA-моделью `zigzag` дополнительно включает `moe_a2a_backend = deepep` и `ep_size = tp_size` («zigzag DSA CP requires moe_dense_tp_size=1, moe_a2a_backend=deepep, ep_size=tp_size, batch_size=1»), а `interleave` вместо этого требует `dp_size == 1`. Для самой DeepSeek V3.2 (`DeepseekV32ForCausalLM`) `zigzag` после этого все равно отвергается шагом `handle_context_parallelism`, так что ветка `zigzag` касается остальных DSA-архитектур этого override'а (например, `GlmMoeDsaForCausalLM`).
+- **Отдельной CP-v2 больше нет**: переменная `SGLANG_ENABLE_CP_V2` числится в `_DEPRECATED_ENVS` (`environ.py`) без замены — стратегийный prefill CP теперь единственная общая реализация.
 - **`--enable-dsa-cache-layer-split`** работает исключительно с `interleave`.
-- **MiMo V2 под CP-v2** принимает только `zigzag`, а **DeepSeek-V4** — наоборот, только `interleave` (`validate_deepseek_v4_cp` в `arg_groups/deepseek_v4_hook.py`: `DeepSeekV4 only supports interleave CP strategy, got …`), там же требуются `dp_size == 1`, `tp_size <= 8` и `moe_a2a_backend` из `none`/`deepep`/`megamoe`.
+- **Модельные ограничения** (шаг `handle_context_parallelism`, `arg_groups/parallel_hook.py`, и `validate_deepseek_v4_cp`): MiMo V2 (`MiMoV2ForCausalLM`, `MiMoV2FlashForCausalLM`) принимает только `zigzag` и только текстовый инференс — мультимодальный чекпоинт требует `--language-only` или `--language-model-only`; DeepSeek V3.2 (`DeepseekV32ForCausalLM`), наоборот, отвергает `zigzag` и требует `interleave`; DeepSeek-V4 (`arg_groups/deepseek_v4_hook.py`) принимает обе стратегии, но `zigzag` — только на NPU (CUDA-backend переиндексирует в порядке `interleave`), вне NPU требует `dp_size == 1` и `tp_size <= 8`, а `moe_a2a_backend` — из `none`/`deepep`/`megamoe`/`mori`.
 - **Breakable-CUDA-graph на prefill** возможен только при `zigzag` (плюс `attn_cp_size == tp_size` и backend `trtllm_mha`, см. `supports_prefill_cp_bcg`).
 - **Backend внимания**: `CPAttentionBackendKind.from_string` принимает `fa3`, `fa4`, `flashinfer`, `dsa`, `trtllm_mha`; прочие backend'ы под CP не поддерживаются вовсе.
 
@@ -82,8 +83,8 @@ cp1: token1, token5, token9,  …
 
 ## Когда использовать
 
-- `zigzag` — умолчание здравого смысла для MLA-моделей и всего, где важна равномерность нагрузки при причинной маске. Он же единственный, совместимый с breakable-графом prefill.
-- `interleave` — когда нужен `--enable-dsa-cache-layer-split` (экономия GPU-памяти под DSA-кеш на PD-prefill-воркере) или когда батч содержит последовательности короче `2 * cp_size` и `zigzag` для них просто не применится.
+- `zigzag` — умолчание здравого смысла для MLA-моделей и всего, где важна равномерность нагрузки при причинной маске, и единственный вариант для MiMo V2. Он же единственный, совместимый с breakable-графом prefill. Исключения: DeepSeek V3.2 его отвергает, DeepSeek-V4 принимает только на NPU.
+- `interleave` — для DeepSeek V3.2 и для DeepSeek-V4 вне NPU (там это единственный вариант); когда нужен `--enable-dsa-cache-layer-split` (экономия GPU-памяти под DSA-кеш на PD-prefill-воркере) или когда батч содержит последовательности короче `2 * cp_size` и `zigzag` для них просто не применится.
 - Не менять стратегию «на пробу» между перезапусками в одной установке: за ней тянется целый набор автоматических override'ов (`ep_size`, `moe_a2a_backend`, требование `dp_size == 1`), и сравнение получится не о стратегии.
 - Не задавать без `--enable-prefill-cp`: аргумент примут, но `init_cp_strategy` вернет `None`.
 
@@ -99,7 +100,8 @@ cp1: token1, token5, token9,  …
 
 - `--enable-prefill-cp`: обязательная пара в обе стороны.
 - `--attn-cp-size`: определяет число блоков (`2 * cp_size` у `zigzag`) и порог применимости.
-- `--dp-size`: `interleave` для DSA требует `dp_size == 1`.
+- `--dp-size`: `interleave` для DSA требует `dp_size == 1`; DeepSeek-V4 вне NPU требует `dp_size == 1` при любой стратегии.
+- `--language-only` / `--language-model-only`: один из них обязателен для prefill CP у мультимодального MiMo V2.
 - `--moe-a2a-backend` / `--ep-size`: под DSA-моделью с `zigzag` переписываются автоматически в `deepep` и `tp_size`.
 - `--enable-dsa-cache-layer-split`: требует именно `interleave`.
 - `--attention-backend`: под CP поддерживаются только `fa3`, `fa4`, `flashinfer`, `dsa`, `trtllm_mha`.
@@ -111,8 +113,10 @@ cp1: token1, token5, token9,  …
 - `ValueError: --cp-strategy must be set when --enable-prefill-cp is enabled.` — стратегия не задана.
 - `AssertionError: interleave DSA CP does not support DP attention.` — при `interleave` нужен `--dp-size 1`.
 - `ValueError` при `--enable-dsa-cache-layer-split` без `--enable-prefill-cp --cp-strategy interleave` — для разделения DSA-кеша нужна стратегия `interleave`.
-- `ValueError: MiMo V2 CP-v2 only supports --cp-strategy zigzag.`
-- `ValueError: DeepSeekV4 only supports interleave CP strategy, got zigzag` — обратное ограничение для DeepSeek-V4.
+- `ValueError: MiMo V2 prefill CP only supports --cp-strategy zigzag.` — у MiMo V2 задан `interleave` или стратегия не задана.
+- `ValueError: MiMo V2 prefill CP only supports text inference; add --language-only.` — мультимодальный MiMo V2 под prefill CP.
+- `ValueError: DeepSeek V3.2 prefill CP does not support --cp-strategy zigzag; use interleave.` — обратное ограничение для DeepSeek V3.2.
+- `ValueError: DeepSeekV4 zigzag CP requires the NPU backend; the CUDA backend reindexes with interleave order.` — `zigzag` для DeepSeek-V4 вне NPU; `DeepSeekV4 only supports interleave/zigzag CP strategy, got None` — стратегия для DeepSeek-V4 не задана.
 - CP «не срабатывает» на коротких запросах — ожидаемо: `can_apply` отсеивает последовательности короче порога стратегии.
 - Что смотреть в логе: `cp_strategy=` в дампе `server_args=`, предупреждения `zigzag DSA CP requires moe_dense_tp_size=1, moe_a2a_backend=deepep, ep_size=tp_size, batch_size=1.` и `Enabled DSA context parallel: strategy=…`.
 
@@ -138,3 +142,6 @@ python -m sglang.launch_server --model-path deepseek-ai/DeepSeek-V3.2-Exp --tens
 - `sglang/python/sglang/srt/arg_groups/overrides.py`
 - `sglang/python/sglang/srt/arg_groups/deepseek_v4_hook.py`
 - `sglang/python/sglang/srt/arg_groups/parallel_hook.py`
+- `sglang/python/sglang/srt/arg_groups/model_overrides/deepseek_v2.py`
+- `sglang/python/sglang/srt/arg_groups/model_hook.py`
+- `sglang/python/sglang/srt/environ.py`
