@@ -215,6 +215,41 @@ test("summarizeInstanceLog parses per-device memory layout from buffer lines", a
   }
 });
 
+test("summarizeInstanceLog counts the MoE expert cache as device compute", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
+  const logPath = join(dir, "llama-server.log");
+  try {
+    writeFileSync(
+      logPath,
+      [
+        "llama_model_load:        CUDA0 model buffer size =  3580.25 MiB",
+        "llama_context:            CUDA0 compute buffer size =   256.00 MiB",
+        "impl:      CUDA0 MoE cache size =  1024.00 MiB for 20480.00 MiB of host experts",
+        "llama_kv_cache_init: KV self size =  512.00 MiB",
+      ].join("\n"),
+    );
+
+    const summary = await summarizeInstanceLog({
+      kind: "llama-server",
+      instanceId: "test-instance",
+      runtime: runtime(logPath),
+    });
+    const cuda = summary.memoryLayout.entries.find(
+      (entry) => entry.label === "CUDA0",
+    );
+
+    assert.equal(cuda?.computeBytes, (256 + 1024) * 1024 * 1024);
+    assert.equal(cuda?.otherBytes, 0);
+    assert.equal(summary.memoryLayout.otherBytes, 0);
+    assert.equal(
+      summary.memoryLayout.totalBytes,
+      Math.round((3580.25 + 256 + 1024) * 1024 * 1024),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("summarizeInstanceLog parses projected host memory when exact buffers are absent", async () => {
   const dir = mkdtempSync(join(tmpdir(), "arriero-log-summary-"));
   const logPath = join(dir, "llama-server.log");

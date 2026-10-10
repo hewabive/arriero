@@ -20,7 +20,7 @@ import {
   splitCsvItems,
 } from "./instance-resources.js";
 
-export const MEMORY_ESTIMATOR_VERSION = 5;
+export const MEMORY_ESTIMATOR_VERSION = 6;
 
 const F32_BYTES = 4;
 const KV_PAD = 256;
@@ -278,6 +278,9 @@ const INPUT_TENSOR_PATTERN = /^(token_embd|per_layer_token_embd)\b/;
 const OUTPUT_TENSOR_PATTERN = /^(output|output_norm)\b/;
 const MLA_PATTERN = /attn_(kv_a_mqa|kv_b|k_b|v_b)/;
 const RECURRENT_PATTERN = /(ssm_|linear_attn|time_mix|conv1d|shortconv)/;
+const MOE_CACHE_EXPERT_PATTERN =
+  /^blk\.(\d+)\.(ffn_(?:gate_up|gate|up|down)_exps)\./;
+const MIB_BYTES = 1024 * 1024;
 
 function tensorLayerIndex(name: string): number | null {
   const match = LAYER_PATTERN.exec(name);
@@ -411,6 +414,117 @@ type PoolAccumulator = {
   computeBytes: number;
   overheadBytes: number;
 };
+
+type MoeCacheDevice = {
+  hostExpertBytes: number;
+  extraSlotBytes: Map<string, number>;
+};
+
+type MoeCacheResult =
+  | { kind: "rejected"; reason: string }
+  | { kind: "disabled" }
+  | {
+      kind: "allocated";
+      bytesByPool: Map<string, number>;
+      hostExpertBytes: number;
+      splitByFreeMemory: boolean;
+    };
+
+function moeCacheBudgetBytes(args: MemoryEstimateArgs): number {
+  const mibValue = argNumber(args, ["--moe-cache-mib"]);
+  return mibValue !== null && mibValue > 0
+    ? Math.floor(mibValue) * MIB_BYTES
+    : 0;
+}
+
+function estimateMoeCache(
+  input: MemoryEstimateInput,
+  placement: Placement,
+  layerAll: number,
+  splitMode: string,
+  budgetBytes: number,
+): MoeCacheResult {
+  const gpuPools = gpuPoolsSorted(input.pools);
+  if (gpuPools.length === 0) {
+    return { kind: "rejected", reason: "MoE cache requires a GPU backend" };
+  }
+  if (splitMode === "tensor") {
+    return {
+      kind: "rejected",
+      reason: "MoE cache does not support tensor parallelism",
+    };
+  }
+  const expertTensors = input.tensors.tensors.flatMap((tensor) => {
+    const match = MOE_CACHE_EXPERT_PATTERN.exec(tensor.name);
+    return match ? [{ tensor, layer: Number(match[1]), role: match[2]! }] : [];
+  });
+  if (expertTensors.length === 0) {
+    return { kind: "rejected", reason: "MoE cache requires a MoE model" };
+  }
+
+  const gpuPoolIds = new Set(gpuPools.map((pool) => pool.id));
+  const devices = new Map<string, MoeCacheDevice>();
+  for (const { tensor, layer, role } of expertTensors) {
+    const layerPool = placement.layerDevice(layer);
+    if (
+      !gpuPoolIds.has(layerPool) ||
+      deviceForWeightTensor(tensor.name, placement, layerAll) !==
+        placement.hostPoolId
+    ) {
+      continue;
+    }
+    const device = devices.get(layerPool) ?? {
+      hostExpertBytes: 0,
+      extraSlotBytes: new Map<string, number>(),
+    };
+    device.hostExpertBytes += tensor.bytes;
+    const expertCount = tensor.dims[2] ?? 1;
+    const expertBytes = Math.ceil(tensor.bytes / Math.max(expertCount, 1));
+    device.extraSlotBytes.set(
+      role,
+      Math.max(device.extraSlotBytes.get(role) ?? 0, expertBytes),
+    );
+    devices.set(layerPool, device);
+  }
+  if (devices.size === 0) {
+    return { kind: "disabled" };
+  }
+
+  const tensorSplitSet =
+    argRaw(input.args, ["--tensor-split", "-ts"]) !== undefined;
+  const split = parseTensorSplit(input.args, gpuPools.length);
+  const shareOf = (poolId: string) =>
+    tensorSplitSet
+      ? (split[gpuPools.findIndex((pool) => pool.id === poolId)] ?? 0)
+      : 1;
+  let shareSum = 0;
+  for (const poolId of devices.keys()) {
+    shareSum += shareOf(poolId);
+  }
+  const bytesByPool = new Map<string, number>();
+  let hostExpertBytes = 0;
+  for (const [poolId, device] of devices) {
+    const share = shareSum > 0 ? shareOf(poolId) / shareSum : 1 / devices.size;
+    let extraBytes = 0;
+    for (const bytes of device.extraSlotBytes.values()) {
+      extraBytes += bytes;
+    }
+    bytesByPool.set(
+      poolId,
+      Math.min(
+        Math.floor(budgetBytes * share),
+        device.hostExpertBytes + extraBytes,
+      ),
+    );
+    hostExpertBytes += device.hostExpertBytes;
+  }
+  return {
+    kind: "allocated",
+    bytesByPool,
+    hostExpertBytes,
+    splitByFreeMemory: !tensorSplitSet && devices.size > 1,
+  };
+}
 
 function emptyAccumulator(): PoolAccumulator {
   return { weightsBytes: 0, kvBytes: 0, computeBytes: 0, overheadBytes: 0 };
@@ -764,6 +878,40 @@ export function estimateInstanceMemory(
     incomplete(
       "Multi-GPU layer placement for weights and KV is modeled, but llama.cpp scheduler scratch and pipeline-parallel buffers are backend-dependent across devices; per-pool compute memory is incomplete.",
     );
+  }
+
+  const moeCacheBudget = moeCacheBudgetBytes(input.args);
+  if (moeCacheBudget > 0) {
+    const moeCache = estimateMoeCache(
+      input,
+      placement,
+      main.layerAll,
+      splitMode,
+      moeCacheBudget,
+    );
+    if (moeCache.kind === "rejected") {
+      incomplete(
+        `--moe-cache-mib is set, but llama.cpp refuses to create the context for this placement ("${moeCache.reason}"); the instance will not start until the flag is removed.`,
+      );
+    } else if (moeCache.kind === "disabled") {
+      warnings.push(
+        "--moe-cache-mib is set, but no GPU-assigned layer keeps all of its experts in host memory, so llama.cpp disables the MoE cache and allocates nothing for it.",
+      );
+    } else {
+      let cacheBytes = 0;
+      for (const [poolId, bytes] of moeCache.bytesByPool) {
+        ensure(poolId).computeBytes += bytes;
+        cacheBytes += bytes;
+      }
+      warnings.push(
+        `MoE expert cache: ~${mib(cacheBytes)} MiB of device memory for ~${mib(moeCache.hostExpertBytes)} MiB of host experts, counted under compute; llama.cpp rounds it down to whole expert slots.`,
+      );
+      if (moeCache.splitByFreeMemory) {
+        incomplete(
+          "The MoE cache budget is split across GPUs in proportion to their free memory at startup when --tensor-split is unset; the estimate divides it evenly.",
+        );
+      }
+    }
   }
 
   const flashModeForcedByArgs =

@@ -1689,3 +1689,133 @@ test("known specialized cache architectures fail confidence closed", () => {
     );
   }
 });
+
+function moeTable(): GgufTensorTable {
+  return syntheticTable([
+    f16Tensor("blk.0.ffn_gate_exps.weight", [8, 16, 4]),
+    f16Tensor("blk.0.ffn_up_exps.weight", [8, 16, 4]),
+    f16Tensor("blk.0.ffn_down_exps.weight", [16, 8, 4]),
+    f16Tensor("blk.1.ffn_gate_exps.weight", [8, 16, 4]),
+    f16Tensor("blk.1.ffn_up_exps.weight", [8, 16, 4]),
+    f16Tensor("blk.1.ffn_down_exps.weight", [16, 8, 4]),
+  ]);
+}
+
+const EXPERT_TENSOR_BYTES = 8 * 16 * 4 * 2;
+const GPU_POOLS = [
+  { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },
+  { id: "host", kind: "host" as const },
+];
+const MOE_ARGS = {
+  "--n-gpu-layers": 99,
+  "--cpu-moe": true,
+  "--flash-attn": "off",
+  "--fit": "off",
+};
+
+function gpuCompute(estimate: ReturnType<typeof estimateInstanceMemory>) {
+  return estimate.pools.find((pool) => pool.poolId === "gpu0")?.computeBytes;
+}
+
+test("the MoE cache adds its budget to GPU compute, capped by host experts", () => {
+  const tensors = moeTable();
+  const base = estimateInstanceMemory({
+    tensors,
+    hparams: HPARAMS,
+    args: MOE_ARGS,
+    pools: GPU_POOLS,
+  });
+  const capped = estimateInstanceMemory({
+    tensors,
+    hparams: HPARAMS,
+    args: { ...MOE_ARGS, "--moe-cache-mib": 1024 },
+    pools: GPU_POOLS,
+  });
+
+  const hostExperts = 6 * EXPERT_TENSOR_BYTES;
+  const extraSlot = 3 * (EXPERT_TENSOR_BYTES / 4);
+  assert.equal(
+    (gpuCompute(capped) ?? 0) - (gpuCompute(base) ?? 0),
+    hostExperts + extraSlot,
+  );
+  assert.ok(
+    capped.warnings.some((warning) => /MoE expert cache/.test(warning)),
+  );
+});
+
+test("the MoE cache splits its budget by tensor split among GPUs with host experts", () => {
+  const pools = [
+    { id: "gpu0", kind: "gpu" as const, deviceIndex: 0 },
+    { id: "gpu1", kind: "gpu" as const, deviceIndex: 1 },
+    { id: "host", kind: "host" as const },
+  ];
+  const cacheDelta = (tensorSplit: string, blockCount: number) => {
+    const tensors = syntheticTable(
+      Array.from({ length: blockCount }, (_, layer) =>
+        f16Tensor(`blk.${layer}.ffn_up_exps.weight`, [1024, 1024, 8]),
+      ),
+    );
+    const hparams = { ...HPARAMS, blockCount };
+    const args = { ...MOE_ARGS, "--tensor-split": tensorSplit };
+    const base = estimateInstanceMemory({ tensors, hparams, args, pools });
+    const cached = estimateInstanceMemory({
+      tensors,
+      hparams,
+      args: { ...args, "--moe-cache-mib": 4 },
+      pools,
+    });
+    return (poolId: string) =>
+      (cached.pools.find((pool) => pool.poolId === poolId)?.computeBytes ?? 0) -
+      (base.pools.find((pool) => pool.poolId === poolId)?.computeBytes ?? 0);
+  };
+
+  const skewed = cacheDelta("3,1", 2);
+  assert.equal(skewed("gpu0"), 4 * 1024 * 1024);
+  assert.equal(skewed("gpu1"), 0);
+
+  const even = cacheDelta("1,1", 3);
+  assert.equal(even("gpu0"), 2 * 1024 * 1024);
+  assert.equal(even("gpu1"), 2 * 1024 * 1024);
+});
+
+test("the MoE cache is absent when no GPU layer keeps experts on the host", () => {
+  const estimate = estimateInstanceMemory({
+    tensors: moeTable(),
+    hparams: HPARAMS,
+    args: { ...MOE_ARGS, "--cpu-moe": false, "--moe-cache-mib": 1024 },
+    pools: GPU_POOLS,
+  });
+  const base = estimateInstanceMemory({
+    tensors: moeTable(),
+    hparams: HPARAMS,
+    args: { ...MOE_ARGS, "--cpu-moe": false },
+    pools: GPU_POOLS,
+  });
+
+  assert.equal(gpuCompute(estimate), gpuCompute(base));
+  assert.ok(
+    estimate.warnings.some((warning) => /disables the MoE cache/.test(warning)),
+  );
+});
+
+test("the MoE cache fails confidence closed where llama.cpp refuses it", () => {
+  const dense = estimateInstanceMemory({
+    tensors: syntheticTable(),
+    hparams: HPARAMS,
+    args: { ...MOE_ARGS, "--moe-cache-mib": 1024 },
+    pools: GPU_POOLS,
+  });
+  const cpuOnly = estimateInstanceMemory({
+    tensors: moeTable(),
+    hparams: HPARAMS,
+    args: { ...MOE_ARGS, "--moe-cache-mib": 1024 },
+    pools: HOST_POOLS,
+  });
+
+  for (const estimate of [dense, cpuOnly]) {
+    assert.equal(estimate.confidence, "low");
+    assert.ok(
+      estimate.warnings.some((warning) => /refuses to create/.test(warning)),
+    );
+  }
+});

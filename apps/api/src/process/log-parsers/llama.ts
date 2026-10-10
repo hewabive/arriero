@@ -249,7 +249,9 @@ function memoryFieldFromBufferKind(kind: string): MemoryByteField {
   const normalized = kind.toLowerCase();
   if (normalized === "model") return "modelBytes";
   if (normalized === "kv" || normalized === "rs") return "contextBytes";
-  if (normalized === "compute") return "computeBytes";
+  if (normalized === "compute" || normalized === "moe cache") {
+    return "computeBytes";
+  }
   if (normalized === "output") return "outputBytes";
   if (normalized === "lora") return "adapterBytes";
   return "otherBytes";
@@ -276,7 +278,7 @@ function parseProjectedHostMemory(lines: string[]) {
 function parseMemoryLayout(lines: string[]): InstanceMemoryLayout {
   const placements = new Map<string, InstanceMemoryPlacement>();
   const bufferPattern =
-    /:\s+(.+?)\s+(model|KV|RS|output|compute|LoRA)\s+buffer size\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*MiB\b/i;
+    /:\s+(.+?)\s+(?:(model|KV|RS|output|compute|LoRA)\s+buffer|(MoE cache))\s+size\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*MiB\b/i;
   const projected = parseProjectedHostMemory(lines);
 
   for (const line of lines) {
@@ -286,8 +288,8 @@ function parseMemoryLayout(lines: string[]): InstanceMemoryLayout {
     }
 
     const label = match[1]!.trim().replace(/\s+/g, " ");
-    const field = memoryFieldFromBufferKind(match[2]!);
-    const bytes = Math.round(Number(match[3]) * MIB);
+    const field = memoryFieldFromBufferKind((match[2] ?? match[3])!);
+    const bytes = Math.round(Number(match[4]) * MIB);
     if (!label || !Number.isFinite(bytes) || bytes < 0) {
       continue;
     }

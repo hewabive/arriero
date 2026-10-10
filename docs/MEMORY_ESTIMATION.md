@@ -171,6 +171,15 @@ positive slot count leaves KV non-unified unless
   detects `minimax-m3`, `deepseek32`/`glm-dsa`, and `deepseek4` and returns
   `low` with an architecture-specific warning until a full formula is
   hardware-qualified.
+- **MoE expert cache** — `--moe-cache-mib N` adds a device buffer that llama.cpp
+  books as context memory; the estimator counts it under compute on each GPU
+  pool that owns a layer whose experts all stay on the host. The budget is
+  shared among those pools by `--tensor-split` (llama.cpp uses startup free
+  memory without it, so the even split the estimator uses returns `low`) and
+  capped at that pool's host expert bytes plus one extra slot per expert
+  tensor. Placements llama.cpp rejects — no GPU, a dense model,
+  `--split-mode tensor` — return `low` with a will-not-start warning. The log
+  validation reads the matching `MoE cache size = … MiB` line as compute.
 - **Compute** — the logits projection, `n_vocab * n_ubatch * 4`, plus activation
   buffers sized from the largest embedding/FFN expansion width. Non-causal
   encoders and classifier heads omit decoder logits and use their activation
