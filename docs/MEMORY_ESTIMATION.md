@@ -9,7 +9,9 @@ directly as an instance's declared footprint.
 
 For vLLM, the `vllm-gpu-util` strategy uses the engine's reservation contract
 instead of inspecting model tensors: each selected GPU draw is
-`--gpu-memory-utilization` times that pool's capacity. The argument must be
+`--gpu-memory-utilization` (or its `--device-memory-utilization` alias, which
+loses to the primary name when both are set, as on vLLM's command line) times
+that pool's capacity. The argument must be
 explicit because its upstream default is version-dependent (`0.9` in older
 releases and `0.92` in vLLM 0.26.0). GPU order comes from
 `CUDA_VISIBLE_DEVICES`, limited by `--tensor-parallel-size`. The ratio is

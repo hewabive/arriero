@@ -3,7 +3,7 @@ schema: 1
 engine: vllm
 primaryName: "--gpu-memory-utilization"
 title: "--gpu-memory-utilization"
-summary: Доля полной памяти устройства, которую инстанс vLLM резервирует под веса, активации, CUDA graphs и KV-cache. Единственная ручка, которой регулируется размер KV-cache в штатном режиме, и обязательный аргумент для оценки памяти в arriero; алиас `--device-memory-utilization` оценщик arriero не распознаёт.
+summary: Доля полной памяти устройства, которую инстанс vLLM резервирует под веса, активации, CUDA graphs и KV-cache. Единственная ручка, которой регулируется размер KV-cache в штатном режиме, и обязательный аргумент для оценки памяти в arriero (под любым из двух имен).
 group: CacheConfig
 related:
   - --kv-cache-memory-bytes
@@ -73,7 +73,7 @@ installs, this value controls the corresponding device memory utilization.
 
 ## Когда использовать
 
-- Всегда задавайте явно на управляемом сервере: дефолт зависит от версии, а arriero-оценка памяти (`vllm-gpu-util`) отказывается считать draw без явного значения — см. `docs/MEMORY_ESTIMATION.md` (документ arriero). Пишите именно `--gpu-memory-utilization`: оценщик ищет аргумент по этому имени и алиас `--device-memory-utilization` не видит.
+- Всегда задавайте явно на управляемом сервере: дефолт зависит от версии, а arriero-оценка памяти (`vllm-gpu-util`) отказывается считать draw без явного значения — см. `docs/MEMORY_ESTIMATION.md` (документ arriero). Оценщик принимает и алиас `--device-memory-utilization`; если в инстансе заданы оба, он берет `--gpu-memory-utilization` — как и vLLM, которому arriero передает флаги в алфавитном порядке, так что основное имя оказывается в командной строке последним.
 - Повышайте, когда в логе видны вытеснения (preemption) и низкий `Maximum concurrency`: KV-cache — единственное, что растет от повышения.
 - Понижайте, когда на карте живет что-то еще (второй инстанс, дисплей, чужой процесс) или когда старт падает на нехватке свободной памяти.
 - Не используйте как способ «зарезервировать VRAM на будущее»: память резервируется реально и сразу, при `1.0` не остается запаса на фрагментацию аллокатора и внешние аллокации драйвера.
@@ -101,7 +101,7 @@ installs, this value controls the corresponding device memory utilization.
 - **Симптом:** `To serve at least one request with the model's max seq len (N), (X GiB KV cache is needed, which is larger than the available KV cache memory (Y GiB). Based on the available memory, the estimated maximum model length is M.` **Причина:** KV-cache не вмещает даже один запрос полной длины. **Лечение:** взять предложенное `M` как `--max-model-len` либо повысить utilization.
 - **Симптом:** частые preemption и просадка throughput. **Проверка:** строка `GPU KV cache size: N tokens, Maximum concurrency for M tokens per request: X.XXx` и `GPU KV cache usage` в периодическом логе. **Лечение:** повысить utilization или снизить `--max-num-seqs`.
 - **Подтверждение принятого значения:** `Available KV cache memory: X GiB` (info) и подробная строка `Free memory on device (...). Desired GPU memory utilization is (0.9, X GiB). Actual usage is ... for consumed memory (weights + non-torch), ... for peak activation, and ... for CUDAGraph memory.` В ней же движок печатает готовое значение для перехода на ручной режим.
-- **Симптом (arriero):** оценка памяти инстанса не считается. **Причина:** `--gpu-memory-utilization` не задан явно — оценщик отказывается угадывать версионно-зависимый дефолт; доля, заданная алиасом `--device-memory-utilization`, для него тоже не существует. **Лечение:** задать значение под основным именем в аргументах инстанса и пересчитать оценку.
+- **Симптом (arriero):** оценка памяти инстанса не считается. **Причина:** `--gpu-memory-utilization` не задан явно — оценщик отказывается угадывать версионно-зависимый дефолт. **Лечение:** задать значение (под основным именем или алиасом `--device-memory-utilization`) в аргументах инстанса и пересчитать оценку.
 
 ## Примеры
 

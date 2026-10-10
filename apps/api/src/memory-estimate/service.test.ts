@@ -236,6 +236,17 @@ test("vllm estimator reserves utilization on each tensor-parallel GPU", async ()
   resetResourcePoolsCache();
 });
 
+test("vllm estimator accepts the device-memory-utilization alias", async () => {
+  const result = await estimateMemory({
+    kind: "vllm",
+    args: { "--device-memory-utilization": 0.5 },
+    positionalArgs: ["Qwen/Qwen3-8B"],
+  });
+  if (!result.ok) {
+    assert.doesNotMatch(result.reason, /gpu-memory-utilization/);
+  }
+});
+
 test("vllm estimator refuses a version-dependent implicit utilization", async () => {
   const result = await estimateMemory({
     kind: "vllm",

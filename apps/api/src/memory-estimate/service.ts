@@ -14,6 +14,7 @@ import {
   DRAFT_MODEL_ARG_KEYS,
   MMPROJ_ARG_KEYS,
   MemoryEstimateSchema,
+  VLLM_MEMORY_UTILIZATION_KEYS,
   VLLM_TENSOR_PARALLEL_KEYS,
   type CudaVisibleDevices,
   type EngineEstimatorId,
@@ -265,7 +266,7 @@ function estimateVllmGpuUtil(input: {
         "vLLM CPU memory remains manual; the GPU utilization estimator is not applicable.",
     };
   }
-  const utilization = argNumber(input.args, ["--gpu-memory-utilization"]);
+  const utilization = argNumber(input.args, VLLM_MEMORY_UTILIZATION_KEYS);
   if (utilization === null) {
     return {
       ok: false,

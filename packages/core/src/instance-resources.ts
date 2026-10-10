@@ -31,6 +31,10 @@ export const SGLANG_TENSOR_PARALLEL_KEYS = [
 ];
 
 export const VLLM_TENSOR_PARALLEL_KEYS = ["--tensor-parallel-size", "-tp"];
+export const VLLM_MEMORY_UTILIZATION_KEYS = [
+  "--gpu-memory-utilization",
+  "--device-memory-utilization",
+];
 
 export function argNumber(args: LlamaArgRecord, keys: string[]): number | null {
   const value = argRaw(args, keys);
