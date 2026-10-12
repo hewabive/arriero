@@ -4,6 +4,14 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 
 import { deriveStatus, getInstanceHealthSummary } from "./health-summary.js";
+import {
+  buildLaunchSnapshot,
+  serializeLaunchSnapshot,
+} from "./launch-snapshot.js";
+import {
+  createProcessRun,
+  deleteProcessRunsForInstance,
+} from "./runs-repository.js";
 
 function instance(input: Partial<Instance>): Instance {
   return {
@@ -144,4 +152,68 @@ test("scheduling-mode health summary skips the start-time rpc-worker readiness p
 
   assert.equal(hasRpcIssue(diagnostics), true);
   assert.equal(hasRpcIssue(scheduling), false);
+});
+
+test("health summary exposes the configured concurrency limit for each engine", async () => {
+  const cases: Array<{
+    kind: Instance["kind"];
+    args: Instance["args"];
+    expected: number | null;
+  }> = [
+    { kind: "llama-server", args: { "-np": 4 }, expected: 4 },
+    {
+      kind: "vllm",
+      args: { "--max-num-seqs": 64, "--max-num-active-seqs": "16" },
+      expected: 16,
+    },
+    { kind: "sglang", args: { "--max-running-requests": "8" }, expected: 8 },
+    {
+      kind: "ktransformers",
+      args: { "--max-running-requests": 2 },
+      expected: 2,
+    },
+    { kind: "rpc-worker", args: {}, expected: null },
+    { kind: "vllm", args: {}, expected: null },
+    { kind: "sglang", args: { "--max-running-requests": 0 }, expected: null },
+    {
+      kind: "llama-server",
+      args: { "--models-preset": "/tmp/models.ini", "--parallel": 8 },
+      expected: null,
+    },
+  ];
+  for (const { kind, args, expected } of cases) {
+    const summary = await getInstanceHealthSummary(instance({ kind, args }), {
+      checkStartAvailability: false,
+    });
+    assert.equal(
+      summary.configuredLimit,
+      expected,
+      `${kind}: ${JSON.stringify(args)}`,
+    );
+  }
+});
+
+test("health summary withholds the configured limit when the launch config has drifted", async (t) => {
+  const original = instance({
+    name: "configured-limit-drift",
+    kind: "vllm",
+    status: "stopping",
+    args: { "--max-num-seqs": 4 },
+  });
+  createProcessRun({
+    instanceId: original.name,
+    pid: null,
+    status: "stopping",
+    startedAt: new Date().toISOString(),
+    logPath: "",
+    rawLogPath: null,
+    launchSnapshot: serializeLaunchSnapshot(buildLaunchSnapshot(original)),
+  });
+  t.after(() => deleteProcessRunsForInstance(original.name));
+  const summary = await getInstanceHealthSummary({
+    ...original,
+    args: { "--max-num-seqs": 8 },
+  });
+  assert.equal(summary.configDrift, true);
+  assert.equal(summary.configuredLimit, null);
 });

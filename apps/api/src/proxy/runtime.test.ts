@@ -1,5 +1,6 @@
 import {
   ApiProxyInflightRequestSchema,
+  InstanceHealthSummarySchema,
   type ApiEndpointRecord,
   type ApiProxyRuntimeMetadataRecord,
   type ApiProxyTargetRecord,
@@ -196,6 +197,7 @@ function health(
       },
       updatedAt: "2026-05-30T10:00:00.000Z",
     },
+    configuredLimit: null,
     promptCache: null,
     configDrift: false,
     reasoningTemplateIssue: null,
@@ -941,6 +943,108 @@ test("available slots support explicit Python engine limits and leave unknown or
         `${kind}: ${mode}`,
       );
     }
+  }
+});
+
+test("remote Python engine slots use the serialized health limit across aliases and queued demand", () => {
+  const summary = health();
+  summary.probe.llama = null;
+  summary.configuredLimit = 4;
+  const remoteHealth = InstanceHealthSummarySchema.parse(
+    JSON.parse(JSON.stringify(summary)),
+  );
+  const input = {
+    targets: [
+      target({ id: "remote-1", endpointId: "remote:ny:remote-a" }),
+      target({ id: "remote-2", endpointId: "remote:ny:remote-a", model: null }),
+    ],
+    endpoints: [remoteEndpoint()],
+    instances: [],
+    healthByInstanceId: new Map<string, InstanceHealthSummary>(),
+    remoteManagedTargetIds: new Set(["remote-1", "remote-2"]),
+    remoteHealthByTargetId: new Map([
+      ["remote-1", remoteHealth],
+      ["remote-2", remoteHealth],
+    ]),
+    inflightByTargetId: new Map([
+      ["remote-1", [pendingRequest("active")]],
+      ["remote-2", [pendingRequest("queued", "queued")]],
+    ]),
+    continuationHoldTargetIds: ["remote-2"],
+  };
+  const snapshot = availabilitySnapshot(input);
+  assert.deepEqual(
+    snapshot.targets.map((item) => [
+      item.availableSlots,
+      item.heldSlots,
+      item.slotPool,
+    ]),
+    [
+      [1, 1, "remote:ny:remote-a"],
+      [1, 1, "remote:ny:remote-a"],
+    ],
+  );
+  const full = availabilitySnapshot({
+    ...input,
+    continuationHoldTargetIds: ["remote-1", "remote-2", "remote-2"],
+  });
+  assert.deepEqual(
+    full.targets.map((item) => item.availableSlots),
+    [0, 0],
+  );
+});
+
+test("remote configured capacity stays unknown for old peers, unset limits, drift, and routers", () => {
+  for (const mode of ["old-peer", "unset", "drift", "router"] as const) {
+    const summary = health();
+    summary.configuredLimit = 4;
+    if (mode === "router") {
+      summary.probe.llama!.slots = endpoint(null, false);
+      summary.probe.llama!.props = endpoint({ role: "router" });
+    } else {
+      summary.probe.llama = null;
+    }
+    const remoteHealth = InstanceHealthSummarySchema.parse(
+      JSON.parse(
+        JSON.stringify({
+          ...summary,
+          configuredLimit:
+            mode === "old-peer" ? undefined : mode === "unset" ? null : 4,
+          configDrift: mode === "drift",
+        }),
+      ),
+    );
+    if (mode === "old-peer") assert.equal(remoteHealth.configuredLimit, null);
+    const snapshot = availabilitySnapshot({
+      targets: [target({ endpointId: "remote:ny:remote-a" })],
+      endpoints: [remoteEndpoint()],
+      instances: [],
+      healthByInstanceId: new Map(),
+      remoteManagedTargetIds: new Set(["target-a"]),
+      remoteHealthByTargetId: new Map([["target-a", remoteHealth]]),
+    });
+    assert.equal(snapshot.targets[0]?.availableSlots, null, mode);
+  }
+});
+
+test("remote llama capacity probes and logs take precedence over the configured health limit", () => {
+  for (const source of ["slots", "props", "logs"] as const) {
+    const summary = slotHealth(4, 1);
+    summary.configuredLimit = 16;
+    if (source !== "slots") summary.probe.llama!.slots = endpoint(null, false);
+    if (source === "props")
+      summary.probe.llama!.props = endpoint({ total_slots: 4 });
+    if (source === "logs") summary.logSummary.slots = 4;
+    const snapshot = availabilitySnapshot({
+      targets: [target({ endpointId: "remote:ny:remote-a", model: null })],
+      endpoints: [remoteEndpoint()],
+      instances: [],
+      healthByInstanceId: new Map(),
+      remoteManagedTargetIds: new Set(["target-a"]),
+      remoteHealthByTargetId: new Map([["target-a", summary]]),
+      inflightByTargetId: new Map([["target-a", [pendingRequest("a")]]]),
+    });
+    assert.equal(snapshot.targets[0]?.availableSlots, 3, source);
   }
 });
 

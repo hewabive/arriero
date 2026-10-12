@@ -1,4 +1,5 @@
 import {
+  parseInstanceConcurrencyLimit,
   type ApiProxyServeRequest,
   type ApiProxyTargetRecord,
   type FleetNode,
@@ -20,10 +21,7 @@ import {
 import { getApiEndpointById } from "./endpoints.js";
 import { externalEndpointTarget } from "./external-target.js";
 import { resolvePassthroughModel } from "./passthrough.js";
-import {
-  buildDomainAdmissionDecider,
-  parseInstanceConcurrencyLimit,
-} from "./domain-admission.js";
+import { buildDomainAdmissionDecider } from "./domain-admission.js";
 import {
   attachLeaseRelease,
   computeDomainCoordinator,

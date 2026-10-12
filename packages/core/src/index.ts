@@ -13,6 +13,7 @@ export * from "./proxy/token-scale.js";
 export * from "./resources.js";
 export * from "./llama.js";
 export * from "./instance.js";
+export * from "./instance-concurrency.js";
 export * from "./instance-http.js";
 export * from "./instance-model.js";
 export * from "./gguf-split.js";

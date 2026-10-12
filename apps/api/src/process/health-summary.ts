@@ -1,5 +1,7 @@
 import {
   engineDescriptor,
+  isRouterInstance,
+  parseInstanceConcurrencyLimit,
   type Instance,
   type InstanceHealthActions,
   type InstanceHealthSummary,
@@ -397,6 +399,10 @@ export async function getInstanceHealthSummary(
     preflight,
     probe,
     logSummary,
+    configuredLimit:
+      configDrift || isRouterInstance(instance)
+        ? null
+        : (parseInstanceConcurrencyLimit(instance) ?? null),
     promptCache: promptCacheTracker.get(instance.name),
     configDrift,
     reasoningTemplateIssue: instanceReasoningTemplateIssue(instance.name),

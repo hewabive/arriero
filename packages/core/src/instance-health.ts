@@ -145,6 +145,7 @@ export const InstanceHealthSummarySchema = z.object({
   preflight: ProcessPreflightResultSchema,
   probe: InstanceProbeSchema,
   logSummary: InstanceLogSummarySchema,
+  configuredLimit: z.number().int().positive().nullable().default(null),
   promptCache: PromptCacheStateSchema.nullable().default(null),
   configDrift: z.boolean().default(false),
   reasoningTemplateIssue: ReasoningTemplateIssueSchema.nullable().default(null),

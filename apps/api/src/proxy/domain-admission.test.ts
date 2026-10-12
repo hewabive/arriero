@@ -1,5 +1,6 @@
 import {
   ApiProxySchedulerPlanRequestSchema,
+  parseInstanceConcurrencyLimit,
   type ApiProxySchedulerPlanRequest,
 } from "@arriero/core";
 import assert from "node:assert/strict";
@@ -7,7 +8,6 @@ import { test } from "node:test";
 
 import {
   buildDomainAdmissionDecider,
-  parseInstanceConcurrencyLimit,
   parseInstanceParallelLimit,
 } from "./domain-admission.js";
 import type { DomainHolderView } from "./domain-coordinator.js";

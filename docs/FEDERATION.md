@@ -170,6 +170,14 @@ being masked as `stopped`. The output `instanceId` stays `null` for remote targe
 to avoid colliding with a same-named local instance in downstream local lookups
 (e.g. idle-maintenance draws).
 
+The summary also carries the nullable, engine-independent `configuredLimit`, computed by the owning
+node from its instance args through `parseInstanceConcurrencyLimit`. It supplies the slot-capacity
+fallback for remote vLLM, SGLang and KTransformers targets, after native llama slot probes and logs.
+The owner returns `null` for an unknown limit, configuration drift or a router instance; older peers
+that omit the field are read as `null`. Without native slot telemetry, available capacity subtracts
+only the demand observed by the entry node (including queued requests, continuation holds and the
+release cooldown), so traffic entering through another manager is not measured by this estimate.
+
 ### Remote-request telemetry depth
 
 The proxy extracts **rich live telemetry from native managed instances** —

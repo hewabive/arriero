@@ -2,6 +2,7 @@ import {
   apiProxyInflightPhaseEnded,
   instanceEndpointId,
   isRouterInstance,
+  parseInstanceConcurrencyLimit,
   type ApiProxyInflightRequest,
   type ApiProxyModelState,
   type ApiProxySlotAvailability,
@@ -10,7 +11,6 @@ import {
   type InstanceHealthSummary,
 } from "@arriero/core";
 
-import { parseInstanceConcurrencyLimit } from "./domain-admission.js";
 import type { ApiProxySlotActivity } from "./inflight.js";
 import { asObject } from "./json.js";
 import { apiProxyTargetInstanceName } from "./target-instance.js";
@@ -230,8 +230,9 @@ function availableTargetSlots(input: TargetSlotInput): number | null {
   if (props?.is_sleeping === true) return 0;
   const measured = measuredSlots(probes?.slots);
   const configuredLimit =
-    instance && !health.configDrift && !router
-      ? parseInstanceConcurrencyLimit(instance)
+    !health.configDrift && !router
+      ? (health.configuredLimit ??
+        (instance ? parseInstanceConcurrencyLimit(instance) : undefined))
       : undefined;
   const limit =
     measured?.total ??

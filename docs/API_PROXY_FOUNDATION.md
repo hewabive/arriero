@@ -152,8 +152,11 @@ endpoint-routed models, and external providers return `null`. Disabled models an
 loading, failed, or sleeping have zero immediately available slots.
 
 Capacity comes first from a valid llama `/slots` response, then `/props.total_slots`, the
-instance's logged slot count, or an explicit engine concurrency argument. Configuration drift
-disables the argument fallback; router presets do not supply a per-model fallback. Occupancy
+instance's logged slot count, or an explicit engine concurrency argument. The owning node publishes
+that argument-derived limit as `InstanceHealthSummary.configuredLimit`, so the same fallback works
+for federated vLLM, SGLang and KTransformers targets without a local `Instance` record. Missing limits
+and summaries from older peers default to `null`; local instances can still fall back to their args.
+Configuration drift disables the argument fallback; router presets do not supply a per-model fallback. Occupancy
 uses the larger of observed upstream processing slots and tracked active proxy requests,
 then subtracts queued proxy requests as already committed demand. Requests are grouped by slot
 pool: the instance, across all targets and public model names sharing it, including
@@ -194,8 +197,8 @@ Ended requests retained for display beyond the cooldown do not consume capacity.
 of the pool whose slots are counted — equal for every public model name and target drawing from
 it — so a client choosing several models at once (an arena pair) can tell when they draw from one
 pool. Both are `null` whenever `available_slots` is. Without native slot telemetry, this is an estimate based on
-traffic seen by this manager; remote engines without
-capacity telemetry remain unknown. The result shares the runtime snapshot cache and is advisory,
+traffic seen by this manager; remote engines without capacity telemetry or a reported configured
+limit remain unknown. The result shares the runtime snapshot cache and is advisory,
 not a reservation or a guarantee of scheduler admission. A background client can keep a soft
 reserve of one slot by choosing the model only when `available_slots > 1` and
 `queued_requests === 0`, using its fallback model when availability is `null`.
